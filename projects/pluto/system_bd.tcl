@@ -301,6 +301,9 @@ ad_connect axi_ad9361/l_clk counter_timestamp/CLK
 ad_connect rx_fir_decimator/valid_out_0 counter_timestamp/CE
 ad_connect counter_timestamp/Q cpack_timestamp/timestamp
 ad_connect counter_timestamp/Q upack_timestamp/timestamp
+# cpack_timestamp synchronizes this counter word into sys_cpu_clk before it
+# reaches the ARM-visible ADC GPIO status register (0x800000B8).
+ad_connect cpack_timestamp/timestamp_cpu axi_ad9361/up_adc_gpio_in
 
 ad_connect axi_ad9361/up_adc_gpio_out cpack_timestamp_every_slice/Din
 ad_connect cpack_timestamp_every_slice/Dout cpack_timestamp_every_concat/In0
@@ -463,4 +466,3 @@ ad_connect sys_cpu_resetn axi_ad9361_dac_dma/m_src_axi_aresetn
 ad_cpu_interrupt ps-13 mb-13 axi_ad9361_adc_dma/irq
 ad_cpu_interrupt ps-12 mb-12 axi_ad9361_dac_dma/irq
 ad_cpu_interrupt ps-11 mb-11 axi_spi/ip2intc_irpt
-
