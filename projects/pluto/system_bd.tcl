@@ -266,6 +266,10 @@ ad_ip_instance xlslice upack_timestamp_every_slice
 ad_ip_parameter upack_timestamp_every_slice CONFIG.DIN_WIDTH 32
 ad_ip_parameter upack_timestamp_every_slice CONFIG.DIN_FROM 31
 ad_ip_parameter upack_timestamp_every_slice CONFIG.DIN_TO 1
+ad_ip_instance xlslice upack_debug_select_slice
+ad_ip_parameter upack_debug_select_slice CONFIG.DIN_WIDTH 32
+ad_ip_parameter upack_debug_select_slice CONFIG.DIN_FROM 0
+ad_ip_parameter upack_debug_select_slice CONFIG.DIN_TO 0
 ad_ip_instance xlconcat upack_timestamp_every_concat
 ad_ip_parameter upack_timestamp_every_concat CONFIG.NUM_PORTS 2
 ad_ip_parameter upack_timestamp_every_concat CONFIG.IN0_WIDTH 31
@@ -311,8 +315,9 @@ ad_connect GND cpack_timestamp_every_concat/In1
 ad_connect cpack_timestamp_every_concat/dout cpack_timestamp/timestamp_every
 
 ad_connect axi_ad9361/up_dac_gpio_out upack_timestamp_every_slice/Din
+ad_connect axi_ad9361/up_dac_gpio_out upack_debug_select_slice/Din
 ad_connect upack_timestamp_every_slice/Dout upack_timestamp_every_concat/In0
-ad_connect GND upack_timestamp_every_concat/In1
+ad_connect upack_debug_select_slice/Dout upack_timestamp_every_concat/In1
 ad_connect upack_timestamp_every_concat/dout upack_timestamp/timestamp_every
 
 ad_connect axi_ad9361/l_clk cpack/clk
