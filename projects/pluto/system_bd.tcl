@@ -443,6 +443,40 @@ ad_cpu_interconnect 0x7C420000 axi_ad9361_dac_dma
 ad_cpu_interconnect 0x7C430000 axi_spi
 ad_cpu_interconnect 0x7C440000 axi_tdd_0
 
+# ---------------------------------------------------------------------------
+# tandem AGC: owns the four AD9361 CTRL_IN pins and steps RX1/RX2 gain together.
+# Lives in the l_clk (receive) domain; the AXI side is the processor domain and
+# every crossing between them is inside the block (TANDEM_AGC_V1_DESIGN.md §9).
+# ---------------------------------------------------------------------------
+create_bd_port -dir I -from 7 -to 0 tandem_detect
+create_bd_port -dir I -from 3 -to 0 tandem_ps_ctl_o
+create_bd_port -dir I -from 3 -to 0 tandem_ps_ctl_t
+create_bd_port -dir O -from 3 -to 0 tandem_ctl_o
+create_bd_port -dir O -from 3 -to 0 tandem_ctl_t
+
+set tandem_dir [file normalize [file join [file dirname [info script]] "../../../hdl-tandem"]]
+add_files -norecurse -fileset sources_1 [list \
+  "$tandem_dir/tandem_cdc_lib.v" \
+  "$tandem_dir/tandem_agc_core.v" \
+  "$tandem_dir/tandem_agc_axi.v"]
+update_compile_order -fileset sources_1
+
+create_bd_cell -type module -reference tandem_agc_axi i_tandem_agc
+# EVENTS=0 compiles out the event-capture path. Tandem gain control does not
+# depend on it, and the 7010 cannot hold both alongside RC17 -- see
+# hdl-tandem/reports/integration/FINDING.md for the five placement attempts.
+set_property CONFIG.EVENTS 1 [get_bd_cells i_tandem_agc]
+ad_connect axi_ad9361/l_clk        i_tandem_agc/l_clk
+ad_connect sys_cpu_resetn          i_tandem_agc/l_aresetn
+ad_connect counter_timestamp/Q     i_tandem_agc/sample_counter
+ad_connect tandem_detect           i_tandem_agc/detect_async
+ad_connect tandem_ps_ctl_o         i_tandem_agc/ps_ctl_o
+ad_connect tandem_ps_ctl_t         i_tandem_agc/ps_ctl_t
+ad_connect i_tandem_agc/ctl_o      tandem_ctl_o
+ad_connect i_tandem_agc/ctl_t      tandem_ctl_t
+ad_connect VCC                     i_tandem_agc/consumer_ready
+ad_cpu_interconnect 0x7C450000 i_tandem_agc
+
 ad_ip_parameter sys_ps7 CONFIG.PCW_USE_S_AXI_HP1 {1}
 ad_connect sys_cpu_clk sys_ps7/S_AXI_HP1_ACLK
 ad_connect axi_ad9361_adc_dma/m_dest_axi sys_ps7/S_AXI_HP1
