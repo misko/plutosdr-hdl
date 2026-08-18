@@ -469,6 +469,7 @@ set_property CONFIG.EVENTS 1 [get_bd_cells i_tandem_agc]
 ad_connect axi_ad9361/l_clk        i_tandem_agc/l_clk
 ad_connect sys_cpu_resetn          i_tandem_agc/l_aresetn
 ad_connect counter_timestamp/Q     i_tandem_agc/sample_counter
+ad_connect rx_fir_decimator/valid_out_0 i_tandem_agc/sample_valid
 ad_connect tandem_detect           i_tandem_agc/detect_async
 ad_connect tandem_ps_ctl_o         i_tandem_agc/ps_ctl_o
 ad_connect tandem_ps_ctl_t         i_tandem_agc/ps_ctl_t
