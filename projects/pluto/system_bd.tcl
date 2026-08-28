@@ -244,6 +244,12 @@ ad_ip_parameter axi_ad9361_adc_dma CONFIG.AXI_SLICE_DEST 0
 ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_2D_TRANSFER 0
 ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_DATA_WIDTH_SRC 64
 ad_ip_parameter axi_ad9361_adc_dma CONFIG.SYNC_TRANSFER_START {true}
+# Metadata captures add one 64-bit timestamp to the requested IQ payload.  The
+# largest supported frame is therefore (4,194,304 + 1) * 8 = 33,554,440 bytes.
+# The 24-bit default forces that buffer into multiple synchronized transfers,
+# inserting a new timestamp and dropping IQ at each segment boundary.  A
+# 26-bit length field keeps every supported metadata frame in one transfer.
+ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_LENGTH_WIDTH 26
 
 ad_add_decimation_filter "rx_fir_decimator" 8 2 1 {61.44} {61.44} \
                          "$ad_hdl_dir/library/util_fir_int/coefile_int.coe"
