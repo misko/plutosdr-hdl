@@ -243,6 +243,12 @@ ad_ip_parameter axi_ad9361_adc_dma CONFIG.AXI_SLICE_SRC 0
 ad_ip_parameter axi_ad9361_adc_dma CONFIG.AXI_SLICE_DEST 0
 ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_2D_TRANSFER 0
 ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_DATA_WIDTH_SRC 64
+# The largest supported dual-RX metadata buffer is (4194304 + one in-band
+# timestamp) * 8 bytes.  A 24-bit length field splits that transfer into three
+# synchronized SG entries; each later entry then starts on a fresh timestamp
+# and exposes that counter inside IQ.  Keep the whole 32 MiB frame in one DMA
+# transaction (26 bits also covers the kernel's 64 MiB block ceiling).
+ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_LENGTH_WIDTH 26
 ad_ip_parameter axi_ad9361_adc_dma CONFIG.SYNC_TRANSFER_START {true}
 
 ad_add_decimation_filter "rx_fir_decimator" 8 2 1 {61.44} {61.44} \
