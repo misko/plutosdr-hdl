@@ -332,6 +332,7 @@ ad_connect axi_ad9361/rst cpack/reset
 ad_connect sys_cpu_clk cpack_timestamp/dma_clk
 ad_connect sys_cpu_clk upack_timestamp/dma_clk
 ad_connect axi_ad9361/l_clk cpack_timestamp/adc_clk
+ad_connect axi_ad9361/rst cpack_timestamp/reset
 ad_connect axi_ad9361/l_clk upack_timestamp/dac_clk
 
 ad_connect axi_ad9361/adc_enable_i1 cpack/enable_2
