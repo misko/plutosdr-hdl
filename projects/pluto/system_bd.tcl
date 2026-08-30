@@ -453,7 +453,7 @@ ad_cpu_interconnect 0x7C440000 axi_tdd_0
 # ---------------------------------------------------------------------------
 # tandem AGC: owns the four AD9361 CTRL_IN pins and steps RX1/RX2 gain together.
 # Lives in the l_clk (receive) domain; the AXI side is the processor domain and
-# every crossing between them is inside the block (TANDEM_AGC_V1_DESIGN.md §9).
+# every crossing between them is inside the firmware-provided tandem block.
 # ---------------------------------------------------------------------------
 create_bd_port -dir I -from 7 -to 0 tandem_detect
 create_bd_port -dir I -from 3 -to 0 tandem_ps_ctl_o
@@ -469,9 +469,9 @@ add_files -norecurse -fileset sources_1 [list \
 update_compile_order -fileset sources_1
 
 create_bd_cell -type module -reference tandem_agc_axi i_tandem_agc
-# EVENTS=0 compiles out the event-capture path. Tandem gain control does not
-# depend on it, and the 7010 cannot hold both alongside RC17 -- see
-# hdl-tandem/reports/integration/FINDING.md for the five placement attempts.
+# The authoritative IIO gain timeline requires the event FIFO and the same
+# decimated-sample valid strobe used by the DMA-facing receive path.  Neither
+# connection is optional in a release build.
 set_property CONFIG.EVENTS 1 [get_bd_cells i_tandem_agc]
 ad_connect axi_ad9361/l_clk        i_tandem_agc/l_clk
 ad_connect sys_cpu_resetn          i_tandem_agc/l_aresetn
