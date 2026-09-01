@@ -279,9 +279,49 @@ tuples from two ordered jobs. Request ID, center index/timestamp, stored first-
 tap timestamp, lag order, coefficient generation, complex correlation,
 sliding energy, saturation, and every clean/error counter are checked.
 
-The composed core is still pre-ABI RTL. In particular, it does not yet contain
+The composed core is still pre-ABI RTL. In particular, it does not yet connect
 the exact normalized winner reducer, multi-bank modes, double-buffered result
 publication, AXI register file, or rate-parameterized 30/60 MS/s geometry.
+
+## Exact normalized winner reducer
+
+`starlink_pss_exact_reducer.v` consumes one strictly ordered 65-lag tuple job
+and selects the earliest maximum of the exact score `|C|^2/(Ex*Eh)`. In the
+single-bank tracking mode, `Eh` is constant across the job and is cancelled
+exactly; validation mode retains it. The implementation never divides and
+uses strict rational cross-products, so it neither rounds a score nor changes
+the first-wins tie rule.
+
+The Stage-15 bounds are checked before a tuple can win: each complex
+correlation component fits signed 39 bits, `Ex` fits 38 unsigned bits, and
+`Eh` fits 31 unsigned bits. These proofs reduce the exact datapath to a 77-bit
+numerator, a 69-bit denominator, and a 146-bit cross-product. Impossible
+values, nonpositive energies, or any saturation fail closed and increment
+separate invalid/bound counters. A malformed job creates one protocol-error
+episode and is drained through its last marker. The complete winner packet is
+held stable under output backpressure.
+
+The self-checking reducer test covers single-bank cancellation, validation
+with unequal `Eh`, exact ties, all-invalid jobs, legal near-bound values,
+explicit bound failures, output backpressure, and malformed-job recovery. Run
+the portable suite with `./run_tests.sh`. Run its Vivado 2022.2 OOC gate with:
+
+```sh
+./run_reducer_ooc.sh
+```
+
+The gate requires 100 MHz post-opt setup closure, clean methodology and timing
+coverage, zero DSP/BRAM inference, at most 1,600 Slice LUTs, and at most 1,700
+registers. The current local post-opt, unplaced result passes at 1,513 Slice
+LUTs, 1,649 registers, zero block RAM, zero DSP48E1s, and +1.470 ns setup
+slack. A naïve full-width implementation measured 2,118 LUTs and 2,757
+registers and was rejected rather than becoming the milestone baseline.
+
+The reducer result is not yet part of the composed-core OOC count below.
+Simply adding both independently synthesized totals would exceed the original
+2,500-LUT/2,000-register provisional milestone, so integration must be
+measured and the complete RX-only shell must establish the real device
+headroom before a hardware image is considered.
 
 ## Composed-core OOC gate
 

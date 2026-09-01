@@ -10,6 +10,13 @@ python3 tb/verify_scheduler_sliding_structure.py
 python3 tb/verify_frozen_fixture.py
 
 iverilog -g2012 -Wall \
+  -s tb_starlink_pss_exact_reducer \
+  -o build/starlink_pss_exact_reducer.vvp \
+  starlink_pss_exact_reducer.v \
+  tb/tb_starlink_pss_exact_reducer.sv
+vvp build/starlink_pss_exact_reducer.vvp
+
+iverilog -g2012 -Wall \
   -s tb_starlink_pss_candidate_scheduler \
   -o build/starlink_pss_candidate_scheduler.vvp \
   starlink_pss_async_fifo.v \

@@ -12,6 +12,7 @@ ASYNC_FIFO = ROOT / "starlink_pss_async_fifo.v"
 BRIDGE = ROOT / "starlink_pss_capture_bridge.v"
 SLIDING = ROOT / "starlink_pss_sliding_correlator.v"
 TRACKING = ROOT / "starlink_pss_tracking_core.v"
+REDUCER = ROOT / "starlink_pss_exact_reducer.v"
 
 
 def executable_verilog(path: Path) -> str:
@@ -36,6 +37,7 @@ def main() -> None:
     sliding_source = SLIDING.read_text()
     sliding = executable_verilog(SLIDING)
     tracking = executable_verilog(TRACKING)
+    reducer = executable_verilog(REDUCER)
 
     require(
         scheduler,
@@ -156,12 +158,34 @@ def main() -> None:
         label="tracking composition",
     )
 
+    require(
+        reducer,
+        (
+            "FIRST_LAG = -7'sd32",
+            "LAST_LAG = 7'sd32",
+            "reg [76:0] current_magnitude_squared",
+            "reg [68:0] current_denominator",
+            "reg [145:0] left_cross_product",
+            "correlation_bound_legal",
+            "energy_bound_legal",
+            "left_cross_product > compare_accumulator",
+            "square_multiplier_shift[37]",
+            "denominator_multiplier_shift[30]",
+            "compare_multiplier_shift[68]",
+            "o_result_score_numerator = winner_magnitude_squared",
+            "o_result_score_denominator = winner_denominator",
+        ),
+        label="exact rational reducer",
+    )
+    if "*" in reducer or re.search(r"\s/\s", reducer):
+        raise RuntimeError("exact reducer gained a multiply/divide operator")
+
     print(
         "SCHEDULER_SLIDING_STRUCTURE_PASS queue_payload_bits=160 "
         "small_async_fifo=1 command_memory=block descriptor_memory=distributed "
         "descriptor_payload_bits=161 capture_banks=2 "
         "capture_samples=130 multipliers=3 cached_eh=1 "
-        "sliding_ex=1"
+        "sliding_ex=1 exact_reducer=1 reducer_multipliers=0"
     )
 
 
