@@ -7,7 +7,17 @@ mkdir -p build
 
 python3 tb/verify_hdl_structure.py
 python3 tb/verify_scheduler_sliding_structure.py
+python3 tb/verify_result_store_structure.py
 python3 tb/verify_frozen_fixture.py
+
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_result_store \
+  -o build/starlink_pss_result_store.vvp \
+  ../common/ad_mem.v \
+  starlink_pss_async_fifo.v \
+  starlink_pss_result_store.v \
+  tb/tb_starlink_pss_result_store.sv
+vvp build/starlink_pss_result_store.vvp
 
 iverilog -g2012 -Wall \
   -s tb_starlink_pss_exact_reducer \

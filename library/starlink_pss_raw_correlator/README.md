@@ -280,8 +280,9 @@ tap timestamp, lag order, coefficient generation, complex correlation,
 sliding energy, saturation, and every clean/error counter are checked.
 
 The composed core is still pre-ABI RTL. In particular, it does not yet connect
-the exact normalized winner reducer, multi-bank modes, double-buffered result
-publication, AXI register file, or rate-parameterized 30/60 MS/s geometry.
+the exact normalized winner reducer or the standalone double-buffered result
+store described below, and it does not contain multi-bank modes, an AXI
+register file, or rate-parameterized 30/60 MS/s geometry.
 
 ## Exact normalized winner reducer
 
@@ -322,6 +323,54 @@ Simply adding both independently synthesized totals would exceed the original
 2,500-LUT/2,000-register provisional milestone, so integration must be
 measured and the complete RX-only shell must establish the real device
 headroom before a hardware image is considered.
+
+## Atomic result publication
+
+`starlink_pss_result_store.v` serializes the reducer's stable winner output
+into one of two 26-word banks in a single 64x32 dual-clock block RAM. A one-bit
+bank descriptor crosses into the control domain only after word 25 has been
+committed. Software-side logic may read the current bank in any word order and
+must explicitly release it. The release returns ownership through a marked
+two-stage toggle synchronizer. When both banks are occupied, the producer is
+accepted and discarded as one complete result and `o_result_overrun_count`
+increments; a partial packet can never be published.
+
+The fixed little-endian word ABI is:
+
+| Words | Contents |
+| --- | --- |
+| 0 | `0x31535350` (`PSS1` in memory byte order) |
+| 1 | packet words (26), ABI version (1), include-`Eh` and score-valid flags |
+| 2 | request ID |
+| 3-4 | center index, low word first |
+| 5-6 | center timestamp, low word first |
+| 7 | sign-extended lag |
+| 8-9 | winning tuple timestamp, low word first |
+| 10 | coefficient generation |
+| 11-12 | signed 48-bit `C_re`, low word then sign-extended high word |
+| 13-14 | signed 48-bit `C_im` |
+| 15-16 | signed 48-bit `Ex` |
+| 17-18 | signed 48-bit `Eh` |
+| 19 | saturation events |
+| 20-22 | 77-bit exact numerator, low word first |
+| 23-25 | 69-bit exact denominator, low word first |
+
+The asynchronous test proves that a packet prefix is invisible, fills both
+banks, counts and drops a third result, reads packets in forward and reverse
+order, returns and reuses banks, and flushes stale descriptors and ownership
+on coordinated reset. `tb/verify_result_store_structure.py` separately checks
+the single-RAM/one-bit-descriptor architecture and rejects a duplicated
+full-packet register. Run its Vivado 2022.2 gate with:
+
+```sh
+./run_result_store_ooc.sh
+```
+
+The gate requires both unrelated domains to close at 100 MHz, clean
+methodology and timing coverage, exactly one RAMB18, zero DSPs, at most 400
+Slice LUTs, and at most 250 registers. The current local post-opt, unplaced
+result passes at 334 LUTs, 143 registers, one RAMB18 (0.5 block-RAM tile), zero
+DSP48E1s, and +2.708 ns setup slack.
 
 ## Composed-core OOC gate
 
