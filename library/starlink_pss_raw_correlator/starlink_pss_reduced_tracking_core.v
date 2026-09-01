@@ -14,7 +14,9 @@ module starlink_pss_reduced_tracking_core #(
   input  wire                i_control_clk,
   input  wire                i_sample_clk,
   input  wire                i_engine_clk,
-  input  wire                i_resetn,
+  input  wire                i_control_resetn,
+  input  wire                i_sample_resetn,
+  input  wire                i_engine_resetn,
 
   input  wire                i_candidate_submit,
   input  wire         [31:0] i_candidate_request_id,
@@ -108,7 +110,9 @@ module starlink_pss_reduced_tracking_core #(
     .i_control_clk                     (i_control_clk),
     .i_sample_clk                      (i_sample_clk),
     .i_engine_clk                      (i_engine_clk),
-    .i_resetn                          (i_resetn),
+    .i_control_resetn                  (i_control_resetn),
+    .i_sample_resetn                   (i_sample_resetn),
+    .i_engine_resetn                   (i_engine_resetn),
     .i_candidate_submit                (i_candidate_submit),
     .i_candidate_request_id            (i_candidate_request_id),
     .i_candidate_center_index          (i_candidate_center_index),
@@ -191,7 +195,7 @@ module starlink_pss_reduced_tracking_core #(
 
   starlink_pss_exact_reducer i_exact_reducer (
     .i_clk                            (i_engine_clk),
-    .i_reset                          (!i_resetn),
+    .i_reset                          (!i_engine_resetn),
     .i_tuple_valid                    (raw_result_valid),
     .o_tuple_ready                    (raw_result_ready),
     .i_tuple_first                    (raw_result_lag == -7'sd32),
@@ -234,7 +238,7 @@ module starlink_pss_reduced_tracking_core #(
 
   starlink_pss_result_store i_result_store (
     .i_engine_clk                       (i_engine_clk),
-    .i_engine_resetn                    (i_resetn),
+    .i_engine_resetn                    (i_engine_resetn),
     .i_result_valid                     (reduced_result_valid),
     .o_result_ready                     (reduced_result_ready),
     .i_result_score_valid               (reduced_result_score_valid),
@@ -256,7 +260,7 @@ module starlink_pss_reduced_tracking_core #(
     .o_result_published_count           (o_result_published_count),
     .o_result_overrun_count             (o_result_overrun_count),
     .i_control_clk                      (i_control_clk),
-    .i_control_resetn                   (i_resetn),
+    .i_control_resetn                   (i_control_resetn),
     .o_control_result_available         (o_result_available),
     .o_control_result_bank              (o_result_bank),
     .i_control_word_index               (i_result_word_index),

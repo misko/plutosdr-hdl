@@ -14,7 +14,9 @@ module starlink_pss_tracking_core #(
   input  wire                i_control_clk,
   input  wire                i_sample_clk,
   input  wire                i_engine_clk,
-  input  wire                i_resetn,
+  input  wire                i_control_resetn,
+  input  wire                i_sample_resetn,
+  input  wire                i_engine_resetn,
 
   input  wire                i_candidate_submit,
   input  wire         [31:0] i_candidate_request_id,
@@ -100,7 +102,7 @@ module starlink_pss_tracking_core #(
     .MINIMUM_LEAD_SAMPLES       (MINIMUM_LEAD_SAMPLES)
   ) i_candidate_scheduler (
     .i_control_clk                 (i_control_clk),
-    .i_control_resetn              (i_resetn),
+    .i_control_resetn              (i_control_resetn),
     .i_candidate_submit            (i_candidate_submit),
     .i_candidate_request_id        (i_candidate_request_id),
     .i_candidate_center_index      (i_candidate_center_index),
@@ -110,7 +112,7 @@ module starlink_pss_tracking_core #(
     .o_candidate_queue_room        (o_candidate_queue_room),
     .o_queue_overrun_count         (o_queue_overrun_count),
     .i_sample_clk                  (i_sample_clk),
-    .i_sample_resetn               (i_resetn),
+    .i_sample_resetn               (i_sample_resetn),
     .i_sample_enable               (i_sample_enable),
     .i_sample_valid                (i_sample_valid),
     .i_sample_index                (i_sample_index),
@@ -159,7 +161,7 @@ module starlink_pss_tracking_core #(
 
   starlink_pss_capture_bridge i_capture_bridge (
     .i_sample_clk                    (i_sample_clk),
-    .i_sample_resetn                 (i_resetn),
+    .i_sample_resetn                 (i_sample_resetn),
     .i_capture_valid                 (scheduler_capture_valid),
     .i_capture_start                 (scheduler_capture_start),
     .i_capture_done                  (scheduler_capture_done),
@@ -178,7 +180,7 @@ module starlink_pss_tracking_core #(
     .o_capture_buffer_overrun_count  (o_capture_buffer_overrun_count),
     .o_capture_protocol_error_count  (o_capture_protocol_error_count),
     .i_engine_clk                    (i_engine_clk),
-    .i_engine_resetn                 (i_resetn),
+    .i_engine_resetn                 (i_engine_resetn),
     .i_engine_job_ready              (bridge_engine_job_ready),
     .o_engine_job_start              (bridge_engine_job_start),
     .o_engine_job_done               (bridge_engine_job_done),
@@ -205,7 +207,7 @@ module starlink_pss_tracking_core #(
 
   starlink_pss_sliding_correlator i_sliding_correlator (
     .i_clk                            (i_engine_clk),
-    .i_reset                          (!i_resetn),
+    .i_reset                          (!i_engine_resetn),
     .i_coefficient_clear              (i_coefficient_clear),
     .i_coefficient_valid              (i_coefficient_valid),
     .o_coefficient_ready              (o_coefficient_ready),

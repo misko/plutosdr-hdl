@@ -13,7 +13,11 @@ set_clock_groups -asynchronous \
   -group [get_clocks reduced_sample_clock] \
   -group [get_clocks reduced_engine_clock]
 
-set_false_path -from [get_ports i_resetn]
+set_false_path -from [get_ports {
+  i_control_resetn
+  i_sample_resetn
+  i_engine_resetn
+}]
 
 set_input_delay -clock reduced_control_clock -max 2.000 [get_ports {
   i_candidate_submit

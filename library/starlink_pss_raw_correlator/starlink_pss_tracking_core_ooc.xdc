@@ -16,7 +16,11 @@ set_clock_groups -asynchronous \
 # The shared reset is asserted for one coordinated epoch and is synchronized
 # by the future AXI integration shell before release.  It is not a timed data
 # input to any one of the three domains at this isolated boundary.
-set_false_path -from [get_ports i_resetn]
+set_false_path -from [get_ports {
+  i_control_resetn
+  i_sample_resetn
+  i_engine_resetn
+}]
 
 set_input_delay -clock tracking_control_clock -max 2.000 [get_ports {
   i_candidate_submit

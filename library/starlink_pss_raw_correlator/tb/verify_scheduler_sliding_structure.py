@@ -146,10 +146,10 @@ def main() -> None:
     require(
         tracking,
         (
-            ".i_control_resetn              (i_resetn)",
-            ".i_sample_resetn               (i_resetn)",
-            ".i_engine_resetn                 (i_resetn)",
-            ".i_reset                          (!i_resetn)",
+            ".i_control_resetn              (i_control_resetn)",
+            ".i_sample_resetn               (i_sample_resetn)",
+            ".i_engine_resetn                 (i_engine_resetn)",
+            ".i_reset                          (!i_engine_resetn)",
             "bridge_engine_job_done && correlator_start_ready",
             "bridge_engine_sample_valid",
             "bridge_engine_sample_ready",

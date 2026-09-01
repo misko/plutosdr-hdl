@@ -82,8 +82,8 @@ foreach category $expected_check_timing_categories {
   if {![regexp $category_pattern $check_timing_report unused category_count]} {
     error "could not parse check_timing category $category"
   }
-  if {$category eq "no_input_delay" && $category_count == 1 &&
-      [regexp {There is 1 input port with no input delay but user has a false path constraint.*i_resetn} \
+  if {$category eq "no_input_delay" && $category_count == 3 &&
+      [regexp {There are 3 input ports with no input delay but user has a false path constraint} \
         $check_timing_report]} {
     continue
   }
@@ -92,7 +92,7 @@ foreach category $expected_check_timing_categories {
   }
 }
 set check_timing_unexpected $check_timing_report
-regsub -all {checking no_input_delay \(1\)} $check_timing_unexpected \
+regsub -all {checking no_input_delay \(3\)} $check_timing_unexpected \
   {checking no_input_delay (0)} check_timing_unexpected
 if {[regexp {checking [a-z_]+ \(([1-9][0-9]*)\)} \
     $check_timing_unexpected unused unexpected_nonzero_count]} {
@@ -140,7 +140,7 @@ puts $summary "timing_scope=post_opt_unplaced_max_delay_only"
 puts $summary "hold_analysis=not_available_post_opt_unplaced"
 puts $summary "setup_wns_ns=$setup_wns"
 puts $summary "methodology_violations=$methodology_violation_count"
-puts $summary "check_timing_expected_false_pathed_reset_no_input_delay=1"
+puts $summary "check_timing_expected_false_pathed_reset_no_input_delay=3"
 puts $summary "check_timing_unexpected_nonzero_categories=0"
 puts $summary "slice_luts=$slice_luts"
 puts $summary "slice_registers=$slice_registers"

@@ -267,7 +267,10 @@ partial data is never exposed to the correlator.
 
 The sample-to-engine descriptor and engine-to-sample bank releases use marked
 two-stage synchronizers under the same coordinated reset epoch as the command
-FIFO. The capture payload uses true dual-clock block RAM. The engine drains a
+FIFO. The core exposes separate control, sample, and engine reset inputs so an
+integration wrapper can assert one common epoch asynchronously and release it
+synchronously in each domain. The capture payload uses true dual-clock block
+RAM. The engine drains a
 published bank in slot order with normal ready/valid backpressure and returns
 ownership only after all 130 samples have been accepted.
 
@@ -402,8 +405,8 @@ the control/engine clocks at 10 ns, declares all three domains asynchronous,
 requires clean methodology and timing coverage, exactly three DSP48E1s, at
 most 4,800 Slice LUTs, at most 4,000 registers, and at most six
 RAMB36-equivalent tiles. The current local post-opt, unplaced complete result
-passes at 4,094 LUTs, 3,485 registers, 5.5 block-RAM tiles, exactly three DSPs,
-and +0.191 ns maximum-delay setup slack. The integrated total is smaller than
+passes at 4,111 LUTs, 3,487 registers, 5.5 block-RAM tiles, exactly three DSPs,
+and +0.190 ns maximum-delay setup slack. The integrated total is smaller than
 the sum of independently synthesized blocks because Vivado removes and shares
 logic across their boundaries.
 
@@ -427,7 +430,7 @@ budget is at most 2,500 Slice LUTs, 2,000 registers, and five RAMB36-equivalent
 tiles. Vivado's documented area-oriented synthesis and post-synthesis
 resynthesis directives are part of this reproducible gate.
 
-The current local post-opt, unplaced result passes at 2,483 Slice LUTs, 1,855
+The current local post-opt, unplaced result passes at 2,484 Slice LUTs, 1,855
 registers, five RAMB36-equivalent tiles, exactly three DSP48E1s, and +0.192 ns
 maximum-delay setup slack. Methodology violations and unexpected nonzero
 `check_timing` categories are both zero. The one expected `no_input_delay`
