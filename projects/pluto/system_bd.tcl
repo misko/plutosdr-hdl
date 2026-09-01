@@ -11,7 +11,6 @@ if {[lsearch $ip_repo_list $quantulum_ip_repo_path] == -1} {
 }
 
 source $ad_hdl_dir/projects/common/xilinx/adi_fir_filter_bd.tcl
-source $ad_hdl_dir/library/axi_tdd/scripts/axi_tdd.tcl
 
 # default ports
 
@@ -40,9 +39,6 @@ create_bd_port -dir I spi_sdo_i
 create_bd_port -dir O spi_sdo_o
 create_bd_port -dir I spi_sdi_i
 
-create_bd_port -dir O txdata_o
-create_bd_port -dir I tdd_ext_sync
-
 # instance: sys_ps7
 
 ad_ip_instance processing_system7 sys_ps7
@@ -53,7 +49,7 @@ ad_ip_parameter sys_ps7 CONFIG.PCW_PRESET_BANK0_VOLTAGE {LVCMOS 1.8V}
 ad_ip_parameter sys_ps7 CONFIG.PCW_PRESET_BANK1_VOLTAGE {LVCMOS 1.8V}
 ad_ip_parameter sys_ps7 CONFIG.PCW_PACKAGE_NAME clg225
 ad_ip_parameter sys_ps7 CONFIG.PCW_USE_S_AXI_HP1 1
-ad_ip_parameter sys_ps7 CONFIG.PCW_USE_S_AXI_HP2 1
+ad_ip_parameter sys_ps7 CONFIG.PCW_USE_S_AXI_HP2 0
 ad_ip_parameter sys_ps7 CONFIG.PCW_EN_CLK1_PORT 1
 ad_ip_parameter sys_ps7 CONFIG.PCW_EN_RST1_PORT 1
 ad_ip_parameter sys_ps7 CONFIG.PCW_FPGA0_PERIPHERAL_FREQMHZ 100.0
@@ -203,10 +199,6 @@ create_bd_port -dir I rx_clk_in
 create_bd_port -dir I rx_frame_in
 create_bd_port -dir I -from 11 -to 0 rx_data_in
 
-create_bd_port -dir O tx_clk_out
-create_bd_port -dir O tx_frame_out
-create_bd_port -dir O -from 11 -to 0 tx_data_out
-
 create_bd_port -dir O enable
 create_bd_port -dir O txnrx
 create_bd_port -dir I up_enable
@@ -217,22 +209,10 @@ create_bd_port -dir I up_txnrx
 ad_ip_instance axi_ad9361 axi_ad9361
 ad_ip_parameter axi_ad9361 CONFIG.ID 0
 ad_ip_parameter axi_ad9361 CONFIG.CMOS_OR_LVDS_N 1
-ad_ip_parameter axi_ad9361 CONFIG.MODE_1R1T 0
+ad_ip_parameter axi_ad9361 CONFIG.MODE_1R1T 1
+ad_ip_parameter axi_ad9361 CONFIG.TDD_DISABLE 1
+ad_ip_parameter axi_ad9361 CONFIG.DAC_DATAPATH_DISABLE 1
 ad_ip_parameter axi_ad9361 CONFIG.ADC_INIT_DELAY 21
-
-ad_ip_instance axi_dmac axi_ad9361_dac_dma
-ad_ip_parameter axi_ad9361_dac_dma CONFIG.DMA_TYPE_SRC 0
-ad_ip_parameter axi_ad9361_dac_dma CONFIG.DMA_TYPE_DEST 1
-ad_ip_parameter axi_ad9361_dac_dma CONFIG.CYCLIC 1
-ad_ip_parameter axi_ad9361_dac_dma CONFIG.AXI_SLICE_SRC 0
-ad_ip_parameter axi_ad9361_dac_dma CONFIG.AXI_SLICE_DEST 0
-ad_ip_parameter axi_ad9361_dac_dma CONFIG.DMA_2D_TRANSFER 0
-ad_ip_parameter axi_ad9361_dac_dma CONFIG.DMA_DATA_WIDTH_DEST 64
-
-ad_add_interpolation_filter "tx_fir_interpolator" 8 2 1 {61.44} {7.68} \
-                             "$ad_hdl_dir/library/util_fir_int/coefile_int.coe"
-ad_ip_instance xlslice interp_slice
-ad_ip_instance util_upack2 tx_upack
 
 ad_ip_instance axi_dmac axi_ad9361_adc_dma
 ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_TYPE_SRC 2
@@ -259,7 +239,6 @@ ad_ip_instance c_counter_binary counter_timestamp
 ad_ip_parameter counter_timestamp CONFIG.Output_Width 64
 ad_ip_parameter counter_timestamp CONFIG.CE true
 ad_ip_instance util_cpack2_timestamp cpack_timestamp
-ad_ip_instance util_upack2_timestamp upack_timestamp
 ad_ip_instance xlslice cpack_timestamp_every_slice
 ad_ip_parameter cpack_timestamp_every_slice CONFIG.DIN_WIDTH 32
 ad_ip_parameter cpack_timestamp_every_slice CONFIG.DIN_FROM 31
@@ -268,27 +247,12 @@ ad_ip_instance xlconcat cpack_timestamp_every_concat
 ad_ip_parameter cpack_timestamp_every_concat CONFIG.NUM_PORTS 2
 ad_ip_parameter cpack_timestamp_every_concat CONFIG.IN0_WIDTH 31
 ad_ip_parameter cpack_timestamp_every_concat CONFIG.IN1_WIDTH 1
-ad_ip_instance xlslice upack_timestamp_every_slice
-ad_ip_parameter upack_timestamp_every_slice CONFIG.DIN_WIDTH 32
-ad_ip_parameter upack_timestamp_every_slice CONFIG.DIN_FROM 31
-ad_ip_parameter upack_timestamp_every_slice CONFIG.DIN_TO 1
-ad_ip_instance xlslice upack_debug_select_slice
-ad_ip_parameter upack_debug_select_slice CONFIG.DIN_WIDTH 32
-ad_ip_parameter upack_debug_select_slice CONFIG.DIN_FROM 0
-ad_ip_parameter upack_debug_select_slice CONFIG.DIN_TO 0
-ad_ip_instance xlconcat upack_timestamp_every_concat
-ad_ip_parameter upack_timestamp_every_concat CONFIG.NUM_PORTS 2
-ad_ip_parameter upack_timestamp_every_concat CONFIG.IN0_WIDTH 31
-ad_ip_parameter upack_timestamp_every_concat CONFIG.IN1_WIDTH 1
 
 # connections
 
 ad_connect  rx_clk_in axi_ad9361/rx_clk_in
 ad_connect  rx_frame_in axi_ad9361/rx_frame_in
 ad_connect  rx_data_in axi_ad9361/rx_data_in
-ad_connect  tx_clk_out axi_ad9361/tx_clk_out
-ad_connect  tx_frame_out axi_ad9361/tx_frame_out
-ad_connect  tx_data_out axi_ad9361/tx_data_out
 ad_connect  enable axi_ad9361/enable
 ad_connect  txnrx axi_ad9361/txnrx
 ad_connect  up_enable axi_ad9361/up_enable
@@ -310,7 +274,6 @@ ad_connect axi_ad9361/adc_data_q0 rx_fir_decimator/data_in_1
 ad_connect axi_ad9361/l_clk counter_timestamp/CLK
 ad_connect rx_fir_decimator/valid_out_0 counter_timestamp/CE
 ad_connect counter_timestamp/Q cpack_timestamp/timestamp
-ad_connect counter_timestamp/Q upack_timestamp/timestamp
 # cpack_timestamp synchronizes this counter word into sys_cpu_clk before it
 # reaches the ARM-visible ADC GPIO status register (0x800000B8).
 ad_connect cpack_timestamp/timestamp_cpu axi_ad9361/up_adc_gpio_in
@@ -320,20 +283,12 @@ ad_connect cpack_timestamp_every_slice/Dout cpack_timestamp_every_concat/In0
 ad_connect GND cpack_timestamp_every_concat/In1
 ad_connect cpack_timestamp_every_concat/dout cpack_timestamp/timestamp_every
 
-ad_connect axi_ad9361/up_dac_gpio_out upack_timestamp_every_slice/Din
-ad_connect axi_ad9361/up_dac_gpio_out upack_debug_select_slice/Din
-ad_connect upack_timestamp_every_slice/Dout upack_timestamp_every_concat/In0
-ad_connect upack_debug_select_slice/Dout upack_timestamp_every_concat/In1
-ad_connect upack_timestamp_every_concat/dout upack_timestamp/timestamp_every
-
 ad_connect axi_ad9361/l_clk cpack/clk
 ad_connect axi_ad9361/rst cpack/reset
 
 ad_connect sys_cpu_clk cpack_timestamp/dma_clk
-ad_connect sys_cpu_clk upack_timestamp/dma_clk
 ad_connect axi_ad9361/l_clk cpack_timestamp/adc_clk
 ad_connect axi_ad9361/rst cpack_timestamp/reset
-ad_connect axi_ad9361/l_clk upack_timestamp/dac_clk
 
 ad_connect axi_ad9361/adc_enable_i1 cpack/enable_2
 ad_connect axi_ad9361/adc_data_i1 cpack/fifo_wr_data_2
@@ -351,139 +306,23 @@ ad_connect cpack_timestamp/packed_timestamped_fifo_wr axi_ad9361_adc_dma/fifo_wr
 ad_connect axi_ad9361/up_adc_gpio_out decim_slice/Din
 ad_connect rx_fir_decimator/active decim_slice/Dout
 
-ad_connect axi_ad9361/l_clk tx_fir_interpolator/aclk
-
-ad_connect axi_ad9361/dac_enable_i0 tx_fir_interpolator/dac_enable_0
-ad_connect axi_ad9361/dac_valid_i0 tx_fir_interpolator/dac_valid_0
-ad_connect axi_ad9361/dac_data_i0 tx_fir_interpolator/data_out_0
-ad_connect axi_ad9361/dac_enable_q0 tx_fir_interpolator/dac_enable_1
-ad_connect axi_ad9361/dac_valid_q0 tx_fir_interpolator/dac_valid_1
-ad_connect axi_ad9361/dac_data_q0 tx_fir_interpolator/data_out_1
-
-ad_connect  axi_ad9361/l_clk tx_upack/clk
-ad_connect  upack_timestamp/reset_upack tx_upack/reset
-
-ad_connect  tx_upack/fifo_rd_data_0  tx_fir_interpolator/data_in_0
-ad_connect  tx_upack/enable_0  tx_fir_interpolator/enable_out_0
-ad_connect  tx_upack/fifo_rd_data_1  tx_fir_interpolator/data_in_1
-ad_connect  tx_upack/enable_1  tx_fir_interpolator/enable_out_1
-
-ad_connect axi_ad9361/dac_enable_i1 tx_upack/enable_2
-ad_connect axi_ad9361/dac_data_i1 tx_upack/fifo_rd_data_2
-ad_connect axi_ad9361/dac_enable_q1 tx_upack/enable_3
-ad_connect axi_ad9361/dac_data_q1 tx_upack/fifo_rd_data_3
-
-ad_connect axi_ad9361_dac_dma/m_axis upack_timestamp/s_axis
-ad_connect upack_timestamp/m_axis tx_upack/s_axis
-
-ad_connect axi_ad9361_dac_dma/m_axis_xfer_req upack_timestamp/s_axis_xfer_req
-
-ad_connect upack_timestamp/discarded_block_count axi_ad9361/up_dac_gpio_in
-
-ad_ip_instance util_vector_logic logic_or [list \
-  C_OPERATION {or} \
-  C_SIZE 1]
-
-ad_connect  logic_or/Op1  tx_fir_interpolator/valid_out_0
-ad_connect  logic_or/Op2  axi_ad9361/dac_valid_i1
-ad_connect  logic_or/Res  tx_upack/fifo_rd_en
-ad_connect  tx_upack/fifo_rd_underflow axi_ad9361/dac_dunf
-
-ad_connect axi_ad9361/up_dac_gpio_out interp_slice/Din
-ad_connect  tx_fir_interpolator/active interp_slice/Dout
+# The transmit datapath is compiled out.  Tie every remaining DAC-facing input
+# low so the disabled interface has deterministic, fail-safe values.
+ad_connect GND axi_ad9361/dac_data_i0
+ad_connect GND axi_ad9361/dac_data_q0
+ad_connect GND axi_ad9361/dac_data_i1
+ad_connect GND axi_ad9361/dac_data_q1
+ad_connect GND axi_ad9361/dac_dunf
+ad_connect GND axi_ad9361/up_dac_gpio_in
 
 ad_connect  sys_cpu_clk axi_ad9361_adc_dma/fifo_wr_clk
-ad_connect  sys_cpu_clk axi_ad9361_dac_dma/m_axis_aclk
 ad_connect  cpack/fifo_wr_overflow axi_ad9361/adc_dovf
-
-# External TDD
-set TDD_CHANNEL_CNT 3
-set TDD_DEFAULT_POL 0b010
-set TDD_REG_WIDTH 32
-set TDD_BURST_WIDTH 32
-set TDD_SYNC_WIDTH 0
-set TDD_SYNC_INT 0
-set TDD_SYNC_EXT 1
-set TDD_SYNC_EXT_CDC 1
-ad_tdd_gen_create axi_tdd_0 $TDD_CHANNEL_CNT \
-                            $TDD_DEFAULT_POL \
-                            $TDD_REG_WIDTH \
-                            $TDD_BURST_WIDTH \
-                            $TDD_SYNC_WIDTH \
-                            $TDD_SYNC_INT \
-                            $TDD_SYNC_EXT \
-                            $TDD_SYNC_EXT_CDC
-
-ad_ip_instance util_vector_logic logic_inv [list \
-  C_OPERATION {not} \
-  C_SIZE 1]
-
-ad_ip_instance util_vector_logic logic_or_1 [list \
-  C_OPERATION {or} \
-  C_SIZE 1]
-
-ad_connect logic_inv/Op1  axi_ad9361/rst
-ad_connect logic_inv/Res  axi_tdd_0/resetn
-ad_connect axi_ad9361/l_clk axi_tdd_0/clk
-ad_connect axi_tdd_0/sync_in tdd_ext_sync
-ad_connect axi_tdd_0/tdd_channel_0 txdata_o
-
-# Mux tdd_channel_1 and packed_timestamped_fifo_wr_sync
-# Note that tdd_channel_1 is syncronised into sys_cpu_clk clock domain during this process
-# I've not yet tested the tdd feature...hopefully the cdc delay won't impact performance
-ad_ip_instance util_wr_sync_mux tdd_ts_wr_sync_mux
-ad_connect sys_cpu_clk tdd_ts_wr_sync_mux/clk
-ad_connect cpack_timestamp_every_concat/dout tdd_ts_wr_sync_mux/timestamp_every
-ad_connect cpack_timestamp/packed_timestamped_fifo_wr_sync tdd_ts_wr_sync_mux/timestamp_wr_sync_in
-ad_connect axi_tdd_0/tdd_channel_1 tdd_ts_wr_sync_mux/ext_wr_sync_in
-ad_connect axi_ad9361_adc_dma/fifo_wr_sync tdd_ts_wr_sync_mux/sync_out
-
-ad_connect  logic_or_1/Op1  axi_ad9361/rst
-ad_connect  logic_or_1/Op2  axi_tdd_0/tdd_channel_2
-ad_connect  logic_or_1/Res  upack_timestamp/reset
 
 # interconnects
 
 ad_cpu_interconnect 0x79020000 axi_ad9361
 ad_cpu_interconnect 0x7C400000 axi_ad9361_adc_dma
-ad_cpu_interconnect 0x7C420000 axi_ad9361_dac_dma
 ad_cpu_interconnect 0x7C430000 axi_spi
-ad_cpu_interconnect 0x7C440000 axi_tdd_0
-
-# ---------------------------------------------------------------------------
-# tandem AGC: owns the four AD9361 CTRL_IN pins and steps RX1/RX2 gain together.
-# Lives in the l_clk (receive) domain; the AXI side is the processor domain and
-# every crossing between them is inside the block (TANDEM_AGC_V1_DESIGN.md §9).
-# ---------------------------------------------------------------------------
-create_bd_port -dir I -from 7 -to 0 tandem_detect
-create_bd_port -dir I -from 3 -to 0 tandem_ps_ctl_o
-create_bd_port -dir I -from 3 -to 0 tandem_ps_ctl_t
-create_bd_port -dir O -from 3 -to 0 tandem_ctl_o
-create_bd_port -dir O -from 3 -to 0 tandem_ctl_t
-
-set tandem_dir [file normalize [file join [file dirname [info script]] "../../../hdl-tandem"]]
-add_files -norecurse -fileset sources_1 [list \
-  "$tandem_dir/tandem_cdc_lib.v" \
-  "$tandem_dir/tandem_agc_core.v" \
-  "$tandem_dir/tandem_agc_axi.v"]
-update_compile_order -fileset sources_1
-
-create_bd_cell -type module -reference tandem_agc_axi i_tandem_agc
-# EVENTS=0 compiles out the event-capture path. Tandem gain control does not
-# depend on it, and the 7010 cannot hold both alongside RC17 -- see
-# hdl-tandem/reports/integration/FINDING.md for the five placement attempts.
-set_property CONFIG.EVENTS 1 [get_bd_cells i_tandem_agc]
-ad_connect axi_ad9361/l_clk        i_tandem_agc/l_clk
-ad_connect sys_cpu_resetn          i_tandem_agc/l_aresetn
-ad_connect counter_timestamp/Q     i_tandem_agc/sample_counter
-ad_connect rx_fir_decimator/valid_out_0 i_tandem_agc/sample_valid
-ad_connect tandem_detect           i_tandem_agc/detect_async
-ad_connect tandem_ps_ctl_o         i_tandem_agc/ps_ctl_o
-ad_connect tandem_ps_ctl_t         i_tandem_agc/ps_ctl_t
-ad_connect i_tandem_agc/ctl_o      tandem_ctl_o
-ad_connect i_tandem_agc/ctl_t      tandem_ctl_t
-ad_connect VCC                     i_tandem_agc/consumer_ready
-ad_cpu_interconnect 0x7C450000 i_tandem_agc
 
 ad_ip_parameter sys_ps7 CONFIG.PCW_USE_S_AXI_HP1 {1}
 ad_connect sys_cpu_clk sys_ps7/S_AXI_HP1_ACLK
@@ -494,22 +333,10 @@ create_bd_addr_seg -range 0x20000000 -offset 0x00000000 \
                     [get_bd_addr_segs sys_ps7/S_AXI_HP1/HP1_DDR_LOWOCM] \
                     SEG_sys_ps7_HP1_DDR_LOWOCM
 
-ad_ip_parameter sys_ps7 CONFIG.PCW_USE_S_AXI_HP2 {1}
-ad_connect sys_cpu_clk sys_ps7/S_AXI_HP2_ACLK
-ad_connect axi_ad9361_dac_dma/m_src_axi sys_ps7/S_AXI_HP2
-
-create_bd_addr_seg -range 0x20000000 -offset 0x00000000 \
-                    [get_bd_addr_spaces axi_ad9361_dac_dma/m_src_axi] \
-                    [get_bd_addr_segs sys_ps7/S_AXI_HP2/HP2_DDR_LOWOCM] \
-                    SEG_sys_ps7_HP2_DDR_LOWOCM
-
-ad_connect sys_cpu_clk axi_ad9361_dac_dma/m_src_axi_aclk
 ad_connect sys_cpu_clk axi_ad9361_adc_dma/m_dest_axi_aclk
 ad_connect sys_cpu_resetn axi_ad9361_adc_dma/m_dest_axi_aresetn
-ad_connect sys_cpu_resetn axi_ad9361_dac_dma/m_src_axi_aresetn
 
 # interrupts
 
 ad_cpu_interrupt ps-13 mb-13 axi_ad9361_adc_dma/irq
-ad_cpu_interrupt ps-12 mb-12 axi_ad9361_dac_dma/irq
 ad_cpu_interrupt ps-11 mb-11 axi_spi/ip2intc_irpt

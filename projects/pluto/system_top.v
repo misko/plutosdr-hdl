@@ -97,28 +97,18 @@ module system_top (
   wire            iic_scl;
   wire            iic_sda;
   wire            phaser_enable;
-  wire            pl_burst;
   wire            pl_muxout;
   wire            pl_spi_clk_o;
   wire            pl_spi_miso;
   wire            pl_spi_mosi;
-  wire            pl_txdata;
 
   // instantiations
-
-  // Tandem AGC ownership mux. Bits [11:8] are gpio_ctl = AD9361 CTRL_IN[3:0];
-  // the tandem block drives BOTH the value and the tri-state for those four
-  // lines, and passes the PS through untouched when it does not own them.
-  // Everything else reaches the iobuf exactly as before.
-  wire [3:0] tandem_ctl_o;
-  wire [3:0] tandem_ctl_t;
-  wire [7:0] tandem_detect = gpio_i[7:0];   // CTRL_OUT page 0x03 readback
 
   ad_iobuf #(
     .DATA_WIDTH(14)
   ) i_iobuf (
-    .dio_t ({gpio_t[13:12], tandem_ctl_t, gpio_t[7:0]}),
-    .dio_i ({gpio_o[13:12], tandem_ctl_o, gpio_o[7:0]}),
+    .dio_t (gpio_t[13:0]),
+    .dio_i (gpio_o[13:0]),
     .dio_o (gpio_i[13:0]),
     .dio_p ({ gpio_resetb,        // 13:13
               gpio_en_agc,        // 12:12
@@ -143,10 +133,15 @@ module system_top (
 
   //PL_GPIO1
   assign pl_spi_miso = pl_gpio1 & ~phaser_enable;
-  assign pl_burst    = pl_gpio1 &  phaser_enable;
 
   //PL_GPIO0
-  assign pl_gpio0 = phaser_enable ? pl_txdata : pl_spi_mosi;
+  assign pl_gpio0 = pl_spi_mosi;
+
+  // This shell has no FPGA transmit datapath.  Hold the RFIC digital TX bus
+  // static; Linux also skips TX interface tuning and exposes no TX DMA/DDS.
+  assign tx_clk_out = 1'b0;
+  assign tx_frame_out = 1'b0;
+  assign tx_data_out = 12'b0;
 
   system_wrapper i_system_wrapper (
     .ddr_addr (ddr_addr),
@@ -176,11 +171,6 @@ module system_top (
     .gpio_t (gpio_t),
     .iic_main_scl_io (iic_scl),
     .iic_main_sda_io (iic_sda),
-    .tandem_detect (tandem_detect),
-    .tandem_ps_ctl_o (gpio_o[11:8]),
-    .tandem_ps_ctl_t (gpio_t[11:8]),
-    .tandem_ctl_o (tandem_ctl_o),
-    .tandem_ctl_t (tandem_ctl_t),
     .rx_clk_in (rx_clk_in),
     .rx_data_in (rx_data_in),
     .rx_frame_in (rx_frame_in),
@@ -203,12 +193,6 @@ module system_top (
     .spi_sdo_i(1'b0),
     .spi_sdo_o(pl_spi_mosi),
 
-    .tdd_ext_sync(pl_burst),
-    .txdata_o(pl_txdata),
-
-    .tx_clk_out (tx_clk_out),
-    .tx_data_out (tx_data_out),
-    .tx_frame_out (tx_frame_out),
     .txnrx (txnrx),
     .up_enable (gpio_o[15]),
     .up_txnrx (gpio_o[16]));
