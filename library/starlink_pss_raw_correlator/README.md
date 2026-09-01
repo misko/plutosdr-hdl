@@ -1,9 +1,10 @@
 # Stage-15 exact-PSS raw correlator — DO NOT MERGE TO HDL MAIN
 
-This directory is an isolated arithmetic milestone on
-`codex/starlink-rx-only-do-not-merge`. It is not connected to the Pluto block
-design, AXI, DMA, the diagnostic delay monitor, or a radio image. It must not
-be packaged or booted in this state.
+This directory is an isolated Gate-2 development slice on
+`codex/starlink-rx-only-do-not-merge`. It now contains the raw arithmetic
+reference, the optimized engine, and a composed queued-capture tracking core.
+It is not connected to the Pluto block design, AXI, DMA, the diagnostic delay
+monitor, or a radio image. It must not be packaged or booted in this state.
 
 ## Frozen contract
 
@@ -178,3 +179,130 @@ manifest/chunk/NumPy qualification commands from that clean source revision;
 machine-check their hashes and clean OOC attested-source status; then commit the
 retained `evidence/` artifacts separately. Never carry a pre-commit evidence
 JSON or its digest forward as the final qualification record.
+
+## Queued-center scheduler milestone
+
+`starlink_pss_candidate_scheduler.v` is an isolated Gate-2 source slice. It is
+not connected to AXI, DMA, or a radio image. A project-local, coordinated-reset
+asynchronous FIFO crosses one explicit 160-bit command from the future
+MMIO/control domain into the accepted-sample domain:
+
+```text
+{request_id[31:0], center_index[63:0], center_timestamp[63:0]}
+```
+
+With `COMMAND_FIFO_ADDRESS_WIDTH=3`, the FIFO deliberately leaves one slot
+empty and therefore provides seven usable queued commands. Its payload memory
+is block RAM, its Gray pointers cross through two marked synchronizer stages,
+and its destination word is registered and held stable until the scheduler
+requests another prefetch. Each MMIO submission is a one-control-clock pulse. A
+pulse while the FIFO is full is not retained and increments the saturating
+`queue_overrun` counter once.
+
+All index ordering is modulo `2^64` with the usual unambiguous half-range rule:
+a forward distance has bit 63 clear and no valid campaign may span `2^63`
+accepted samples. A command is admitted only on a consecutive valid input beat,
+and its `p-32` capture start must be at least 64 accepted samples beyond the next
+expected index. The frozen rejection priority is duplicate center, overlapping
+or out-of-order window, then insufficient lead/late. Once admitted, a request
+emits exactly 130 unbackpressured tagged beats for indexes `p-32..p+97`; the
+stored candidate timestamp must equal the observed raw timestamp at `p`.
+
+A deasserted valid, accepted-index jump, timestamp mismatch, or lane disable
+fails the affected admitted request closed. The later buffer writer must give
+`capture_abort` priority over every partial `capture_valid` beat and discard the
+entire buffer. Aggregate admitted/completed/rejected/aborted counters and
+separate overrun, late, duplicate, overlap, valid-gap, index-jump, and timestamp
+counters saturate at `2^32-1`. The eventual AXI block will publish those fields
+without reconstructing events from software timing.
+
+The scheduler's control and sample resets are one coordinated module reset:
+the integration wrapper must assert both together before either is released.
+Independent reset epochs are intentionally not accepted because they could
+reinterpret an asynchronous FIFO pointer; that top-level reset acknowledgement
+is a required integration test before a radio image exists.
+
+The asynchronous-clock test fills all seven FIFO entries with the destination
+clock stopped, proves a single eighth overrun, drains disabled commands, and
+then covers chronological queuing, exact 130-beat data/timestamp mapping,
+back-to-back clock phases, every rejection class, pending and active valid-gap
+aborts, active index-jump and timestamp aborts, disable flushing, and a capture
+that crosses the full-width index wrap. These tests establish the trigger seam;
+they do not establish arithmetic equivalence, buffering, CDC constraints,
+route closure, or radio qualification.
+
+## Cached-Eh and sliding-Ex milestone
+
+`starlink_pss_sliding_correlator.v` is a second implementation kept alongside
+the immutable raw arithmetic reference. It retains exactly three registered
+17x17 multipliers, but validates coefficient energy once at commit, copies a
+passing shadow bank into the active bank, and publishes the active generation
+with every result. Zero-energy, above-31-bit-energy, or saturated commits are
+rejected without changing the prior active bank.
+
+For each 130-sample job it computes each unsigned CI16 sample energy once,
+stores all 130 energies, and accumulates the first 66-sample `Ex` window during
+that same pass. Each later lag uses the exact integer update
+`Ex[k+1] = Ex[k] - e[k] + e[k+66]`. A 50-bit intermediate checks the already
+proved legal 38-bit Stage-15 bound; any impossible excursion increments a
+saturating bound-error counter. Correlation and externally visible tuple fields
+retain the raw engine's signed-48 after-tap saturation contract.
+
+The differential test treats the original raw core as an independent RTL
+reference. It compares 260 complete tuples across full-scale legal samples,
+zero samples, the frozen real capture, cached-bank reuse, independent output
+backpressure, two accepted generations, and rejected full-scale/zero-energy
+shadow commits. It also proves that rejected commits preserve the active bank,
+that every legal saturation and bound-error count remains zero, and that the
+no-stall optimized job completes in fewer cycles than the raw job.
+
+## Abort-atomic capture and composed tracking milestone
+
+`starlink_pss_capture_bridge.v` accepts the scheduler's unbackpressured capture
+stream into two 130-sample banks. A bank is published to the engine only after
+all slots arrive in exact order and `capture_done` is observed. Abort has
+priority over every write. A malformed slot sequence or descriptor/buffer
+failure discards the whole image and increments a separate saturating counter;
+partial data is never exposed to the correlator.
+
+The sample-to-engine descriptor and engine-to-sample bank releases use marked
+two-stage synchronizers under the same coordinated reset epoch as the command
+FIFO. The capture payload uses true dual-clock block RAM. The engine drains a
+published bank in slot order with normal ready/valid backpressure and returns
+ownership only after all 130 samples have been accepted.
+
+`starlink_pss_tracking_core.v` composes the scheduler, bridge, and optimized
+correlator across explicit control, sample, and engine clocks. Its asynchronous
+test deliberately fills both capture banks, drops a third job exactly once,
+returns and reuses a bank, applies result backpressure, and bit-checks 130 raw
+tuples from two ordered jobs. Request ID, center index/timestamp, stored first-
+tap timestamp, lag order, coefficient generation, complex correlation,
+sliding energy, saturation, and every clean/error counter are checked.
+
+The composed core is still pre-ABI RTL. In particular, it does not yet contain
+the exact normalized winner reducer, multi-bank modes, double-buffered result
+publication, AXI register file, or rate-parameterized 30/60 MS/s geometry.
+
+## Composed-core OOC gate
+
+Run the Stage-15 composed gate with Vivado 2022.2:
+
+```sh
+./run_tracking_ooc.sh
+```
+
+The gate constrains the sample input at 16.667 ns (the 60 MS/s clock ceiling)
+and the control/engine clocks at 10 ns, declares the three clock groups
+asynchronous, checks every timing-coverage category, requires zero methodology
+violations, and requires exactly three DSP48E1s. The conservative milestone
+budget is at most 2,500 Slice LUTs, 2,000 registers, and five RAMB36-equivalent
+tiles. Vivado's documented area-oriented synthesis and post-synthesis
+resynthesis directives are part of this reproducible gate.
+
+The current local post-opt, unplaced result passes at 2,483 Slice LUTs, 1,855
+registers, five RAMB36-equivalent tiles, exactly three DSP48E1s, and +0.192 ns
+maximum-delay setup slack. Methodology violations and unexpected nonzero
+`check_timing` categories are both zero. The one expected `no_input_delay`
+entry is the explicitly false-pathed shared reset. Hold analysis, placed/routed
+timing, full-shell headroom, AXI correctness, and radio behavior remain
+unproven.
