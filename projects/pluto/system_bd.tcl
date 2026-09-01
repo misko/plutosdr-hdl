@@ -238,6 +238,13 @@ ad_ip_instance c_counter_binary counter_timestamp
 ad_ip_parameter counter_timestamp CONFIG.Output_Width 64
 ad_ip_parameter counter_timestamp CONFIG.CE true
 ad_ip_instance util_cpack2_timestamp cpack_timestamp
+ad_ip_instance axi_starlink_pss_monitor starlink_pss_candidate_monitor
+ad_ip_parameter starlink_pss_candidate_monitor CONFIG.RATE_MSPS 15
+ad_ip_parameter starlink_pss_candidate_monitor CONFIG.THRESHOLD_Q15 24576
+ad_ip_parameter starlink_pss_candidate_monitor CONFIG.MIN_WINDOW_ENERGY 1
+ad_ip_instance util_vector_logic starlink_pss_stream_enable [list \
+  C_OPERATION {and} \
+  C_SIZE 1]
 ad_ip_instance xlslice cpack_timestamp_every_slice
 ad_ip_parameter cpack_timestamp_every_slice CONFIG.DIN_WIDTH 32
 ad_ip_parameter cpack_timestamp_every_slice CONFIG.DIN_FROM 31
@@ -276,6 +283,20 @@ ad_connect counter_timestamp/Q cpack_timestamp/timestamp
 # cpack_timestamp synchronizes this counter word into sys_cpu_clk before it
 # reaches the ARM-visible ADC GPIO status register (0x800000B8).
 ad_connect cpack_timestamp/timestamp_cpu axi_ad9361/up_adc_gpio_in
+
+# Diagnostic-only repeated-delay monitor.  This is a pure fan-out from the
+# post-decimator capture stream and the existing timestamp counter: it neither
+# gates nor modifies the DMA/timestamp path.  A register event is only a cheap
+# candidate and is not exact Starlink PSS evidence.
+ad_connect axi_ad9361/l_clk starlink_pss_candidate_monitor/sample_clk
+ad_connect axi_ad9361/rst starlink_pss_candidate_monitor/sample_reset
+ad_connect rx_fir_decimator/data_out_0 starlink_pss_candidate_monitor/sample_i
+ad_connect rx_fir_decimator/data_out_1 starlink_pss_candidate_monitor/sample_q
+ad_connect rx_fir_decimator/valid_out_0 starlink_pss_candidate_monitor/sample_strobe
+ad_connect rx_fir_decimator/enable_out_0 starlink_pss_stream_enable/Op1
+ad_connect rx_fir_decimator/enable_out_1 starlink_pss_stream_enable/Op2
+ad_connect starlink_pss_stream_enable/Res starlink_pss_candidate_monitor/sample_enable
+ad_connect counter_timestamp/Q starlink_pss_candidate_monitor/sample_index
 
 ad_connect axi_ad9361/up_adc_gpio_out cpack_timestamp_every_slice/Din
 ad_connect cpack_timestamp_every_slice/Dout cpack_timestamp_every_concat/In0
@@ -320,6 +341,7 @@ ad_connect  cpack/fifo_wr_overflow axi_ad9361/adc_dovf
 # interconnects
 
 ad_cpu_interconnect 0x79020000 axi_ad9361
+ad_cpu_interconnect 0x79030000 starlink_pss_candidate_monitor
 ad_cpu_interconnect 0x7C400000 axi_ad9361_adc_dma
 ad_cpu_interconnect 0x7C430000 axi_spi
 
