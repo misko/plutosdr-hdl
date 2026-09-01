@@ -279,10 +279,11 @@ tuples from two ordered jobs. Request ID, center index/timestamp, stored first-
 tap timestamp, lag order, coefficient generation, complex correlation,
 sliding energy, saturation, and every clean/error counter are checked.
 
-The composed core is still pre-ABI RTL. In particular, it does not yet connect
-the exact normalized winner reducer or the standalone double-buffered result
-store described below, and it does not contain multi-bank modes, an AXI
-register file, or rate-parameterized 30/60 MS/s geometry.
+This raw-trace composition remains the independent tuple-level diagnostic and
+arithmetic evidence. `starlink_pss_reduced_tracking_core.v`, described below,
+connects it to the exact reducer and result store for fixed TRACK_ONE mode.
+Neither composition contains multi-bank modes, an AXI register file, or
+rate-parameterized 30/60 MS/s geometry.
 
 ## Exact normalized winner reducer
 
@@ -318,11 +319,10 @@ LUTs, 1,649 registers, zero block RAM, zero DSP48E1s, and +1.470 ns setup
 slack. A naïve full-width implementation measured 2,118 LUTs and 2,757
 registers and was rejected rather than becoming the milestone baseline.
 
-The reducer result is not yet part of the composed-core OOC count below.
-Simply adding both independently synthesized totals would exceed the original
-2,500-LUT/2,000-register provisional milestone, so integration must be
-measured and the complete RX-only shell must establish the real device
-headroom before a hardware image is considered.
+The standalone reducer exceeds the original 2,500-LUT/2,000-register budget
+when naively added to the raw-trace composition. The combined TRACK_ONE gate
+below therefore measures the optimized whole rather than presenting a sum of
+independent estimates.
 
 ## Atomic result publication
 
@@ -340,7 +340,7 @@ The fixed little-endian word ABI is:
 | Words | Contents |
 | --- | --- |
 | 0 | `0x31535350` (`PSS1` in memory byte order) |
-| 1 | packet words (26), ABI version (1), include-`Eh` and score-valid flags |
+| 1 | `[31:24]=26` words, `[23:16]=1` ABI version, include-`Eh` and score-valid flags |
 | 2 | request ID |
 | 3-4 | center index, low word first |
 | 5-6 | center timestamp, low word first |
@@ -368,11 +368,50 @@ full-packet register. Run its Vivado 2022.2 gate with:
 
 The gate requires both unrelated domains to close at 100 MHz, clean
 methodology and timing coverage, exactly one RAMB18, zero DSPs, at most 400
-Slice LUTs, and at most 250 registers. The current local post-opt, unplaced
-result passes at 334 LUTs, 143 registers, one RAMB18 (0.5 block-RAM tile), zero
-DSP48E1s, and +2.708 ns setup slack.
+Slice LUTs, and at most 250 registers. After fixing the packet-length byte
+layout, the current local post-opt, unplaced result passes at 325 LUTs, 142
+registers, one RAMB18 (0.5 block-RAM tile), zero DSP48E1s, and +3.123 ns setup
+slack.
 
-## Composed-core OOC gate
+## Complete TRACK_ONE composition
+
+`starlink_pss_reduced_tracking_core.v` preserves the raw-trace core unchanged
+and connects its ordered lag `-32..+32` stream to the exact reducer in
+single-bank `|C|^2/Ex` mode, then connects the retained winner to the atomic
+result store. Keeping TRACE as the existing raw core and TRACK_ONE as a
+separate fixed wrapper prevents an unsafe runtime mode change in the middle of
+a job; a future command ABI can add per-job modes without weakening either
+current contract.
+
+The asynchronous end-to-end test loads an impulse coefficient bank, captures
+one real 130-sample window, processes all 65 lags, proves that exact normalized
+comparison selects lag `+32`, and checks every word of the published packet in
+reverse read order. It also checks scheduler, capture, correlator, reducer, and
+publication accounting and requires every clean-run error counter to remain
+zero. The accompanying structure check fixes the first/last lag markers,
+exact `Eh` cancellation, and both ready/valid boundaries.
+
+Run the complete Vivado 2022.2 OOC gate with:
+
+```sh
+./run_reduced_tracking_ooc.sh
+```
+
+The gate constrains the sample input at 16.667 ns (the exact-60 ceiling) and
+the control/engine clocks at 10 ns, declares all three domains asynchronous,
+requires clean methodology and timing coverage, exactly three DSP48E1s, at
+most 4,800 Slice LUTs, at most 4,000 registers, and at most six
+RAMB36-equivalent tiles. The current local post-opt, unplaced complete result
+passes at 4,094 LUTs, 3,485 registers, 5.5 block-RAM tiles, exactly three DSPs,
+and +0.191 ns maximum-delay setup slack. The integrated total is smaller than
+the sum of independently synthesized blocks because Vivado removes and shares
+logic across their boundaries.
+
+This result establishes the complete Stage-15 processing-slice estimate, but
+not placed/routed full-shell headroom, AXI behavior, or radio behavior. No
+hardware image is authorized by this OOC milestone.
+
+## Raw-trace composed-core OOC gate
 
 Run the Stage-15 composed gate with Vivado 2022.2:
 

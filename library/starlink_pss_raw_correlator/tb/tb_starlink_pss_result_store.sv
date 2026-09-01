@@ -112,7 +112,7 @@ module tb_starlink_pss_result_store;
     begin
       expected_word[job][0] = 32'h3153_5350;
       expected_word[job][1] = {
-        5'd26, 3'd0, 8'd1, 14'd0,
+        3'd0, 5'd26, 8'd1, 14'd0,
         result_includes_eh, result_score_valid
       };
       expected_word[job][2] = result_request_id;

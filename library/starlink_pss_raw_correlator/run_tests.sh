@@ -8,6 +8,7 @@ mkdir -p build
 python3 tb/verify_hdl_structure.py
 python3 tb/verify_scheduler_sliding_structure.py
 python3 tb/verify_result_store_structure.py
+python3 tb/verify_reduced_tracking_structure.py
 python3 tb/verify_frozen_fixture.py
 
 iverilog -g2012 -Wall \
@@ -18,6 +19,22 @@ iverilog -g2012 -Wall \
   starlink_pss_result_store.v \
   tb/tb_starlink_pss_result_store.sv
 vvp build/starlink_pss_result_store.vvp
+
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_reduced_tracking_core \
+  -o build/starlink_pss_reduced_tracking_core.vvp \
+  ../common/ad_mem.v \
+  starlink_pss_async_fifo.v \
+  starlink_sat_add48.v \
+  starlink_pss_candidate_scheduler.v \
+  starlink_pss_capture_bridge.v \
+  starlink_pss_sliding_correlator.v \
+  starlink_pss_tracking_core.v \
+  starlink_pss_exact_reducer.v \
+  starlink_pss_result_store.v \
+  starlink_pss_reduced_tracking_core.v \
+  tb/tb_starlink_pss_reduced_tracking_core.sv
+vvp build/starlink_pss_reduced_tracking_core.vvp
 
 iverilog -g2012 -Wall \
   -s tb_starlink_pss_exact_reducer \

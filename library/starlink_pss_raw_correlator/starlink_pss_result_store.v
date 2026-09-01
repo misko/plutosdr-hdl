@@ -91,7 +91,7 @@ module starlink_pss_result_store (
     case (writer_word_index)
       5'd0:  packet_word_data = PACKET_MAGIC;
       5'd1:  packet_word_data = {
-        PACKET_WORDS, 3'd0, 8'd1, 14'd0,
+        3'd0, PACKET_WORDS, 8'd1, 14'd0,
         i_result_includes_eh, i_result_score_valid
       };
       5'd2:  packet_word_data = i_result_request_id;
