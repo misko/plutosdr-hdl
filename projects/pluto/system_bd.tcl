@@ -218,7 +218,6 @@ ad_ip_instance axi_dmac axi_ad9361_adc_dma
 ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_TYPE_SRC 2
 ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_TYPE_DEST 0
 ad_ip_parameter axi_ad9361_adc_dma CONFIG.CYCLIC 0
-ad_ip_parameter axi_ad9361_adc_dma CONFIG.SYNC_TRANSFER_START 0
 ad_ip_parameter axi_ad9361_adc_dma CONFIG.AXI_SLICE_SRC 0
 ad_ip_parameter axi_ad9361_adc_dma CONFIG.AXI_SLICE_DEST 0
 ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_2D_TRANSFER 0

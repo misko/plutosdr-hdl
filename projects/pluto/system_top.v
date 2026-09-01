@@ -117,7 +117,10 @@ module system_top (
 
   assign gpio_i[16:14] = gpio_o[16:14];
   assign gpio_i[17] = pl_muxout;
-  assign phaser_enable = gpio_o[14];
+  // TDD/phaser transmit support is absent from this RX-only shell.  Keep the
+  // expansion connector in its SPI-safe direction regardless of stale GPIO
+  // state or a userspace write left over from a transceiver-capable image.
+  assign phaser_enable = 1'b0;
 
   assign pl_gpio4 = iic_scl;      //PL_GPIO4
   assign pl_gpio3 = iic_sda;      //PL_GPIO3
