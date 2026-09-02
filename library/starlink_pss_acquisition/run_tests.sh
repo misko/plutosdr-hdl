@@ -42,3 +42,12 @@ iverilog -g2012 -Wall \
   starlink_pss_energy_cache.v \
   tb/tb_starlink_pss_energy_cache.sv
 vvp build/starlink_pss_energy_cache.vvp
+
+python3 tb/generate_score_divider_vectors.py \
+  build/starlink_pss_score_divider_vectors.txt
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_score_divider \
+  -o build/starlink_pss_score_divider.vvp \
+  starlink_pss_score_divider.v \
+  tb/tb_starlink_pss_score_divider.sv
+vvp build/starlink_pss_score_divider.vvp

@@ -44,6 +44,14 @@ is defined; an imminent oldest-value overwrite fails the lookup closed.  Gap,
 index discontinuity, flush, and disable invalidate both partial energy windows
 and retained results without clearing the BRAM contents themselves.
 
+`starlink_pss_score_divider.v` is one exact rational quantization lane.  It
+accepts an already-scaled 69-bit correlation-power numerator and 69-bit
+energy/coefficient denominator, performs eight restoring iterations, and
+returns `round_ties_even(255*numerator/denominator)`.  Zero and saturation
+cases intentionally take the same eight cycles as ordinary ratios, making a
+later two-lane dispatcher deterministic.  This slice does not calculate the
+wide numerator/denominator or join them to the energy cache.
+
 Run the deterministic simulation with:
 
 ```sh
@@ -60,6 +68,9 @@ saturation, metadata ordering, and arithmetic-pipeline flush.
 The energy-cache test additionally checks all 2,435 exact windows from a
 15 MS/s-equivalent segment, full-cache rollover and boundary lookups, lookup
 backpressure, a stalled-response gap flush, index restart, and disable.
+The divider test replays thousands of independently generated 69-bit rational
+cases, including even/odd half-way ties, zero denominator, saturation, output
+stalls, and flushes during calculation and completed-output hold.
 
 Run the default-geometry Zynq-7010 out-of-context gate with:
 
@@ -83,6 +94,12 @@ Run the sliding-energy cache's independent OOC gate with:
 
 ```sh
 ./run_energy_cache_ooc.sh /absolute/output/directory
+```
+
+Run one exact score-divider lane's independent OOC gate with:
+
+```sh
+./run_score_divider_ooc.sh /absolute/output/directory
 ```
 
 The OOC gate requires the canonical Vivado 2022.2 installation and fails if
@@ -109,3 +126,8 @@ infer exactly two RAMB36E1 blocks plus one RAMB18E1 (2.5 BRAM tiles), the two
 CI16 squares to infer exactly two DSP48E1s, bounded logic, clean reports, and
 nonnegative 100 MHz post-opt unplaced setup and hold slack.  It proves neither
 the later energy/correlation join nor the normalizer.
+
+The score-divider OOC gate requires no BRAM or DSPs, bounded restoring-divider
+logic, clean reports, and nonnegative 100 MHz post-opt unplaced setup and hold
+slack.  It proves one fixed-latency lane; the later two-lane dispatcher, result
+FIFO, and ordered merge remain composition gates.
