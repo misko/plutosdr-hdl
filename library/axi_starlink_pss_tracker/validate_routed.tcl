@@ -35,6 +35,13 @@ foreach {label suffix expected} {
   telemetry_snapshot_registers "telemetry_snapshot_reg*" 448
   candidate_status_synchronizers "candidate_pending_sync_reg*" 2
   capture_status_synchronizers "capture_active_sync_reg*" 2
+  injection_arm_ack_synchronizers "i_injection_mux/arm_ack_sync_reg*" 2
+  injection_completion_synchronizers "i_injection_mux/completion_sync_reg*" 2
+  injection_mismatch_synchronizers "i_injection_mux/mismatch_sync_reg*" 2
+  injection_active_synchronizers "i_injection_mux/sample_active_sync_reg*" 2
+  injection_arm_request_synchronizers "i_injection_mux/arm_request_sync_reg*" 2
+  injection_start_synchronizers "i_injection_mux/arm_start_sync_*_reg*" 128
+  injection_generation_synchronizers "i_injection_mux/arm_generation_sync_*_reg*" 64
   candidate_pointer_synchronizers
     "i_core/i_raw_tracking_core/i_candidate_scheduler/i_command_fifo/*_sync_*_reg*" 16
   capture_pointer_synchronizers
@@ -98,6 +105,59 @@ if {[llength $telemetry_snapshot_path] != 1 ||
     [get_property EXCEPTION $telemetry_snapshot_path] eq "False Path" ||
     [get_property SLACK $telemetry_snapshot_path] < 0.0} {
   error "telemetry second-stage-to-snapshot arc is not safely timed"
+}
+
+# The injection arm mailbox follows the same stable bundled-data rule. The
+# 96-bit start/generation payload is captured only after the request toggle and
+# two additional sample-domain settling clocks.
+set injection_payload_source [concat \
+  [tracker_cells $tracker_glob "i_injection_mux/arm_start_mailbox_reg*"] \
+  [tracker_cells $tracker_glob "i_injection_mux/arm_generation_mailbox_reg*"]]
+set injection_payload_sync_1 [concat \
+  [tracker_cells $tracker_glob "i_injection_mux/arm_start_sync_1_reg*"] \
+  [tracker_cells $tracker_glob "i_injection_mux/arm_generation_sync_1_reg*"]]
+set injection_payload_sync_2 [concat \
+  [tracker_cells $tracker_glob "i_injection_mux/arm_start_sync_2_reg*"] \
+  [tracker_cells $tracker_glob "i_injection_mux/arm_generation_sync_2_reg*"]]
+set injection_sync_1_d [get_pins -quiet -of_objects $injection_payload_sync_1 \
+  -filter {REF_PIN_NAME == D}]
+set injection_sync_2_d [get_pins -quiet -of_objects $injection_payload_sync_2 \
+  -filter {REF_PIN_NAME == D}]
+if {[llength $injection_payload_source] != 96 ||
+    [llength $injection_sync_1_d] != 96 ||
+    [llength $injection_sync_2_d] != 96} {
+  error "injection arm payload timing objects are incomplete"
+}
+set injection_first_path [get_timing_paths -quiet -delay_type max \
+  -max_paths 1 -from $injection_payload_source -to $injection_sync_1_d]
+set injection_second_path [get_timing_paths -quiet -delay_type max \
+  -max_paths 1 -from $injection_payload_sync_1 -to $injection_sync_2_d]
+if {[llength $injection_first_path] != 1 ||
+    [get_property EXCEPTION $injection_first_path] ne "False Path"} {
+  error "injection payload source-to-first-stage arc is not false-pathed"
+}
+if {[llength $injection_second_path] != 1 ||
+    [get_property EXCEPTION $injection_second_path] eq "False Path" ||
+    [get_property SLACK $injection_second_path] < 0.0} {
+  error "injection payload first-to-second-stage arc is not safely timed"
+}
+
+set injection_fixture_memory [tracker_cells $tracker_glob \
+  "i_injection_mux/fixture_memory_reg*"]
+set injection_output_registers [concat \
+  [tracker_cells $tracker_glob "i_injection_mux/selected_sample_i_reg*"] \
+  [tracker_cells $tracker_glob "i_injection_mux/selected_sample_q_reg*"]]
+set injection_output_d [get_pins -quiet -of_objects $injection_output_registers \
+  -filter {REF_PIN_NAME == D}]
+if {[llength $injection_fixture_memory] == 0 ||
+    [llength $injection_output_d] != 32} {
+  error "injection fixture memory/output timing objects are incomplete"
+}
+set injection_fixture_path [get_timing_paths -quiet -delay_type max \
+  -max_paths 1 -from $injection_fixture_memory -to $injection_output_d]
+if {[llength $injection_fixture_path] != 1 ||
+    [get_property EXCEPTION $injection_fixture_path] ne "False Path"} {
+  error "injection fixture bundled-data RAM arc is not false-pathed"
 }
 
 # The distributed descriptor RAM is bundled data.  Its RAM-write-clock data
@@ -170,8 +230,8 @@ puts -nonewline $bus_skew_file $tracker_bus_skew
 close $bus_skew_file
 set bus_skew_violated [regexp -all {Slack \(VIOLATED\)} $tracker_bus_skew]
 set bus_skew_met [regexp -all {Slack \(MET\)} $tracker_bus_skew]
-if {$bus_skew_violated != 0 || $bus_skew_met != 2} {
-  error "expected two met tracker bus-skew constraints, got met=$bus_skew_met violated=$bus_skew_violated"
+if {$bus_skew_violated != 0 || $bus_skew_met != 3} {
+  error "expected three met tracker bus-skew constraints, got met=$bus_skew_met violated=$bus_skew_violated"
 }
 
 set cdc_path [file join $report_dir starlink_pss_tracker_cdc.rpt]
@@ -215,7 +275,9 @@ puts $summary "tx_dma_hierarchies=[llength $tx_dma_cells]"
 puts $summary "telemetry_payload_bits=[llength $telemetry_payload_source]"
 puts $summary "telemetry_payload_synchronizer_bits=[expr {[llength $telemetry_payload_sync_1] + [llength $telemetry_payload_sync_2]}]"
 puts $summary "telemetry_snapshot_bits=[llength $telemetry_snapshot]"
+puts $summary "injection_payload_bits=[llength $injection_payload_source]"
+puts $summary "injection_payload_synchronizer_bits=[expr {[llength $injection_payload_sync_1] + [llength $injection_payload_sync_2]}]"
 close $summary
 
-puts "STARLINK_PSS_TRACKER_ROUTED_PASS setup_wns_ns=$setup_wns hold_whs_ns=$hold_whs dsp48e1=[llength $tracker_dsps] ramb18e1=[llength $tracker_ramb18] ramb36e1=[llength $tracker_ramb36]"
+puts "STARLINK_PSS_TRACKER_ROUTED_PASS setup_wns_ns=$setup_wns hold_whs_ns=$hold_whs dsp48e1=[llength $tracker_dsps] ramb18e1=[llength $tracker_ramb18] ramb36e1=[llength $tracker_ramb36] injection_payload_bits=[llength $injection_payload_source]"
 close_design

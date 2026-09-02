@@ -279,16 +279,18 @@ ad_connect axi_ad9361/adc_data_q0 rx_fir_decimator/data_in_1
 
 ad_connect axi_ad9361/l_clk counter_timestamp/CLK
 ad_connect rx_fir_decimator/valid_out_0 counter_timestamp/CE
-ad_connect counter_timestamp/Q cpack_timestamp/timestamp
+ad_connect starlink_pss_tracker/selected_sample_timestamp cpack_timestamp/timestamp
 # cpack_timestamp synchronizes this counter word into sys_cpu_clk before it
 # reaches the ARM-visible ADC GPIO status register (0x800000B8).
 ad_connect cpack_timestamp/timestamp_cpu axi_ad9361/up_adc_gpio_in
 
-# Host-scheduled exact TRACK_ONE pipeline.  This remains a pure fan-out from
-# the post-decimator capture stream and existing timestamp counter: it neither
-# gates nor modifies the cpack, timestamp, or DMA path.  One result is only the
-# exact normalized winner within one scheduled 61-lag window; it is not an
-# autonomous search, SSS alignment, cadence qualification, or a Starlink claim.
+# Host-scheduled exact TRACK_ONE pipeline. ABI 1.2 adds a fail-closed, future-
+# indexed 130-sample deterministic injection mux before the shared tracker/DMA
+# fan-out. Outside an explicitly armed window the selected outputs are a one-
+# clock pipeline of the unchanged post-decimator stream. One result remains
+# only the exact normalized winner within one scheduled 61-lag window; it is
+# not autonomous search, SSS alignment, cadence qualification, or a Starlink
+# claim.
 ad_connect axi_ad9361/l_clk starlink_pss_tracker/sample_clk
 ad_connect axi_ad9361/rst starlink_pss_tracker/sample_reset
 ad_connect rx_fir_decimator/data_out_0 starlink_pss_tracker/sample_i
@@ -317,11 +319,11 @@ ad_connect axi_ad9361/adc_data_i1 cpack/fifo_wr_data_2
 ad_connect axi_ad9361/adc_enable_q1 cpack/enable_3
 ad_connect axi_ad9361/adc_data_q1 cpack/fifo_wr_data_3
 
-ad_connect cpack/enable_0 rx_fir_decimator/enable_out_0
-ad_connect cpack/enable_1 rx_fir_decimator/enable_out_1
-ad_connect cpack/fifo_wr_data_0 rx_fir_decimator/data_out_0
-ad_connect cpack/fifo_wr_data_1 rx_fir_decimator/data_out_1
-ad_connect rx_fir_decimator/valid_out_0 cpack/fifo_wr_en
+ad_connect cpack/enable_0 starlink_pss_tracker/selected_sample_enable
+ad_connect cpack/enable_1 starlink_pss_tracker/selected_sample_enable
+ad_connect cpack/fifo_wr_data_0 starlink_pss_tracker/selected_sample_i
+ad_connect cpack/fifo_wr_data_1 starlink_pss_tracker/selected_sample_q
+ad_connect starlink_pss_tracker/selected_sample_strobe cpack/fifo_wr_en
 
 ad_connect cpack/packed_fifo_wr cpack_timestamp/packed_fifo_wr
 ad_connect cpack_timestamp/packed_timestamped_fifo_wr axi_ad9361_adc_dma/fifo_wr

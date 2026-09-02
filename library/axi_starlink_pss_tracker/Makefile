@@ -15,6 +15,7 @@ GENERIC_DEPS += ../starlink_pss_raw_correlator/starlink_pss_tracking_core.v
 GENERIC_DEPS += ../starlink_pss_raw_correlator/starlink_pss_exact_reducer.v
 GENERIC_DEPS += ../starlink_pss_raw_correlator/starlink_pss_result_store.v
 GENERIC_DEPS += ../starlink_pss_raw_correlator/starlink_pss_reduced_tracking_core.v
+GENERIC_DEPS += starlink_pss_injection_mux.v
 GENERIC_DEPS += axi_starlink_pss_tracker.v
 
 XILINX_DEPS += axi_starlink_pss_tracker_constr.xdc

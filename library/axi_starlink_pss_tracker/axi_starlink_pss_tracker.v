@@ -21,6 +21,13 @@ module axi_starlink_pss_tracker #(
   input  wire                 sample_enable,
   input  wire [63:0]          sample_index,
   input  wire [63:0]          sample_timestamp,
+  output wire signed [15:0]   selected_sample_i,
+  output wire signed [15:0]   selected_sample_q,
+  output wire                 selected_sample_strobe,
+  output wire                 selected_sample_enable,
+  output wire [63:0]          selected_sample_index,
+  output wire [63:0]          selected_sample_timestamp,
+  output wire                 selected_sample_injected,
 
   output wire                 irq,
 
@@ -48,9 +55,9 @@ module axi_starlink_pss_tracker #(
 );
 
   localparam [31:0] IDENTIFICATION = 32'h5053_5354; // ASCII "PSST".
-  localparam [31:0] VERSION = 32'h0001_0001;
+  localparam [31:0] VERSION = 32'h0001_0002;
   localparam [31:0] GEOMETRY = {8'd0, 8'd61, 8'd130, 8'd66};
-  localparam [31:0] CAPABILITIES = 32'h0000_001d;
+  localparam [31:0] CAPABILITIES = 32'h0000_003d;
 
   localparam [5:0] REG_IDENTIFICATION = 6'h00; // 0x00
   localparam [5:0] REG_VERSION = 6'h01; // 0x04
@@ -107,6 +114,13 @@ module axi_starlink_pss_tracker #(
   localparam [5:0] REG_RESULT_PUBLISHED = 6'h36; // 0xd8
   localparam [5:0] REG_RESULT_OVERRUN = 6'h37; // 0xdc
   localparam [5:0] REG_RESULT_CONSUMED = 6'h38; // 0xe0
+  localparam [5:0] REG_INJECTION_DATA = 6'h39; // 0xe4
+  localparam [5:0] REG_INJECTION_CONTROL = 6'h3a; // 0xe8
+  localparam [5:0] REG_INJECTION_START_LO = 6'h3b; // 0xec
+  localparam [5:0] REG_INJECTION_START_HI = 6'h3c; // 0xf0
+  localparam [5:0] REG_INJECTION_GENERATION = 6'h3d; // 0xf4
+  localparam [5:0] REG_INJECTION_STATUS = 6'h3e; // 0xf8
+  localparam [5:0] REG_INJECTION_LAST_GENERATION = 6'h3f; // 0xfc
 
   function automatic [31:0] increment_saturating_32;
     input [31:0] value;
@@ -191,8 +205,8 @@ module axi_starlink_pss_tracker #(
   always @(posedge sample_clk) begin
     if (!core_sample_resetn)
       sample_index_gray <= 64'd0;
-    else if (sample_enable && sample_strobe)
-      sample_index_gray <= binary_to_gray_64(sample_index);
+    else if (selected_sample_enable && selected_sample_strobe)
+      sample_index_gray <= binary_to_gray_64(selected_sample_index);
   end
 
   always @(posedge s_axi_aclk) begin
@@ -207,6 +221,53 @@ module axi_starlink_pss_tracker #(
 
   wire [63:0] current_sample_index =
       gray_to_binary_64(sample_index_gray_sync_2);
+
+  reg injection_fixture_clear;
+  reg injection_fixture_write;
+  reg [31:0] injection_fixture_write_data;
+  reg injection_fixture_commit;
+  reg injection_arm;
+  reg [63:0] injection_start_stage;
+  reg [31:0] injection_generation_stage;
+  wire injection_fixture_write_ready;
+  wire injection_arm_ready;
+  wire [31:0] injection_status;
+  wire [31:0] injection_last_completed_generation;
+
+  starlink_pss_injection_mux #(
+    .SAMPLE_COUNT             (130),
+    .MINIMUM_ARM_LEAD_SAMPLES (64'd64)
+  ) i_injection_mux (
+    .control_clk                       (s_axi_aclk),
+    .control_resetn                    (core_control_resetn),
+    .fixture_clear                     (injection_fixture_clear),
+    .fixture_write                     (injection_fixture_write),
+    .fixture_write_data                (injection_fixture_write_data),
+    .fixture_commit                    (injection_fixture_commit),
+    .fixture_generation_stage          (injection_generation_stage),
+    .arm                               (injection_arm),
+    .arm_start_stage                   (injection_start_stage),
+    .control_current_index             (current_sample_index),
+    .fixture_write_ready               (injection_fixture_write_ready),
+    .arm_ready                         (injection_arm_ready),
+    .status                            (injection_status),
+    .last_completed_generation         (injection_last_completed_generation),
+    .sample_clk                        (sample_clk),
+    .sample_resetn                     (core_sample_resetn),
+    .source_sample_i                   (sample_i),
+    .source_sample_q                   (sample_q),
+    .source_sample_strobe              (sample_strobe),
+    .source_sample_enable              (sample_enable),
+    .source_sample_index               (sample_index),
+    .source_sample_timestamp           (sample_timestamp),
+    .selected_sample_i                 (selected_sample_i),
+    .selected_sample_q                 (selected_sample_q),
+    .selected_sample_strobe            (selected_sample_strobe),
+    .selected_sample_enable            (selected_sample_enable),
+    .selected_sample_index             (selected_sample_index),
+    .selected_sample_timestamp         (selected_sample_timestamp),
+    .selected_sample_injected          (selected_sample_injected)
+  );
 
   wire up_wreq;
   wire [5:0] up_waddr;
@@ -579,7 +640,13 @@ module axi_starlink_pss_tracker #(
     begin
       case (slot)
         3'd0: read_bank_7_value = result_consumed_count;
-        default: read_bank_7_value = 32'd0;
+        3'd1: read_bank_7_value = 32'd0;
+        3'd2: read_bank_7_value = 32'd0;
+        3'd3: read_bank_7_value = injection_start_stage[31:0];
+        3'd4: read_bank_7_value = injection_start_stage[63:32];
+        3'd5: read_bank_7_value = injection_generation_stage;
+        3'd6: read_bank_7_value = injection_status;
+        3'd7: read_bank_7_value = injection_last_completed_generation;
       endcase
     end
   endfunction
@@ -625,6 +692,13 @@ module axi_starlink_pss_tracker #(
       register_read_bank_7 <= 32'd0;
       result_release <= 1'b0;
       current_index_snapshot <= 64'd0;
+      injection_fixture_clear <= 1'b0;
+      injection_fixture_write <= 1'b0;
+      injection_fixture_write_data <= 32'd0;
+      injection_fixture_commit <= 1'b0;
+      injection_arm <= 1'b0;
+      injection_start_stage <= 64'd0;
+      injection_generation_stage <= 32'd0;
     end else begin
       up_wack <= up_wreq;
       up_rack <= 1'b0;
@@ -632,6 +706,10 @@ module axi_starlink_pss_tracker #(
       result_word_read <= 1'b0;
       result_release <= 1'b0;
       coefficient_clear <= 1'b0;
+      injection_fixture_clear <= 1'b0;
+      injection_fixture_write <= 1'b0;
+      injection_fixture_commit <= 1'b0;
+      injection_arm <= 1'b0;
 
       if (candidate_command_handshake)
         candidate_command_pending <= 1'b0;
@@ -699,6 +777,21 @@ module axi_starlink_pss_tracker #(
             if (up_wdata[0])
               result_release <= 1'b1;
           end
+          REG_INJECTION_DATA: begin
+            injection_fixture_write_data <= up_wdata;
+            injection_fixture_write <= 1'b1;
+          end
+          REG_INJECTION_CONTROL: begin
+            injection_fixture_clear <= up_wdata[0];
+            injection_fixture_commit <= up_wdata[1];
+            injection_arm <= up_wdata[2];
+          end
+          REG_INJECTION_START_LO:
+            injection_start_stage[31:0] <= up_wdata;
+          REG_INJECTION_START_HI:
+            injection_start_stage[63:32] <= up_wdata;
+          REG_INJECTION_GENERATION:
+            injection_generation_stage <= up_wdata;
           default: begin
           end
         endcase
@@ -765,12 +858,12 @@ module axi_starlink_pss_tracker #(
     .o_candidate_submit_accepted       (candidate_submit_accepted),
     .o_candidate_queue_room            (candidate_queue_room),
     .o_queue_overrun_count             (queue_overrun_count),
-    .i_sample_enable                   (sample_enable),
-    .i_sample_valid                    (sample_strobe),
-    .i_sample_index                    (sample_index),
-    .i_sample_timestamp                (sample_timestamp),
-    .i_sample_i                        (sample_i),
-    .i_sample_q                        (sample_q),
+    .i_sample_enable                   (selected_sample_enable),
+    .i_sample_valid                    (selected_sample_strobe),
+    .i_sample_index                    (selected_sample_index),
+    .i_sample_timestamp                (selected_sample_timestamp),
+    .i_sample_i                        (selected_sample_i),
+    .i_sample_q                        (selected_sample_q),
     .i_coefficient_clear               (coefficient_clear),
     .i_coefficient_valid               (coefficient_push_pending &&
                                         !coefficient_clear_pending),
@@ -827,7 +920,10 @@ module axi_starlink_pss_tracker #(
   wire unused_axi_fields = ^{s_axi_wstrb, s_axi_awprot, s_axi_arprot,
                              candidate_submit_accepted,
                              coefficient_commit_accepted,
-                             coefficient_commit_rejected};
+                             coefficient_commit_rejected,
+                             injection_fixture_write_ready,
+                             injection_arm_ready,
+                             selected_sample_injected};
 
   up_axi #(
     .AXI_ADDRESS_WIDTH (8)

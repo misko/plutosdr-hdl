@@ -5,6 +5,7 @@ module tb_axi_starlink_pss_tracker_real_replay;
   localparam integer WINDOW_COUNT = 210;
   localparam integer CAPTURE_SAMPLES = 130;
   localparam integer PACKET_WORDS = 26;
+  localparam [31:0] INJECTION_GENERATION = 32'h1a12_0001;
   localparam [31:0] COEFFICIENT_GENERATION = 32'h0712_0001;
   localparam [63:0] FIRST_CENTER_INDEX = 64'd128;
   localparam [63:0] CENTER_STRIDE = 64'd225;
@@ -24,6 +25,7 @@ module tb_axi_starlink_pss_tracker_real_replay;
   reg [63:0] next_sample_index = 64'd0;
 
   wire irq;
+  wire selected_sample_injected;
   reg s_axi_aresetn = 1'b0;
   reg s_axi_awvalid = 1'b0;
   reg [7:0] s_axi_awaddr = 8'd0;
@@ -60,6 +62,7 @@ module tb_axi_starlink_pss_tracker_real_replay;
     .sample_enable     (sample_enable),
     .sample_index      (sample_index),
     .sample_timestamp  (sample_timestamp),
+    .selected_sample_injected (selected_sample_injected),
     .irq               (irq),
     .s_axi_aclk        (s_axi_aclk),
     .s_axi_aresetn     (s_axi_aresetn),
@@ -176,6 +179,13 @@ module tb_axi_starlink_pss_tracker_real_replay;
   integer sample_number;
   integer word_index;
   integer timeout;
+  integer injected_sample_count = 0;
+
+  always @(negedge sample_clk) begin
+    if (selected_sample_injected)
+      injected_sample_count = injected_sample_count + 1;
+  end
+
   initial begin
     $readmemh(
         "../starlink_pss_raw_correlator/tb/upper_minus100k_coefficients_q15.mem",
@@ -194,7 +204,7 @@ module tb_axi_starlink_pss_tracker_real_replay;
     if (read_value !== 32'h5053_5354)
       fail("identification mismatch");
     axi_read(8'h04, read_value);
-    if (read_value !== 32'h0001_0001)
+    if (read_value !== 32'h0001_0002)
       fail("version mismatch");
     axi_read(8'h08, read_value);
     if (read_value !== 32'd15)
@@ -203,7 +213,7 @@ module tb_axi_starlink_pss_tracker_real_replay;
     if (read_value !== {8'd0, 8'd61, 8'd130, 8'd66})
       fail("geometry mismatch");
     axi_read(8'h10, read_value);
-    if (read_value !== 32'h0000_001d)
+    if (read_value !== 32'h0000_003d)
       fail("capabilities mismatch");
 
     axi_write(8'h44, 32'h0000_0001);
@@ -229,6 +239,25 @@ module tb_axi_starlink_pss_tracker_real_replay;
     axi_read(8'h64, read_value);
     if (read_value !== expected_packets[18])
       fail("active coefficient energy high word mismatch");
+
+    // Freeze the first retained 130-sample window into the ABI 1.2 accepted-
+    // sample injection bank. The retained file is {I,Q}; the injection data
+    // register, like the coefficient register, is {Q,I}.
+    axi_write(8'he8, 32'h0000_0001);
+    for (sample_number = 0; sample_number < CAPTURE_SAMPLES;
+         sample_number = sample_number + 1) begin
+      sample_word = replay_samples[sample_number];
+      axi_write(8'he4, {sample_word[15:0], sample_word[31:16]});
+    end
+    axi_write(8'hf4, INJECTION_GENERATION);
+    axi_write(8'he8, 32'h0000_0002);
+    axi_write(8'hec, FIRST_CENTER_INDEX - 32);
+    axi_write(8'hf0, 32'd0);
+    axi_read(8'hf8, read_value);
+    if (!read_value[0] || !read_value[1] || read_value[15:8] != 130 ||
+        read_value[6:5] != 0)
+      fail("injection fixture did not commit cleanly");
+    axi_write(8'he8, 32'h0000_0004);
 
     sample_enable = 1'b1;
     center_timestamp = {
@@ -264,7 +293,10 @@ module tb_axi_starlink_pss_tracker_real_replay;
         drive_sample(32'd0, center_timestamp - 64'd127 + filler);
       for (sample_number = 0; sample_number < CAPTURE_SAMPLES;
            sample_number = sample_number + 1) begin
-        sample_word = replay_samples[job*CAPTURE_SAMPLES + sample_number];
+        // Window zero reaches the tracker only through the injection mux;
+        // subsequent windows retain the historical direct replay path.
+        sample_word = (job == 0) ? 32'd0 :
+            replay_samples[job*CAPTURE_SAMPLES + sample_number];
         drive_sample(sample_word, center_timestamp - 64'd32 + sample_number);
       end
       @(negedge sample_clk);
@@ -313,6 +345,21 @@ module tb_axi_starlink_pss_tracker_real_replay;
       end
       if (timeout == 2000)
         fail("raw engine did not retire the complete trace job");
+
+      if (job == 0) begin
+        timeout = 0;
+        read_value = 32'd0;
+        while (!read_value[4] && timeout < 1000) begin
+          axi_read(8'hf8, read_value);
+          timeout = timeout + 1;
+        end
+        if (timeout == 1000 || read_value[7:5] != 0)
+          fail("injection did not complete without mismatch/rejection");
+        axi_read(8'hfc, read_value);
+        if (read_value !== INJECTION_GENERATION ||
+            injected_sample_count != CAPTURE_SAMPLES)
+          fail("injection completion generation/count mismatch");
+      end
     end
 
     axi_write(8'h68, 32'h0000_0001);
@@ -341,7 +388,7 @@ module tb_axi_starlink_pss_tracker_real_replay;
       endcase
     end
 
-    $display("AXI_REAL_REPLAY_PASS windows=210 fixed_float_lag_matches=210 raw_samples=27300 packet_words=5460 aperture=-30..30 errors=0");
+    $display("AXI_REAL_REPLAY_PASS windows=210 fixed_float_lag_matches=210 injected_window0_samples=130 direct_windows=209 raw_samples=27300 packet_words=5460 aperture=-30..30 errors=0");
     $finish;
   end
 

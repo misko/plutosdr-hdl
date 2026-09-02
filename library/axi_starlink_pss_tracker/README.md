@@ -8,6 +8,14 @@ from -30 through +30. The underlying arithmetic engine still produces the
 historical 65-tuple `-32..+32` trace; `TRACK_ONE` drains the four guard tuples
 and reduces exactly the frozen 61-lag tracking aperture.
 
+ABI 1.2 adds a deterministic 130-sample accepted-path injection fixture. The
+fixture is loaded completely, committed immutable with a nonzero generation,
+and armed only at a future absolute accepted-sample index. Its selected I/Q,
+with the unchanged source strobe/index/timestamp, feeds both the tracker and RX
+DMA packer. Any incomplete load, late/overlapping arm, or accepted-index jump
+is sticky and fail-closed. Injection proves the hardware data path; it is never
+reported as an ambient Starlink detection.
+
 This is a **15 MS/s milestone**, not an autonomous Starlink acquisition claim.
 The IP rejects every `RATE_MSPS` value other than 15 at elaboration. It does not
 contain or trust the older repeated-delay diagnostic, search an unbounded
@@ -51,10 +59,10 @@ while that buffer is occupied.
 | Offset | Name | Access | Meaning |
 |---:|---|:---:|---|
 | `0x00` | `IDENTIFICATION` | R | `0x50535354` (`PSST`) |
-| `0x04` | `VERSION` | R | `0x00010001` (ABI 1.1) |
+| `0x04` | `VERSION` | R | `0x00010002` (ABI 1.2) |
 | `0x08` | `RATE_MSPS` | R | `15` |
 | `0x0c` | `GEOMETRY` | R | `{0, lags=61, capture=130, taps=66}` |
-| `0x10` | `CAPABILITIES` | R | bit 0 exact score, bit 2 host scheduled, bit 3 atomic packet, bit 4 atomic telemetry |
+| `0x10` | `CAPABILITIES` | R | bit 0 exact score, bit 2 host scheduled, bit 3 atomic packet, bit 4 atomic telemetry, bit 5 deterministic injection |
 | `0x14` | `STATUS` | R | live state described below |
 | `0x18` | `CURRENT_INDEX_LO` | R | current index low; snapshots both halves |
 | `0x1c` | `CURRENT_INDEX_HI` | R | high half of the last low-word snapshot |
@@ -111,6 +119,18 @@ and is published only after the acknowledgement plus two settling cycles.
 Software must serialize requests: read the generation, write control bit 0,
 then wait for `valid && !busy` and a changed generation before reading the
 snapshot. Counters outside that range are native to the AXI/engine clock.
+
+The ABI 1.2 injection extension occupies the final seven words:
+
+| Offset | Name | Access | Meaning |
+|---:|---|:---:|---|
+| `0xe4` | `INJECTION_DATA` | W | `{Q[15:0], I[15:0]}`; appends one fixture sample |
+| `0xe8` | `INJECTION_CONTROL` | W | exactly one of bit 0 clear, bit 1 commit, bit 2 arm |
+| `0xec` | `INJECTION_START_LO` | R/W | absolute accepted-sample start low |
+| `0xf0` | `INJECTION_START_HI` | R/W | absolute accepted-sample start high |
+| `0xf4` | `INJECTION_GENERATION` | R/W | nonzero generation attached at commit |
+| `0xf8` | `INJECTION_STATUS` | R | bits 15:8 count; bits 7:0 inflight/mismatch/rejected/completed/active/pending/ready/valid |
+| `0xfc` | `INJECTION_LAST_GENERATION` | R | generation of the last clean completion |
 
 ## Focused validation
 
@@ -173,7 +193,7 @@ gates.
 
 ## Host sequence
 
-1. Verify ID, exact ABI 1.1, rate, geometry, and capabilities.
+1. Verify ID, exact ABI 1.2, rate, geometry, and capabilities.
 2. Write coefficient clear, then exactly 66 packed CI16 taps.
 3. Write a nonzero generation, request commit, and poll active generation.
 4. Read current index low then high. Choose a center with ample lead; in the
@@ -185,6 +205,12 @@ gates.
 8. Atomically snapshot the counters again and require the declared success
    deltas plus zero error deltas.
 9. Write result-control bit 0 only after the complete packet is validated.
+
+For deterministic injection, first clear the fixture, write exactly 130 packed
+samples, stage a nonzero generation, and commit. Stage a start with ample host
+lead, arm it, then schedule the candidate center at `start+32`. Require the
+ordinary result/counter gates, the committed-generation completion marker, and
+zero rejected/mismatch flags.
 
 The result packet is:
 
@@ -216,9 +242,11 @@ or insertion of the repeated-delay diagnostic. The self-checking asynchronous-
 clock simulations perform real AXI transactions, load coefficients, capture
 130 indexed samples, evaluate 65 raw tuples and the 61-lag qualified aperture,
 check atomic telemetry and every packet word, release the bank/IRQ, and prove
-that a sample-domain reset flushes the entire epoch. A second wrapper-level test
-replays all 210 provenance-bound retained windows and matches the frozen
-float-oracle lag in 210/210 cases.
+that a sample-domain reset flushes the entire epoch. A mux-level test covers all
+130 injected beats, pass-through, and a fail-closed accepted-index jump. A
+second wrapper-level test replays all 210 provenance-bound retained windows,
+injects window zero from zero-valued source samples, and still matches the
+frozen float-oracle lag in 210/210 cases.
 
 Portable Icarus simulation is intentionally slow because variable-index memory
 reads expand the explicit 66-tap engine sensitivity set. This is simulator

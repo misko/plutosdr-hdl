@@ -24,7 +24,10 @@ for fragment, message in (
     ("reset_epoch_async_n = s_axi_aresetn", "AXI reset is not the common asynchronous epoch"),
     ("sample_reset_control_sync <= {", "sample reset is not synchronized into AXI"),
     ("sample_reset_sync[1] && !sample_reset", "sample reset does not hold the sample core"),
-    ("sample_index_gray <= binary_to_gray_64(sample_index)", "sample index is not Gray encoded"),
+    ("sample_index_gray <= binary_to_gray_64(selected_sample_index)", "selected sample index is not Gray encoded"),
+    ("starlink_pss_injection_mux", "deterministic accepted-sample injection mux is absent"),
+    (".i_sample_i                        (selected_sample_i)", "tracker does not consume the selected sample path"),
+    ("REG_INJECTION_LAST_GENERATION", "injection evidence register map is incomplete"),
     ("candidate_pending_sync <= {candidate_pending_sync[0], candidate_pending}", "sample status is not synchronized"),
     ("current_index_snapshot <= current_sample_index", "64-bit scheduling snapshot is absent"),
     ("candidate_command_pending && candidate_submit_ready", "candidate buffer has no handshake"),
@@ -69,5 +72,5 @@ if result_read_case is None or "up_rack <= 1'b1" in result_read_case.group("body
 print(
     "AXI_TRACKER_STRUCTURE_PASS rate=15 host_scheduled=1 exact_track_one=1 "
     "coordinated_reset=1 gray_index=1 atomic_result=1 "
-    "atomic_telemetry=1 irq=level"
+    "atomic_telemetry=1 deterministic_injection=1 irq=level"
 )

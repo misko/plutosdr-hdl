@@ -240,7 +240,7 @@ module tb_axi_starlink_pss_tracker;
     if (read_value !== 32'h5053_5354)
       fail("identification mismatch");
     axi_read(8'h04, read_value);
-    if (read_value !== 32'h0001_0001)
+    if (read_value !== 32'h0001_0002)
       fail("version mismatch");
     axi_read(8'h08, read_value);
     if (read_value !== 32'd15)
@@ -249,7 +249,7 @@ module tb_axi_starlink_pss_tracker;
     if (read_value !== {8'd0, 8'd61, 8'd130, 8'd66})
       fail("geometry mismatch");
     axi_read(8'h10, read_value);
-    if (read_value !== 32'h0000_001d)
+    if (read_value !== 32'h0000_003d)
       fail("capabilities mismatch");
 
     // Keep the sample stream idle while software configures the bank.  This

@@ -9,6 +9,13 @@ python3 tb/verify_structure.py
 python3 tb/generate_real_wrapper_replay.py verify
 
 iverilog -g2012 -Wall \
+  -s tb_starlink_pss_injection_mux \
+  -o build/starlink_pss_injection_mux.vvp \
+  starlink_pss_injection_mux.v \
+  tb/tb_starlink_pss_injection_mux.sv
+vvp build/starlink_pss_injection_mux.vvp
+
+iverilog -g2012 -Wall \
   -s tb_axi_starlink_pss_tracker \
   -o build/axi_starlink_pss_tracker.vvp \
   ../common/up_axi.v \
@@ -22,6 +29,7 @@ iverilog -g2012 -Wall \
   ../starlink_pss_raw_correlator/starlink_pss_exact_reducer.v \
   ../starlink_pss_raw_correlator/starlink_pss_result_store.v \
   ../starlink_pss_raw_correlator/starlink_pss_reduced_tracking_core.v \
+  starlink_pss_injection_mux.v \
   axi_starlink_pss_tracker.v \
   tb/tb_axi_starlink_pss_tracker.sv
 vvp build/axi_starlink_pss_tracker.vvp
@@ -40,6 +48,7 @@ iverilog -g2012 -Wall \
   ../starlink_pss_raw_correlator/starlink_pss_exact_reducer.v \
   ../starlink_pss_raw_correlator/starlink_pss_result_store.v \
   ../starlink_pss_raw_correlator/starlink_pss_reduced_tracking_core.v \
+  starlink_pss_injection_mux.v \
   axi_starlink_pss_tracker.v \
   tb/tb_axi_starlink_pss_tracker_real_replay.sv
 vvp build/axi_starlink_pss_tracker_real_replay.vvp

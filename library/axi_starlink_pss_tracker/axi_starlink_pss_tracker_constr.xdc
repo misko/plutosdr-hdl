@@ -9,7 +9,7 @@
 # schedule against a coherent near-current value.
 
 set pss_tracker_sync_first [get_cells -quiet -hier -regexp \
-  {.*(control_reset_sync_reg\[0\]|sample_reset_sync_reg\[0\]|sample_reset_control_sync_reg\[0\]|sample_index_gray_sync_1_reg\[[0-9]+\]|candidate_pending_sync_reg\[0\]|capture_active_sync_reg\[0\]|telemetry_request_sync_reg\[0\]|telemetry_ack_sync_reg\[0\]|telemetry_payload_sync_1_reg\[[0-9]+\]|i_candidate_scheduler/i_command_fifo/.*_sync_1_reg\[[0-9]+\]|i_capture_bridge/i_descriptor_fifo/.*_sync_1_reg\[[0-9]+\]|i_capture_bridge/sample_release_toggle_sync_1_reg\[[0-9]+\]).*}]
+  {.*(control_reset_sync_reg\[0\]|sample_reset_sync_reg\[0\]|sample_reset_control_sync_reg\[0\]|sample_index_gray_sync_1_reg\[[0-9]+\]|candidate_pending_sync_reg\[0\]|capture_active_sync_reg\[0\]|telemetry_request_sync_reg\[0\]|telemetry_ack_sync_reg\[0\]|telemetry_payload_sync_1_reg\[[0-9]+\]|i_injection_mux/arm_ack_sync_reg\[0\]|i_injection_mux/completion_sync_reg\[0\]|i_injection_mux/mismatch_sync_reg\[0\]|i_injection_mux/sample_active_sync_reg\[0\]|i_injection_mux/arm_request_sync_reg\[0\]|i_injection_mux/arm_start_sync_1_reg\[[0-9]+\]|i_injection_mux/arm_generation_sync_1_reg\[[0-9]+\]|i_candidate_scheduler/i_command_fifo/.*_sync_1_reg\[[0-9]+\]|i_capture_bridge/i_descriptor_fifo/.*_sync_1_reg\[[0-9]+\]|i_capture_bridge/sample_release_toggle_sync_1_reg\[[0-9]+\]).*}]
 
 set_property ASYNC_REG TRUE $pss_tracker_sync_first
 set_property SHREG_EXTRACT NO $pss_tracker_sync_first
@@ -61,3 +61,29 @@ set_bus_skew 10.000 \
   -from $pss_tracker_telemetry_source \
   -to [get_cells -quiet -hier -regexp \
     {.*telemetry_payload_sync_1_reg\[[0-9]+\].*}]
+
+# The 96-bit injection start/generation mailbox is immutable from the AXI arm
+# toggle until the sample side acknowledges after two synchronizer stages and
+# two additional settling clocks.
+set pss_tracker_injection_payload_source [get_cells -quiet -hier -regexp \
+  {.*i_injection_mux/(arm_start_mailbox_reg|arm_generation_mailbox_reg)\[[0-9]+\].*}]
+set pss_tracker_injection_payload_sync_1 [get_cells -quiet -hier -regexp \
+  {.*i_injection_mux/(arm_start_sync_1_reg|arm_generation_sync_1_reg)\[[0-9]+\].*}]
+set_bus_skew 10.000 \
+  -from $pss_tracker_injection_payload_source \
+  -to $pss_tracker_injection_payload_sync_1
+
+# Fixture memory is written only while invalid and remains immutable through
+# the complete arm/injection handshake. Cut only that stable bundled-data RAM
+# arc into the sample-domain output pipeline; the ordinary source-I/Q path to
+# those same registers remains timed by sample_clk.
+set pss_tracker_injection_memory [get_cells -quiet -hier -regexp \
+  {.*i_injection_mux/fixture_memory_reg.*}]
+set pss_tracker_injection_output_registers [get_cells -quiet -hier -regexp \
+  {.*i_injection_mux/selected_sample_[iq]_reg\[[0-9]+\].*}]
+set pss_tracker_injection_output_d [get_pins -quiet \
+  -of_objects $pss_tracker_injection_output_registers \
+  -filter {REF_PIN_NAME == D}]
+set_false_path -quiet \
+  -from $pss_tracker_injection_memory \
+  -to $pss_tracker_injection_output_d

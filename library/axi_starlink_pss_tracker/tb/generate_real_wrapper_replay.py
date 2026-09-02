@@ -45,6 +45,7 @@ REQUEST_BASE = 0x7120_0000
 COEFFICIENT_GENERATION = 0x0712_0001
 
 SAMPLES_FILE = THIS_DIR / "real_071200_wrapper_samples_ci16.mem"
+INJECTION_FILE = THIS_DIR / "real_071200_window0_samples_ci16.mem"
 PACKETS_FILE = THIS_DIR / "real_071200_wrapper_packets.mem"
 PROVENANCE_FILE = THIS_DIR / "real_071200_wrapper_replay_provenance.json"
 COEFFICIENT_FILE = (
@@ -274,6 +275,7 @@ def generate(manifest_path: Path, chunk_path: Path, replay_path: Path) -> None:
     )
 
     SAMPLES_FILE.write_text(packed_ci16(frozen_samples))
+    INJECTION_FILE.write_text(packed_ci16(frozen_samples[:RAW_CAPTURE_SAMPLES]))
     PACKETS_FILE.write_text("".join(f"{word:08x}\n" for word in frozen_packets))
     provenance = {
         "schema": "starlink-pss15-axi-wrapper-replay-v1",
@@ -313,6 +315,7 @@ def generate(manifest_path: Path, chunk_path: Path, replay_path: Path) -> None:
         },
         "fixture_sha256": {
             SAMPLES_FILE.name: sha256_file(SAMPLES_FILE),
+            INJECTION_FILE.name: sha256_file(INJECTION_FILE),
             PACKETS_FILE.name: sha256_file(PACKETS_FILE),
         },
     }
@@ -350,7 +353,11 @@ def verify() -> None:
     )
     for name, digest in provenance["fixture_sha256"].items():
         expect(f"fixture {name} SHA-256", sha256_file(THIS_DIR / name), digest)
-    expect("sample memory lines", len(SAMPLES_FILE.read_text().splitlines()), WINDOWS * RAW_CAPTURE_SAMPLES)
+    sample_lines = SAMPLES_FILE.read_text().splitlines()
+    injection_lines = INJECTION_FILE.read_text().splitlines()
+    expect("sample memory lines", len(sample_lines), WINDOWS * RAW_CAPTURE_SAMPLES)
+    expect("injection memory lines", len(injection_lines), RAW_CAPTURE_SAMPLES)
+    expect("injection is retained window zero", injection_lines, sample_lines[:RAW_CAPTURE_SAMPLES])
     packet_lines = PACKETS_FILE.read_text().splitlines()
     expect("packet memory lines", len(packet_lines), WINDOWS * 26)
     for index in range(WINDOWS):
@@ -365,7 +372,8 @@ def verify() -> None:
     print(
         "AXI_REAL_REPLAY_FIXTURE_PASS "
         f"windows={WINDOWS} samples={WINDOWS * RAW_CAPTURE_SAMPLES} "
-        f"packets={WINDOWS} first_lag={FIRST_LAG} last_lag={LAST_LAG}"
+        f"injection_samples={RAW_CAPTURE_SAMPLES} packets={WINDOWS} "
+        f"first_lag={FIRST_LAG} last_lag={LAST_LAG}"
     )
 
 

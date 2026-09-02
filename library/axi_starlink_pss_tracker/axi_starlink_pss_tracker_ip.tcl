@@ -16,6 +16,7 @@ adi_ip_files axi_starlink_pss_tracker [list \
   "$ad_hdl_dir/library/starlink_pss_raw_correlator/starlink_pss_exact_reducer.v" \
   "$ad_hdl_dir/library/starlink_pss_raw_correlator/starlink_pss_result_store.v" \
   "$ad_hdl_dir/library/starlink_pss_raw_correlator/starlink_pss_reduced_tracking_core.v" \
+  "starlink_pss_injection_mux.v" \
   "axi_starlink_pss_tracker.v" \
   "axi_starlink_pss_tracker_constr.xdc" ]
 
