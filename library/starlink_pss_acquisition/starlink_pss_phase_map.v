@@ -342,6 +342,13 @@ module starlink_pss_phase_map #(
             clear_active_1 <= 1'b1;
             clear_address_1 <= {PHASE_INDEX_WIDTH{1'b0}};
           end
+        end else if (state == STATE_WAIT_FRAME) begin
+          // No score has touched the reserved bank yet, so return it directly
+          // to the clean pool instead of stranding it across disable.
+          if (!fill_bank)
+            clean_0 <= 1'b1;
+          else
+            clean_1 <= 1'b1;
         end
         state <= STATE_WAIT_BANK;
         if (score_valid)
@@ -435,7 +442,8 @@ module starlink_pss_phase_map #(
               ready_0 <= 1'b1;
               generation_0 <= increment_saturating_32(map_publish_count);
               start_index_0 <= active_tile_start_index;
-              if (clean_1 && !ready_1 && !clear_active_1) begin
+              if (acquisition_enable &&
+                  clean_1 && !ready_1 && !clear_active_1) begin
                 fill_bank <= 1'b1;
                 clean_1 <= 1'b0;
                 if (score_accept_drain) begin
@@ -459,8 +467,9 @@ module starlink_pss_phase_map #(
                 end
               end else begin
                 state <= STATE_WAIT_BANK;
-                map_overrun_count <=
-                    increment_saturating_32(map_overrun_count);
+                if (acquisition_enable)
+                  map_overrun_count <=
+                      increment_saturating_32(map_overrun_count);
                 if (score_valid)
                   discarded_score_count <=
                       increment_saturating_32(discarded_score_count);
@@ -469,7 +478,8 @@ module starlink_pss_phase_map #(
               ready_1 <= 1'b1;
               generation_1 <= increment_saturating_32(map_publish_count);
               start_index_1 <= active_tile_start_index;
-              if (clean_0 && !ready_0 && !clear_active_0) begin
+              if (acquisition_enable &&
+                  clean_0 && !ready_0 && !clear_active_0) begin
                 fill_bank <= 1'b0;
                 clean_0 <= 1'b0;
                 if (score_accept_drain) begin
@@ -493,8 +503,9 @@ module starlink_pss_phase_map #(
                 end
               end else begin
                 state <= STATE_WAIT_BANK;
-                map_overrun_count <=
-                    increment_saturating_32(map_overrun_count);
+                if (acquisition_enable)
+                  map_overrun_count <=
+                      increment_saturating_32(map_overrun_count);
                 if (score_valid)
                   discarded_score_count <=
                       increment_saturating_32(discarded_score_count);

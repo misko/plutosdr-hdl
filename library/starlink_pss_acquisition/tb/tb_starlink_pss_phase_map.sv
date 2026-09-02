@@ -153,6 +153,14 @@ module tb_starlink_pss_phase_map;
     acquisition_enable = 1'b1;
     repeat (12) @(negedge clk);
 
+    // Disable while a clean bank is reserved in WAIT_FRAME, then re-enable.
+    // Both banks must remain available for the two immediately following
+    // back-to-back tiles.
+    acquisition_enable = 1'b0;
+    @(negedge clk);
+    acquisition_enable = 1'b1;
+    repeat (2) @(negedge clk);
+
     // Eight back-to-back frames exercise a tile boundary with no idle score
     // cycle.  The first tile sums biases 1..4, and the second 10..13.
     base_index = 64'd1000;
@@ -226,6 +234,19 @@ module tb_starlink_pss_phase_map;
     if (discontinuity_abort_count != 1)
       fail("stream discontinuity did not abort the partial tile");
 
+    // Wrong absolute index and wrong phase each abort and clear a partial
+    // tile.  Neither incomplete map may become visible.
+    repeat (12) @(negedge clk);
+    send_score(64'd3500, 0, 8'd1);
+    send_score(64'd3502, 1, 8'd2);
+    repeat (12) @(negedge clk);
+    send_score(64'd3600, 0, 8'd1);
+    send_score(64'd3601, 2, 8'd2);
+    repeat (12) @(negedge clk);
+    if (discontinuity_abort_count != 3 ||
+        score_protocol_error_count != 2)
+      fail("phase/index mismatch did not abort and count the partial tile");
+
     // Only published banks may be read or released.
     @(negedge clk);
     map_read_bank = 1'b0;
@@ -254,12 +275,25 @@ module tb_starlink_pss_phase_map;
     if (map_publish_count != 3 || map_ready_mask == 2'b00)
       fail("disable at DRAIN stranded a complete tile");
 
-    if (score_protocol_error_count != 0 ||
+    // The disable-at-DRAIN path must not claim and strand the other clean
+    // bank.  Re-enable and fill it while the just-published map remains ready.
+    acquisition_enable = 1'b1;
+    repeat (2) @(negedge clk);
+    base_index = 64'd5000;
+    for (frame = 0; frame < TILE_FRAMES; frame = frame + 1)
+      for (phase = 0; phase < PHASE_BINS; phase = phase + 1)
+        send_score(base_index + frame * PHASE_BINS + phase,
+                   phase, frame + 1 + phase);
+    repeat (3) @(negedge clk);
+    if (map_publish_count != 4 || map_ready_mask != 2'b11)
+      fail("disable at DRAIN stranded the next clean bank");
+
+    if (score_protocol_error_count != 2 ||
         map_arithmetic_overflow_count != 0)
-      fail("unexpected protocol or arithmetic error");
-    if (accepted_score_count != 105)
+      fail("protocol or arithmetic error accounting mismatch");
+    if (accepted_score_count != 139)
       fail("accepted score accounting mismatch");
-    if (discarded_score_count < 1)
+    if (discarded_score_count < 3)
       fail("discarded score accounting did not advance");
 
     $display("PHASE_MAP_PASS bins=8 frames=4 ping_pong=1 complete_only=1 gap_abort=1 fail_closed_read=1 accepted=%0d discarded=%0d",
