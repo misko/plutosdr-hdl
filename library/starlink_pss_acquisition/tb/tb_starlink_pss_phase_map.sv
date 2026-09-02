@@ -156,19 +156,27 @@ module tb_starlink_pss_phase_map;
     // Eight back-to-back frames exercise a tile boundary with no idle score
     // cycle.  The first tile sums biases 1..4, and the second 10..13.
     base_index = 64'd1000;
-    @(negedge clk);
-    score_valid = 1'b1;
-    for (frame = 0; frame < 2 * TILE_FRAMES; frame = frame + 1) begin
-      for (phase = 0; phase < PHASE_BINS; phase = phase + 1) begin
-        score_start_index = base_index + frame * PHASE_BINS + phase;
-        score_phase = phase;
-        score_value = (frame < TILE_FRAMES) ?
-            (frame + 1 + phase) :
-            (10 + frame - TILE_FRAMES + phase);
+    fork
+      begin : produce_two_tiles
         @(negedge clk);
+        score_valid = 1'b1;
+        for (frame = 0; frame < 2 * TILE_FRAMES; frame = frame + 1) begin
+          for (phase = 0; phase < PHASE_BINS; phase = phase + 1) begin
+            score_start_index = base_index + frame * PHASE_BINS + phase;
+            score_phase = phase;
+            score_value = (frame < TILE_FRAMES) ?
+                (frame + 1 + phase) :
+                (10 + frame - TILE_FRAMES + phase);
+            @(negedge clk);
+          end
+        end
+        score_valid = 1'b0;
       end
-    end
-    score_valid = 1'b0;
+      begin : read_first_while_filling_second
+        wait (map_ready_mask[0]);
+        read_and_expect(1'b0, 3, 16'd22);
+      end
+    join
     repeat (3) @(negedge clk);
     if (map_ready_mask !== 2'b11 || map_publish_count != 2)
       fail("two contiguous complete tiles did not publish both banks");

@@ -167,8 +167,10 @@ module starlink_pss_phase_map #(
       (map_read_request && !map_read_bank);
   wire bank_read_enable_1 = (score_accept && score_read_bank) ||
       (map_read_request && map_read_bank);
-  wire [PHASE_INDEX_WIDTH-1:0] bank_read_address =
-      score_accept ? score_phase : map_read_index;
+  wire [PHASE_INDEX_WIDTH-1:0] bank_read_address_0 =
+      (score_accept && !score_read_bank) ? score_phase : map_read_index;
+  wire [PHASE_INDEX_WIDTH-1:0] bank_read_address_1 =
+      (score_accept && score_read_bank) ? score_phase : map_read_index;
 
   assign map_ready_mask = {ready_1, ready_0};
   assign map_generation_0 = generation_0;
@@ -195,7 +197,7 @@ module starlink_pss_phase_map #(
     .write_address(bank_write_address_0),
     .write_data   (bank_write_data_0),
     .read_enable  (bank_read_enable_0),
-    .read_address (bank_read_address),
+    .read_address (bank_read_address_0),
     .read_data    (bank_read_data_0)
   );
 
@@ -212,7 +214,7 @@ module starlink_pss_phase_map #(
     .write_address(bank_write_address_1),
     .write_data   (bank_write_data_1),
     .read_enable  (bank_read_enable_1),
-    .read_address (bank_read_address),
+    .read_address (bank_read_address_1),
     .read_data    (bank_read_data_1)
   );
 
