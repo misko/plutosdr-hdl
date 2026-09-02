@@ -12,3 +12,17 @@ iverilog -g2012 -Wall \
   starlink_pss_phase_map.v \
   tb/tb_starlink_pss_phase_map.sv
 vvp build/starlink_pss_phase_map.vvp
+
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_overlap_scheduler \
+  -o build/starlink_pss_overlap_scheduler.vvp \
+  starlink_pss_overlap_scheduler.v \
+  tb/tb_starlink_pss_overlap_scheduler.sv
+vvp build/starlink_pss_overlap_scheduler.vvp
+
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_overlap_scheduler_lifecycle \
+  -o build/starlink_pss_overlap_scheduler_lifecycle.vvp \
+  starlink_pss_overlap_scheduler.v \
+  tb/tb_starlink_pss_overlap_scheduler_lifecycle.sv
+vvp build/starlink_pss_overlap_scheduler_lifecycle.vvp
