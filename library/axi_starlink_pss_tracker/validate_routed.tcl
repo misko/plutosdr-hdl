@@ -41,7 +41,6 @@ foreach {label suffix expected} {
   injection_active_synchronizers "i_injection_mux/sample_active_sync_reg*" 2
   injection_arm_request_synchronizers "i_injection_mux/arm_request_sync_reg*" 2
   injection_start_synchronizers "i_injection_mux/arm_start_sync_*_reg*" 128
-  injection_generation_synchronizers "i_injection_mux/arm_generation_sync_*_reg*" 64
   candidate_pointer_synchronizers
     "i_core/i_raw_tracking_core/i_candidate_scheduler/i_command_fifo/*_sync_*_reg*" 16
   capture_pointer_synchronizers
@@ -108,24 +107,21 @@ if {[llength $telemetry_snapshot_path] != 1 ||
 }
 
 # The injection arm mailbox follows the same stable bundled-data rule. The
-# 96-bit start/generation payload is captured only after the request toggle and
+# 64-bit start payload is captured only after the request toggle and
 # two additional sample-domain settling clocks.
-set injection_payload_source [concat \
-  [tracker_cells $tracker_glob "i_injection_mux/arm_start_mailbox_reg*"] \
-  [tracker_cells $tracker_glob "i_injection_mux/arm_generation_mailbox_reg*"]]
-set injection_payload_sync_1 [concat \
-  [tracker_cells $tracker_glob "i_injection_mux/arm_start_sync_1_reg*"] \
-  [tracker_cells $tracker_glob "i_injection_mux/arm_generation_sync_1_reg*"]]
-set injection_payload_sync_2 [concat \
-  [tracker_cells $tracker_glob "i_injection_mux/arm_start_sync_2_reg*"] \
-  [tracker_cells $tracker_glob "i_injection_mux/arm_generation_sync_2_reg*"]]
+set injection_payload_source [tracker_cells $tracker_glob \
+  "i_injection_mux/arm_start_mailbox_reg*"]
+set injection_payload_sync_1 [tracker_cells $tracker_glob \
+  "i_injection_mux/arm_start_sync_1_reg*"]
+set injection_payload_sync_2 [tracker_cells $tracker_glob \
+  "i_injection_mux/arm_start_sync_2_reg*"]
 set injection_sync_1_d [get_pins -quiet -of_objects $injection_payload_sync_1 \
   -filter {REF_PIN_NAME == D}]
 set injection_sync_2_d [get_pins -quiet -of_objects $injection_payload_sync_2 \
   -filter {REF_PIN_NAME == D}]
-if {[llength $injection_payload_source] != 96 ||
-    [llength $injection_sync_1_d] != 96 ||
-    [llength $injection_sync_2_d] != 96} {
+if {[llength $injection_payload_source] != 64 ||
+    [llength $injection_sync_1_d] != 64 ||
+    [llength $injection_sync_2_d] != 64} {
   error "injection arm payload timing objects are incomplete"
 }
 set injection_first_path [get_timing_paths -quiet -delay_type max \
@@ -140,24 +136,6 @@ if {[llength $injection_second_path] != 1 ||
     [get_property EXCEPTION $injection_second_path] eq "False Path" ||
     [get_property SLACK $injection_second_path] < 0.0} {
   error "injection payload first-to-second-stage arc is not safely timed"
-}
-
-set injection_fixture_memory [tracker_cells $tracker_glob \
-  "i_injection_mux/fixture_memory_reg*"]
-set injection_output_registers [concat \
-  [tracker_cells $tracker_glob "i_injection_mux/selected_sample_i_reg*"] \
-  [tracker_cells $tracker_glob "i_injection_mux/selected_sample_q_reg*"]]
-set injection_output_d [get_pins -quiet -of_objects $injection_output_registers \
-  -filter {REF_PIN_NAME == D}]
-if {[llength $injection_fixture_memory] == 0 ||
-    [llength $injection_output_d] != 32} {
-  error "injection fixture memory/output timing objects are incomplete"
-}
-set injection_fixture_path [get_timing_paths -quiet -delay_type max \
-  -max_paths 1 -from $injection_fixture_memory -to $injection_output_d]
-if {[llength $injection_fixture_path] != 1 ||
-    [get_property EXCEPTION $injection_fixture_path] ne "False Path"} {
-  error "injection fixture bundled-data RAM arc is not false-pathed"
 }
 
 # The distributed descriptor RAM is bundled data.  Its RAM-write-clock data
@@ -199,8 +177,13 @@ set tracker_ramb36 [get_cells -quiet -hier -filter \
 if {[llength $tracker_dsps] != 3} {
   error "expected exactly three tracker DSP48E1 cells, got [llength $tracker_dsps]"
 }
-if {[llength $tracker_ramb18] != 3 || [llength $tracker_ramb36] != 4} {
-  error "expected tracker RAMB18/RAMB36 counts 3/4, got [llength $tracker_ramb18]/[llength $tracker_ramb36]"
+if {[llength $tracker_ramb18] != 4 || [llength $tracker_ramb36] != 4} {
+  error "expected tracker RAMB18/RAMB36 counts 4/4, got [llength $tracker_ramb18]/[llength $tracker_ramb36]"
+}
+set injection_fixture_ramb18 [get_cells -quiet -hier -filter \
+  "NAME =~ ${tracker_glob}/i_injection_mux/fixture_memory_reg* && REF_NAME == RAMB18E1"]
+if {[llength $injection_fixture_ramb18] != 1} {
+  error "expected one dual-clock injection fixture RAMB18E1, got [llength $injection_fixture_ramb18]"
 }
 
 set tx_dma_cells [get_cells -quiet -hier -filter \

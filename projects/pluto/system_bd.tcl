@@ -286,7 +286,7 @@ ad_connect cpack_timestamp/timestamp_cpu axi_ad9361/up_adc_gpio_in
 
 # Host-scheduled exact TRACK_ONE pipeline. ABI 1.2 adds a fail-closed, future-
 # indexed 130-sample deterministic injection mux before the shared tracker/DMA
-# fan-out. Outside an explicitly armed window the selected outputs are a one-
+# fan-out. Outside an explicitly armed window the selected outputs are a two-
 # clock pipeline of the unchanged post-decimator stream. One result remains
 # only the exact normalized winner within one scheduled 61-lag window; it is
 # not autonomous search, SSS alignment, cadence qualification, or a Starlink

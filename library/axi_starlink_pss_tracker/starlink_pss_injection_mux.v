@@ -51,10 +51,10 @@ module starlink_pss_injection_mux #(
     end
   endgenerate
 
-  // Distributed memory intentionally provides an asynchronous sample-side
-  // read. Writes are forbidden from commit until the armed transaction has
-  // completed or failed, and the arm mailbox settles before the first read.
-  (* ram_style = "distributed" *)
+  // A true dual-clock block RAM keeps the control write port and sample read
+  // port explicit to the implementation tools. Writes are forbidden from
+  // commit until the armed transaction has completed or failed.
+  (* ram_style = "block" *)
   reg [31:0] fixture_memory [0:SAMPLE_COUNT-1];
   reg [7:0] fixture_count;
   reg fixture_valid;
@@ -64,7 +64,6 @@ module starlink_pss_injection_mux #(
   reg mismatch_sticky;
 
   reg [63:0] arm_start_mailbox;
-  reg [31:0] arm_generation_mailbox;
   reg arm_request_toggle;
   reg arm_validation_pending;
   reg [1:0] arm_validation_count;
@@ -134,7 +133,6 @@ module starlink_pss_injection_mux #(
       mismatch_sticky <= 1'b0;
       last_completed_generation <= 32'd0;
       arm_start_mailbox <= 64'd0;
-      arm_generation_mailbox <= 32'd0;
       arm_request_toggle <= 1'b0;
       arm_validation_pending <= 1'b0;
       arm_validation_count <= 2'd0;
@@ -177,7 +175,6 @@ module starlink_pss_injection_mux #(
           if (arm_start_stage == arm_validation_start &&
               accepted_sample_control_lead) begin
             arm_start_mailbox <= arm_validation_start;
-            arm_generation_mailbox <= fixture_generation;
             arm_request_toggle <= ~arm_request_toggle;
             arm_pending <= 1'b1;
             arm_inflight <= 1'b1;
@@ -264,10 +261,6 @@ module starlink_pss_injection_mux #(
   reg [63:0] arm_start_sync_1;
   (* ASYNC_REG = "TRUE", SHREG_EXTRACT = "NO" *)
   reg [63:0] arm_start_sync_2;
-  (* ASYNC_REG = "TRUE", SHREG_EXTRACT = "NO" *)
-  reg [31:0] arm_generation_sync_1;
-  (* ASYNC_REG = "TRUE", SHREG_EXTRACT = "NO" *)
-  reg [31:0] arm_generation_sync_2;
 
   reg sample_arm_ack_toggle;
   reg sample_completion_toggle;
@@ -277,7 +270,6 @@ module starlink_pss_injection_mux #(
   reg sample_injection_active;
   reg [63:0] sample_arm_start;
   reg [63:0] sample_expected_index;
-  reg [31:0] sample_arm_generation;
 
   wire source_sample_accepted = source_sample_enable && source_sample_strobe;
   wire sample_index_matches =
@@ -292,7 +284,15 @@ module starlink_pss_injection_mux #(
       source_sample_index < sample_arm_start + SAMPLE_COUNT;
   wire [7:0] fixture_read_index = fixture_read_in_range ?
       source_sample_index - sample_arm_start : 8'd0;
-  wire [31:0] fixture_read_word = fixture_memory[fixture_read_index];
+  reg [31:0] fixture_read_word;
+  reg signed [15:0] source_sample_i_stage;
+  reg signed [15:0] source_sample_q_stage;
+  reg source_sample_strobe_stage;
+  reg source_sample_enable_stage;
+  reg [63:0] source_sample_index_stage;
+  reg [63:0] source_sample_timestamp_stage;
+  reg selection_injected_stage;
+  reg completion_pending_stage;
 
   always @(posedge sample_clk) begin
     if (!sample_resetn) begin
@@ -302,8 +302,6 @@ module starlink_pss_injection_mux #(
       arm_settle_count <= 2'd0;
       arm_start_sync_1 <= 64'd0;
       arm_start_sync_2 <= 64'd0;
-      arm_generation_sync_1 <= 32'd0;
-      arm_generation_sync_2 <= 32'd0;
       sample_arm_ack_toggle <= 1'b0;
       sample_completion_toggle <= 1'b0;
       sample_mismatch_toggle <= 1'b0;
@@ -312,7 +310,15 @@ module starlink_pss_injection_mux #(
       sample_injection_active <= 1'b0;
       sample_arm_start <= 64'd0;
       sample_expected_index <= 64'd0;
-      sample_arm_generation <= 32'd0;
+      fixture_read_word <= 32'd0;
+      source_sample_i_stage <= 16'sd0;
+      source_sample_q_stage <= 16'sd0;
+      source_sample_strobe_stage <= 1'b0;
+      source_sample_enable_stage <= 1'b0;
+      source_sample_index_stage <= 64'd0;
+      source_sample_timestamp_stage <= 64'd0;
+      selection_injected_stage <= 1'b0;
+      completion_pending_stage <= 1'b0;
       selected_sample_i <= 16'sd0;
       selected_sample_q <= 16'sd0;
       selected_sample_strobe <= 1'b0;
@@ -324,18 +330,32 @@ module starlink_pss_injection_mux #(
       arm_request_sync <= {arm_request_sync[0], arm_request_toggle};
       arm_start_sync_1 <= arm_start_mailbox;
       arm_start_sync_2 <= arm_start_sync_1;
-      arm_generation_sync_1 <= arm_generation_mailbox;
-      arm_generation_sync_2 <= arm_generation_sync_1;
 
-      selected_sample_i <= inject_this_sample ?
-          $signed(fixture_read_word[15:0]) : source_sample_i;
-      selected_sample_q <= inject_this_sample ?
-          $signed(fixture_read_word[31:16]) : source_sample_q;
-      selected_sample_strobe <= source_sample_strobe;
-      selected_sample_enable <= source_sample_enable;
-      selected_sample_index <= source_sample_index;
-      selected_sample_timestamp <= source_sample_timestamp;
-      selected_sample_injected <= inject_this_sample;
+      fixture_read_word <= fixture_memory[fixture_read_index];
+      source_sample_i_stage <= source_sample_i;
+      source_sample_q_stage <= source_sample_q;
+      source_sample_strobe_stage <= source_sample_strobe;
+      source_sample_enable_stage <= source_sample_enable;
+      source_sample_index_stage <= source_sample_index;
+      source_sample_timestamp_stage <= source_sample_timestamp;
+      selection_injected_stage <= inject_this_sample;
+      completion_pending_stage <=
+          inject_this_sample && fixture_read_index == SAMPLE_COUNT - 1;
+
+      selected_sample_i <= selection_injected_stage ?
+          $signed(fixture_read_word[15:0]) : source_sample_i_stage;
+      selected_sample_q <= selection_injected_stage ?
+          $signed(fixture_read_word[31:16]) : source_sample_q_stage;
+      selected_sample_strobe <= source_sample_strobe_stage;
+      selected_sample_enable <= source_sample_enable_stage;
+      selected_sample_index <= source_sample_index_stage;
+      selected_sample_timestamp <= source_sample_timestamp_stage;
+      selected_sample_injected <= selection_injected_stage;
+
+      if (completion_pending_stage) begin
+        sample_injection_active <= 1'b0;
+        sample_completion_toggle <= ~sample_completion_toggle;
+      end
 
       if (arm_request_sync[1] != arm_request_seen &&
           arm_settle_count == 0 && !sample_armed) begin
@@ -347,7 +367,6 @@ module starlink_pss_injection_mux #(
         if (arm_settle_count == 1) begin
           sample_arm_start <= arm_start_sync_2;
           sample_expected_index <= arm_start_sync_2;
-          sample_arm_generation <= arm_generation_sync_2;
           sample_armed <= 1'b1;
           sample_started <= 1'b0;
           sample_arm_ack_toggle <= arm_request_pending_value;
@@ -371,8 +390,6 @@ module starlink_pss_injection_mux #(
           if (fixture_read_index == SAMPLE_COUNT - 1) begin
             sample_armed <= 1'b0;
             sample_started <= 1'b0;
-            sample_injection_active <= 1'b0;
-            sample_completion_toggle <= ~sample_completion_toggle;
           end
         end
       end else if (!sample_armed) begin
@@ -380,7 +397,5 @@ module starlink_pss_injection_mux #(
       end
     end
   end
-
-  wire unused_sample_arm_generation = ^sample_arm_generation;
 
 endmodule
