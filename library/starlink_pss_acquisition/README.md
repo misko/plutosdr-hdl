@@ -35,6 +35,15 @@ overflow event.  Its three-stage elastic pipeline sustains one bin per clock
 and carries the FFT block exponent and absolute block identity unchanged.  It
 is independent of generated Xilinx FFT source and kernel-ROM packaging.
 
+`starlink_pss_energy_cache.v` computes the exact 66-sample CI16 denominator
+stream beside the FFT path.  It retains 2,048 consecutive 38-bit energies in
+an absolute-indexed circular BRAM, so delayed IFFT results request the matching
+window without assuming a fixed transform latency.  Full absolute range
+metadata prevents stale circular aliases.  A same-cycle newest-value bypass
+is defined; an imminent oldest-value overwrite fails the lookup closed.  Gap,
+index discontinuity, flush, and disable invalidate both partial energy windows
+and retained results without clearing the BRAM contents themselves.
+
 Run the deterministic simulation with:
 
 ```sh
@@ -48,6 +57,9 @@ contents, 15 MS/s-equivalent input cadence at a 100 MHz clock, output
 backpressure stability, disable abort, explicit gap and index restart,
 descriptor overflow, ring-retention overflow, signed half-way rounding,
 saturation, metadata ordering, and arithmetic-pipeline flush.
+The energy-cache test additionally checks all 2,435 exact windows from a
+15 MS/s-equivalent segment, full-cache rollover and boundary lookups, lookup
+backpressure, a stalled-response gap flush, index restart, and disable.
 
 Run the default-geometry Zynq-7010 out-of-context gate with:
 
@@ -65,6 +77,12 @@ Run the spectrum product's independent OOC gate with:
 
 ```sh
 ./run_spectrum_product_ooc.sh /absolute/output/directory
+```
+
+Run the sliding-energy cache's independent OOC gate with:
+
+```sh
+./run_energy_cache_ooc.sh /absolute/output/directory
 ```
 
 The OOC gate requires the canonical Vivado 2022.2 installation and fails if
@@ -85,3 +103,9 @@ The spectrum-product OOC gate requires exactly eight DSP48E1 cells and no
 BRAM, bounded elastic-control and rounding logic, clean reports, and
 nonnegative 100 MHz post-opt unplaced setup and hold slack.  This gate does not
 include either generated FFT core, the coefficient ROM, or composed routing.
+
+The energy-cache OOC gate requires the 2,048-entry 38-bit result memory to
+infer exactly two RAMB36E1 blocks plus one RAMB18E1 (2.5 BRAM tiles), the two
+CI16 squares to infer exactly two DSP48E1s, bounded logic, clean reports, and
+nonnegative 100 MHz post-opt unplaced setup and hold slack.  It proves neither
+the later energy/correlation join nor the normalizer.

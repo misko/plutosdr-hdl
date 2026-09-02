@@ -35,3 +35,10 @@ iverilog -g2012 -Wall \
   starlink_pss_spectrum_product.v \
   tb/tb_starlink_pss_spectrum_product.sv
 vvp build/starlink_pss_spectrum_product.vvp
+
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_energy_cache \
+  -o build/starlink_pss_energy_cache.vvp \
+  starlink_pss_energy_cache.v \
+  tb/tb_starlink_pss_energy_cache.sv
+vvp build/starlink_pss_energy_cache.vvp
