@@ -169,7 +169,7 @@ module tb_axi_starlink_pss_tracker;
     integer winner_first_index;
     integer winner_numerator;
     begin
-      winner_first_index = CENTER_INDEX + 32;
+      winner_first_index = CENTER_INDEX + 30;
       winner_ex = expected_energy(winner_first_index);
       winner_numerator = 2 * winner_first_index * winner_first_index;
       expected_word[0] = 32'h3153_5350;
@@ -179,7 +179,7 @@ module tb_axi_starlink_pss_tracker;
       expected_word[4] = CENTER_INDEX[63:32];
       expected_word[5] = (TIMESTAMP_BASE + CENTER_INDEX);
       expected_word[6] = (TIMESTAMP_BASE + CENTER_INDEX) >> 32;
-      expected_word[7] = 32'd32;
+      expected_word[7] = 32'd30;
       expected_word[8] = TIMESTAMP_BASE + winner_first_index;
       expected_word[9] = (TIMESTAMP_BASE + winner_first_index) >> 32;
       expected_word[10] = 32'd77;
@@ -240,14 +240,17 @@ module tb_axi_starlink_pss_tracker;
     if (read_value !== 32'h5053_5354)
       fail("identification mismatch");
     axi_read(8'h04, read_value);
-    if (read_value !== 32'h0001_0000)
+    if (read_value !== 32'h0001_0001)
       fail("version mismatch");
     axi_read(8'h08, read_value);
     if (read_value !== 32'd15)
       fail("rate mismatch");
     axi_read(8'h0c, read_value);
-    if (read_value !== {8'd0, 8'd65, 8'd130, 8'd66})
+    if (read_value !== {8'd0, 8'd61, 8'd130, 8'd66})
       fail("geometry mismatch");
+    axi_read(8'h10, read_value);
+    if (read_value !== 32'h0000_001d)
+      fail("capabilities mismatch");
 
     // Keep the sample stream idle while software configures the bank.  This
     // mirrors the intended bring-up sequence and avoids doing irrelevant
@@ -334,6 +337,42 @@ module tb_axi_starlink_pss_tracker;
     if (read_value !== 32'd1)
       fail("result consumed counter mismatch");
 
+    // Sample-domain diagnostics are readable only after one explicit atomic
+    // snapshot request; live binary counter reads remain forbidden.
+    axi_write(8'h68, 32'h0000_0001);
+    timeout = 0;
+    read_value = 32'd0;
+    while ((!read_value[0] || read_value[1]) && timeout < 1000) begin
+      axi_read(8'h6c, read_value);
+      timeout = timeout + 1;
+    end
+    if (timeout == 1000)
+      fail("atomic telemetry snapshot timeout");
+    axi_read(8'h70, read_value);
+    if (read_value !== 32'd1)
+      fail("telemetry generation mismatch");
+    axi_read(8'h84, read_value);
+    if (read_value !== 32'd1)
+      fail("telemetry admitted counter mismatch");
+    axi_read(8'h88, read_value);
+    if (read_value !== 32'd1)
+      fail("telemetry completed counter mismatch");
+    axi_read(8'hac, read_value);
+    if (read_value !== 32'd1)
+      fail("telemetry capture-published counter mismatch");
+    for (word_index = 8'h8c; word_index <= 8'ha8;
+         word_index = word_index + 4) begin
+      axi_read(word_index[7:0], read_value);
+      if (read_value !== 32'd0)
+        fail("clean telemetry snapshot accumulated an error counter");
+    end
+    for (word_index = 8'hb0; word_index <= 8'hb8;
+         word_index = word_index + 4) begin
+      axi_read(word_index[7:0], read_value);
+      if (read_value !== 32'd0)
+        fail("clean capture snapshot accumulated an error counter");
+    end
+
     // A sample-domain reset must assert the common epoch and flush CPU-side
     // command/result state even though the external AXI reset stays released.
     @(negedge sample_clk);
@@ -347,7 +386,7 @@ module tb_axi_starlink_pss_tracker;
     if (read_value !== 32'd0 || irq)
       fail("sample reset did not flush the coordinated epoch");
 
-    $display("AXI_TRACKER_PASS rate=15 taps=66 winner_lag=32 packet_words=26 irq=level reset_epoch=coordinated");
+    $display("AXI_TRACKER_PASS rate=15 taps=66 lags=61 winner_lag=30 packet_words=26 irq=level reset_epoch=coordinated");
     $finish;
   end
 

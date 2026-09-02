@@ -33,6 +33,10 @@ for fragment, message in (
     ("if (register_read_pending)", "AXI register read tree is not pipelined"),
     ("if (result_word_valid)", "synchronous result RAM response is not acknowledged"),
     ("assign irq = result_available", "interrupt is not a level result indication"),
+    ("telemetry_sample_payload <= {", "sample counters are not captured atomically"),
+    ("telemetry_payload_sync_2 <= telemetry_payload_sync_1", "telemetry payload lacks two destination stages"),
+    ("telemetry_snapshot <= telemetry_payload_sync_2", "settled telemetry payload is not published atomically"),
+    ("REG_TELEMETRY_GENERATION", "telemetry generation register is absent"),
     (".i_candidate_center_timestamp      (candidate_pending_timestamp)", "candidate timestamp is not forwarded"),
     (".i_result_release                  (result_release)", "atomic result release is not forwarded"),
 ):
@@ -64,5 +68,6 @@ if result_read_case is None or "up_rack <= 1'b1" in result_read_case.group("body
 
 print(
     "AXI_TRACKER_STRUCTURE_PASS rate=15 host_scheduled=1 exact_track_one=1 "
-    "coordinated_reset=1 gray_index=1 atomic_result=1 irq=level"
+    "coordinated_reset=1 gray_index=1 atomic_result=1 "
+    "atomic_telemetry=1 irq=level"
 )

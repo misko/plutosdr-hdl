@@ -2,8 +2,11 @@
 //
 // Complete Stage-15 TRACK_ONE composition.  The existing tracking core remains
 // the raw 65-tuple trace implementation and independent arithmetic evidence.
-// This wrapper applies the exact normalized winner reducer and publishes one
-// versioned result packet through the atomic dual-clock result store.
+// This wrapper applies the exact normalized winner reducer over the frozen
+// oracle aperture (-30..+30) and publishes one versioned result packet through
+// the atomic dual-clock result store.  The raw trace retains its historical
+// -32..+32 evidence aperture; the two tuples at each edge are consumed but are
+// deliberately excluded from TRACK_ONE winner selection.
 
 `timescale 1ns/1ps
 
@@ -103,6 +106,17 @@ module starlink_pss_reduced_tracking_core #(
   wire signed [47:0] raw_result_ex;
   wire signed [47:0] raw_result_eh;
   wire [8:0] raw_result_saturation_events;
+  localparam signed [6:0] TRACK_FIRST_LAG = -7'sd30;
+  localparam signed [6:0] TRACK_LAST_LAG = 7'sd30;
+  wire raw_result_in_track_aperture =
+      (raw_result_lag >= TRACK_FIRST_LAG) &&
+      (raw_result_lag <= TRACK_LAST_LAG);
+  wire reducer_tuple_ready;
+
+  // Out-of-aperture raw trace tuples are drained without entering the reducer.
+  // In-aperture tuples preserve ordinary ready/valid backpressure.
+  assign raw_result_ready =
+      !raw_result_in_track_aperture || reducer_tuple_ready;
 
   starlink_pss_tracking_core #(
     .COMMAND_FIFO_ADDRESS_WIDTH (COMMAND_FIFO_ADDRESS_WIDTH),
@@ -198,10 +212,11 @@ module starlink_pss_reduced_tracking_core #(
   starlink_pss_exact_reducer i_exact_reducer (
     .i_clk                            (i_engine_clk),
     .i_reset                          (!i_engine_resetn),
-    .i_tuple_valid                    (raw_result_valid),
-    .o_tuple_ready                    (raw_result_ready),
-    .i_tuple_first                    (raw_result_lag == -7'sd32),
-    .i_tuple_last                     (raw_result_lag == 7'sd32),
+    .i_tuple_valid                    (raw_result_valid &&
+                                       raw_result_in_track_aperture),
+    .o_tuple_ready                    (reducer_tuple_ready),
+    .i_tuple_first                    (raw_result_lag == TRACK_FIRST_LAG),
+    .i_tuple_last                     (raw_result_lag == TRACK_LAST_LAG),
     .i_include_eh                     (1'b0),
     .i_request_id                     (raw_result_request_id),
     .i_center_index                   (raw_result_center_index),

@@ -287,7 +287,7 @@ ad_connect cpack_timestamp/timestamp_cpu axi_ad9361/up_adc_gpio_in
 # Host-scheduled exact TRACK_ONE pipeline.  This remains a pure fan-out from
 # the post-decimator capture stream and existing timestamp counter: it neither
 # gates nor modifies the cpack, timestamp, or DMA path.  One result is only the
-# exact normalized winner within one scheduled 65-lag window; it is not an
+# exact normalized winner within one scheduled 61-lag window; it is not an
 # autonomous search, SSS alignment, cadence qualification, or a Starlink claim.
 ad_connect axi_ad9361/l_clk starlink_pss_tracker/sample_clk
 ad_connect axi_ad9361/rst starlink_pss_tracker/sample_reset

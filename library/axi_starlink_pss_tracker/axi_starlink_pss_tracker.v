@@ -48,9 +48,9 @@ module axi_starlink_pss_tracker #(
 );
 
   localparam [31:0] IDENTIFICATION = 32'h5053_5354; // ASCII "PSST".
-  localparam [31:0] VERSION = 32'h0001_0000;
-  localparam [31:0] GEOMETRY = {8'd0, 8'd65, 8'd130, 8'd66};
-  localparam [31:0] CAPABILITIES = 32'h0000_000d;
+  localparam [31:0] VERSION = 32'h0001_0001;
+  localparam [31:0] GEOMETRY = {8'd0, 8'd61, 8'd130, 8'd66};
+  localparam [31:0] CAPABILITIES = 32'h0000_001d;
 
   localparam [5:0] REG_IDENTIFICATION = 6'h00; // 0x00
   localparam [5:0] REG_VERSION = 6'h01; // 0x04
@@ -78,6 +78,9 @@ module axi_starlink_pss_tracker #(
   localparam [5:0] REG_RESULT_STATUS = 6'h17; // 0x5c
   localparam [5:0] REG_ACTIVE_ENERGY_LO = 6'h18; // 0x60
   localparam [5:0] REG_ACTIVE_ENERGY_HI = 6'h19; // 0x64
+  localparam [5:0] REG_TELEMETRY_CONTROL = 6'h1a; // 0x68
+  localparam [5:0] REG_TELEMETRY_STATUS = 6'h1b; // 0x6c
+  localparam [5:0] REG_TELEMETRY_GENERATION = 6'h1c; // 0x70
 
   localparam [5:0] REG_QUEUE_OVERRUN = 6'h20; // 0x80
   localparam [5:0] REG_ADMITTED = 6'h21; // 0x84
@@ -298,6 +301,114 @@ module axi_starlink_pss_tracker #(
   wire [31:0] result_overrun_count;
   wire [31:0] result_consumed_count;
 
+  // Atomic sample-domain telemetry mailbox.  A toggle request crosses into
+  // sample_clk, where all fourteen related counters are captured on one edge.
+  // The immutable 448-bit payload then traverses two destination flops before
+  // an acknowledgement plus two settling cycles publish it to AXI.  Software
+  // never observes live binary counters and therefore cannot read a torn
+  // multi-bit value.
+  localparam integer TELEMETRY_COUNTERS = 14;
+  localparam integer TELEMETRY_BITS = 32 * TELEMETRY_COUNTERS;
+  reg telemetry_request_toggle;
+  (* ASYNC_REG = "TRUE", SHREG_EXTRACT = "NO" *)
+  reg [1:0] telemetry_request_sync;
+  reg telemetry_request_seen;
+  reg telemetry_ack_toggle;
+  reg [TELEMETRY_BITS-1:0] telemetry_sample_payload;
+  (* ASYNC_REG = "TRUE", SHREG_EXTRACT = "NO" *)
+  reg [1:0] telemetry_ack_sync;
+  (* ASYNC_REG = "TRUE", SHREG_EXTRACT = "NO" *)
+  reg [TELEMETRY_BITS-1:0] telemetry_payload_sync_1;
+  (* ASYNC_REG = "TRUE", SHREG_EXTRACT = "NO" *)
+  reg [TELEMETRY_BITS-1:0] telemetry_payload_sync_2;
+  reg [TELEMETRY_BITS-1:0] telemetry_snapshot;
+  reg telemetry_ack_seen;
+  reg telemetry_busy;
+  reg telemetry_valid;
+  reg [1:0] telemetry_settle_count;
+  reg [31:0] telemetry_generation;
+
+  wire telemetry_request = up_wreq &&
+      (up_waddr == REG_TELEMETRY_CONTROL) && up_wdata[0];
+
+  always @(posedge sample_clk) begin
+    if (!core_sample_resetn) begin
+      telemetry_request_sync <= 2'b00;
+      telemetry_request_seen <= 1'b0;
+      telemetry_ack_toggle <= 1'b0;
+      telemetry_sample_payload <= {TELEMETRY_BITS{1'b0}};
+    end else begin
+      telemetry_request_sync <= {
+        telemetry_request_sync[0], telemetry_request_toggle
+      };
+      if (telemetry_request_sync[1] != telemetry_request_seen) begin
+        telemetry_sample_payload <= {
+          capture_protocol_error_count,
+          capture_buffer_overrun_count,
+          capture_abort_discard_count,
+          capture_published_count,
+          timestamp_abort_count,
+          index_jump_abort_count,
+          valid_gap_abort_count,
+          aborted_count,
+          overlap_count,
+          duplicate_count,
+          late_count,
+          rejected_count,
+          completed_capture_count,
+          admitted_count
+        };
+        telemetry_request_seen <= telemetry_request_sync[1];
+        telemetry_ack_toggle <= telemetry_request_sync[1];
+      end
+    end
+  end
+
+  always @(posedge s_axi_aclk) begin
+    if (!core_control_resetn) begin
+      telemetry_ack_sync <= 2'b00;
+      telemetry_payload_sync_1 <= {TELEMETRY_BITS{1'b0}};
+      telemetry_payload_sync_2 <= {TELEMETRY_BITS{1'b0}};
+    end else begin
+      telemetry_ack_sync <= {telemetry_ack_sync[0], telemetry_ack_toggle};
+      telemetry_payload_sync_1 <= telemetry_sample_payload;
+      telemetry_payload_sync_2 <= telemetry_payload_sync_1;
+    end
+  end
+
+  always @(posedge s_axi_aclk) begin
+    if (!core_control_resetn) begin
+      telemetry_request_toggle <= 1'b0;
+      telemetry_snapshot <= {TELEMETRY_BITS{1'b0}};
+      telemetry_ack_seen <= 1'b0;
+      telemetry_busy <= 1'b0;
+      telemetry_valid <= 1'b0;
+      telemetry_settle_count <= 2'd0;
+      telemetry_generation <= 32'd0;
+    end else begin
+      if (telemetry_request && !telemetry_busy) begin
+        telemetry_request_toggle <= ~telemetry_request_toggle;
+        telemetry_busy <= 1'b1;
+        telemetry_valid <= 1'b0;
+        telemetry_settle_count <= 2'd0;
+      end
+      if (telemetry_busy &&
+          (telemetry_ack_sync[1] != telemetry_ack_seen)) begin
+        telemetry_ack_seen <= telemetry_ack_sync[1];
+        telemetry_settle_count <= 2'd2;
+      end else if (telemetry_settle_count != 0) begin
+        telemetry_settle_count <= telemetry_settle_count - 1'b1;
+        if (telemetry_settle_count == 1) begin
+          telemetry_snapshot <= telemetry_payload_sync_2;
+          telemetry_busy <= 1'b0;
+          telemetry_valid <= 1'b1;
+          telemetry_generation <= increment_saturating_32(
+              telemetry_generation);
+        end
+      end
+    end
+  end
+
   wire candidate_command_handshake =
       candidate_command_pending && candidate_submit_ready;
   wire coefficient_push_handshake =
@@ -313,10 +424,8 @@ module axi_starlink_pss_tracker #(
       coefficient_commit_pending && !coefficient_clear_pending &&
       !coefficient_push_pending && coefficient_commit_ready;
 
-  // These are the only live sample-domain status bits exposed to AXI.  The
-  // wider sample-domain diagnostics remain reserved until an atomic telemetry
-  // snapshot mailbox is added; directly sampling binary counters would permit
-  // torn software reads.
+  // These are the only live sample-domain status bits exposed to AXI.  Wider
+  // diagnostics are available only through the atomic mailbox above.
   always @(posedge s_axi_aclk) begin
     if (!core_control_resetn) begin
       candidate_pending_sync <= 2'b00;
@@ -407,6 +516,11 @@ module axi_starlink_pss_tracker #(
           {16{active_coefficient_energy[47]}},
           active_coefficient_energy[47:32]
         };
+        3'd2: read_bank_3_value = 32'd0;
+        3'd3: read_bank_3_value = {
+          30'd0, telemetry_busy, telemetry_valid
+        };
+        3'd4: read_bank_3_value = telemetry_generation;
         default: read_bank_3_value = 32'd0;
       endcase
     end
@@ -417,7 +531,13 @@ module axi_starlink_pss_tracker #(
     begin
       case (slot)
         3'd0: read_bank_4_value = queue_overrun_count;
-        default: read_bank_4_value = 32'd0;
+        3'd1: read_bank_4_value = telemetry_snapshot[31:0];
+        3'd2: read_bank_4_value = telemetry_snapshot[63:32];
+        3'd3: read_bank_4_value = telemetry_snapshot[95:64];
+        3'd4: read_bank_4_value = telemetry_snapshot[127:96];
+        3'd5: read_bank_4_value = telemetry_snapshot[159:128];
+        3'd6: read_bank_4_value = telemetry_snapshot[191:160];
+        3'd7: read_bank_4_value = telemetry_snapshot[223:192];
       endcase
     end
   endfunction
@@ -426,8 +546,14 @@ module axi_starlink_pss_tracker #(
     input [2:0] slot;
     begin
       case (slot)
+        3'd0: read_bank_5_value = telemetry_snapshot[255:224];
+        3'd1: read_bank_5_value = telemetry_snapshot[287:256];
+        3'd2: read_bank_5_value = telemetry_snapshot[319:288];
+        3'd3: read_bank_5_value = telemetry_snapshot[351:320];
+        3'd4: read_bank_5_value = telemetry_snapshot[383:352];
+        3'd5: read_bank_5_value = telemetry_snapshot[415:384];
+        3'd6: read_bank_5_value = telemetry_snapshot[447:416];
         3'd7: read_bank_5_value = engine_consumed_count;
-        default: read_bank_5_value = 32'd0;
       endcase
     end
   endfunction

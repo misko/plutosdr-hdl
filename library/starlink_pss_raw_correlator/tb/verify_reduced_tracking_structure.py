@@ -22,20 +22,24 @@ for module_name in (
     require(rf"\b{module_name}\b", f"{module_name} is not instantiated")
 
 require(
-    r"\.i_result_ready\s*\(raw_result_ready\)",
-    "raw correlator output is not backpressured by the reducer",
+    r"assign\s+raw_result_ready\s*=\s*!raw_result_in_track_aperture\s*\|\|\s*reducer_tuple_ready",
+    "raw correlator edge-drain/reducer backpressure split is absent",
 )
 require(
-    r"\.o_tuple_ready\s*\(raw_result_ready\)",
+    r"\.o_tuple_ready\s*\(reducer_tuple_ready\)",
     "reducer tuple handshake is not connected to the raw core",
 )
 require(
-    r"\.i_tuple_first\s*\(raw_result_lag\s*==\s*-7'sd32\)",
-    "first tuple is not derived from lag -32",
+    r"TRACK_FIRST_LAG\s*=\s*-7'sd30",
+    "frozen first lag is not -30",
 )
 require(
-    r"\.i_tuple_last\s*\(raw_result_lag\s*==\s*7'sd32\)",
-    "last tuple is not derived from lag +32",
+    r"TRACK_LAST_LAG\s*=\s*7'sd30",
+    "frozen last lag is not +30",
+)
+require(
+    r"\.i_tuple_valid\s*\(raw_result_valid\s*&&\s*raw_result_in_track_aperture\)",
+    "out-of-aperture raw tuples can enter the reducer",
 )
 require(
     r"\.i_include_eh\s*\(1'b0\)",
@@ -51,6 +55,7 @@ require(
 )
 
 print(
-    "REDUCED_TRACKING_STRUCTURE_PASS mode=TRACK_ONE first_lag=-32 "
-    "last_lag=32 exact_eh_cancellation=1 atomic_store=1"
+    "REDUCED_TRACKING_STRUCTURE_PASS mode=TRACK_ONE first_lag=-30 "
+    "last_lag=30 raw_trace_lags=65 reduced_lags=61 "
+    "exact_eh_cancellation=1 atomic_store=1"
 )

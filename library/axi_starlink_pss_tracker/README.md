@@ -4,7 +4,9 @@
 candidate-at-a-time exact tracking pipeline. Software loads a 66-tap CI16
 template, schedules a future center in the capture stream's 64-bit sample
 counter, and receives one atomic 26-word packet containing the exact best lag
-from -32 through +32.
+from -30 through +30. The underlying arithmetic engine still produces the
+historical 65-tuple `-32..+32` trace; `TRACK_ONE` drains the four guard tuples
+and reduces exactly the frozen 61-lag tracking aperture.
 
 This is a **15 MS/s milestone**, not an autonomous Starlink acquisition claim.
 The IP rejects every `RATE_MSPS` value other than 15 at elaboration. It does not
@@ -49,10 +51,10 @@ while that buffer is occupied.
 | Offset | Name | Access | Meaning |
 |---:|---|:---:|---|
 | `0x00` | `IDENTIFICATION` | R | `0x50535354` (`PSST`) |
-| `0x04` | `VERSION` | R | `0x00010000` |
+| `0x04` | `VERSION` | R | `0x00010001` (ABI 1.1) |
 | `0x08` | `RATE_MSPS` | R | `15` |
-| `0x0c` | `GEOMETRY` | R | `{0, lags=65, capture=130, taps=66}` |
-| `0x10` | `CAPABILITIES` | R | bit 0 exact score, bit 2 host scheduled, bit 3 atomic packet |
+| `0x0c` | `GEOMETRY` | R | `{0, lags=61, capture=130, taps=66}` |
+| `0x10` | `CAPABILITIES` | R | bit 0 exact score, bit 2 host scheduled, bit 3 atomic packet, bit 4 atomic telemetry |
 | `0x14` | `STATUS` | R | live state described below |
 | `0x18` | `CURRENT_INDEX_LO` | R | current index low; snapshots both halves |
 | `0x1c` | `CURRENT_INDEX_HI` | R | high half of the last low-word snapshot |
@@ -74,6 +76,9 @@ while that buffer is occupied.
 | `0x5c` | `RESULT_STATUS` | R | bits 28:24 words=26, bit 1 bank, bit 0 available |
 | `0x60` | `ACTIVE_ENERGY_LO` | R | signed 48-bit template energy low |
 | `0x64` | `ACTIVE_ENERGY_HI` | R | sign-extended template energy high |
+| `0x68` | `TELEMETRY_CONTROL` | W | bit 0 requests one atomic counter snapshot |
+| `0x6c` | `TELEMETRY_STATUS` | R | bit 0 valid, bit 1 busy |
+| `0x70` | `TELEMETRY_GENERATION` | R | saturated snapshot generation |
 
 `STATUS` uses bit 0 reset released, bit 1 candidate ready, bit 2 command
 buffered, bit 3 coefficients valid, bit 4 coefficient write ready, bit 5
@@ -86,17 +91,26 @@ Debug counters occupy `0x80` through `0xe0`:
 | Offset | Counter | Offset | Counter |
 |---:|---|---:|---|
 | `0x80` | queue overrun | `0xbc` | engine consumed |
+| `0x84` | admitted | `0x88` | completed capture |
+| `0x8c` | rejected | `0x90` | late |
+| `0x94` | duplicate | `0x98` | overlap |
+| `0x9c` | aborted | `0xa0` | valid-gap abort |
+| `0xa4` | index-jump abort | `0xa8` | timestamp abort |
+| `0xac` | capture published | `0xb0` | capture abort discard |
+| `0xb4` | capture buffer overrun | `0xb8` | capture protocol error |
 | `0xc0` | correlator bound error | `0xc4` | reducer jobs processed |
 | `0xc8` | reducer results emitted | `0xcc` | reducer invalid tuple |
 | `0xd0` | reducer bound error | `0xd4` | reducer protocol error |
 | `0xd8` | result published | `0xdc` | result overrun |
 | `0xe0` | result consumed |  |  |
 
-Offsets `0x84` through `0xb8` are reserved and read as zero. They previously
-named live sample-clock counters, but reading those binary counters directly
-from AXI could tear during a rollover. A future ABI can populate this reserved
-range through an explicit atomic telemetry snapshot without changing the exact
-result path.
+Offsets `0x84` through `0xb8` expose only the last immutable sample-clock
+telemetry snapshot. A toggle request captures all fourteen counters on one
+sample-clock edge; the 448-bit payload crosses through two destination stages
+and is published only after the acknowledgement plus two settling cycles.
+Software must serialize requests: read the generation, write control bit 0,
+then wait for `valid && !busy` and a changed generation before reading the
+snapshot. Counters outside that range are native to the AXI/engine clock.
 
 ## Focused validation
 
@@ -116,13 +130,16 @@ vivado -mode batch -source validate_routed.tcl -tclargs \
   /tmp/starlink-pss-tracker-routed
 ```
 
-The canonical Vivado 2022.2 Stage-15 build on 2026-09-02 passed with setup WNS
+The earlier 65-lag ABI 1.0 Vivado 2022.2 build on 2026-09-02 passed with setup WNS
 `+0.519 ns`, hold WHS `+0.014 ns`, one met Gray-bus-skew constraint
 (`1.590 ns` actual against `10.000 ns`), zero tracker Critical CDC rows, and
 zero routing errors. The complete RX-only shell uses 8,906 LUTs (50.60%),
 11,531 registers (32.76%), 8.5 BRAM tiles (14.17%), and 31 DSPs (38.75%). The
 tracker hierarchy accounts for exactly 3 DSP48E1s, 3 RAMB18E1s, and 4
-RAMB36E1s (5.5 BRAM tiles). Reproducibility hashes for that local build are:
+RAMB36E1s (5.5 BRAM tiles). That build and every firmware package derived from
+it are now **superseded and ineligible for radio use**: retained-window replay
+showed three outer-aperture winner mismatches. These hashes remain only as an
+audit trail; ABI 1.1 must be freshly routed and packaged:
 
 | Artifact | SHA-256 |
 |---|---|
@@ -132,15 +149,18 @@ RAMB36E1s (5.5 BRAM tiles). Reproducibility hashes for that local build are:
 
 ## Host sequence
 
-1. Verify ID, version, rate, and geometry.
+1. Verify ID, exact ABI 1.1, rate, geometry, and capabilities.
 2. Write coefficient clear, then exactly 66 packed CI16 taps.
 3. Write a nonzero generation, request commit, and poll active generation.
 4. Read current index low then high. Choose a center with ample lead; in the
    Pluto integration use the same value for center timestamp.
 5. Stage request, center, and timestamp, then write candidate-control bit 0.
-6. Wait for the level IRQ/result-available indication.
+6. Atomically snapshot the counters, then wait for the level
+   IRQ/result-available indication.
 7. Select and read all 26 result words in any order. The bank is immutable.
-8. Write result-control bit 0 only after the complete packet is consumed.
+8. Atomically snapshot the counters again and require the declared success
+   deltas plus zero error deltas.
+9. Write result-control bit 0 only after the complete packet is validated.
 
 The result packet is:
 
@@ -169,10 +189,12 @@ words 17..18 retain the diagnostic value, and the exact winner comparison is
 The fail-closed structure check rejects rate broadening, an early AXI result
 acknowledgement, loss of the coordinated reset/Gray index/level IRQ contracts,
 or insertion of the repeated-delay diagnostic. The self-checking asynchronous-
-clock simulation performs real AXI transactions, loads an impulse template,
-captures 130 indexed samples, evaluates all 65 lags, checks every packet word
-in reverse order, releases the bank/IRQ, and proves that a sample-domain reset
-flushes the entire epoch.
+clock simulations perform real AXI transactions, load coefficients, capture
+130 indexed samples, evaluate 65 raw tuples and the 61-lag qualified aperture,
+check atomic telemetry and every packet word, release the bank/IRQ, and prove
+that a sample-domain reset flushes the entire epoch. A second wrapper-level test
+replays all 210 provenance-bound retained windows and matches the frozen
+float-oracle lag in 210/210 cases.
 
 Portable Icarus simulation is intentionally slow because variable-index memory
 reads expand the explicit 66-tap engine sensitivity set. This is simulator

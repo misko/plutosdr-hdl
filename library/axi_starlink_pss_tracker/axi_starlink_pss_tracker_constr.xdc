@@ -9,7 +9,7 @@
 # schedule against a coherent near-current value.
 
 set pss_tracker_sync_first [get_cells -quiet -hier -regexp \
-  {.*(control_reset_sync_reg\[0\]|sample_reset_sync_reg\[0\]|sample_reset_control_sync_reg\[0\]|sample_index_gray_sync_1_reg\[[0-9]+\]|candidate_pending_sync_reg\[0\]|capture_active_sync_reg\[0\]|i_candidate_scheduler/i_command_fifo/.*_sync_1_reg\[[0-9]+\]|i_capture_bridge/i_descriptor_fifo/.*_sync_1_reg\[[0-9]+\]|i_capture_bridge/sample_release_toggle_sync_1_reg\[[0-9]+\]).*}]
+  {.*(control_reset_sync_reg\[0\]|sample_reset_sync_reg\[0\]|sample_reset_control_sync_reg\[0\]|sample_index_gray_sync_1_reg\[[0-9]+\]|candidate_pending_sync_reg\[0\]|capture_active_sync_reg\[0\]|telemetry_request_sync_reg\[0\]|telemetry_ack_sync_reg\[0\]|telemetry_payload_sync_1_reg\[[0-9]+\]|i_candidate_scheduler/i_command_fifo/.*_sync_1_reg\[[0-9]+\]|i_capture_bridge/i_descriptor_fifo/.*_sync_1_reg\[[0-9]+\]|i_capture_bridge/sample_release_toggle_sync_1_reg\[[0-9]+\]).*}]
 
 set_property ASYNC_REG TRUE $pss_tracker_sync_first
 set_property SHREG_EXTRACT NO $pss_tracker_sync_first
@@ -51,3 +51,13 @@ set_bus_skew 10.000 \
   -from $pss_tracker_index_gray_source \
   -to [get_cells -quiet -hier -regexp \
     {.*sample_index_gray_sync_1_reg\[[0-9]+\].*}]
+
+# The telemetry payload is immutable from the sample-domain capture edge until
+# acknowledgement and two additional AXI settling cycles.  Bound first-stage
+# bus skew to one AXI period in addition to the ordinary synchronizer cut.
+set pss_tracker_telemetry_source [get_cells -quiet -hier -regexp \
+  {.*telemetry_sample_payload_reg\[[0-9]+\].*}]
+set_bus_skew 10.000 \
+  -from $pss_tracker_telemetry_source \
+  -to [get_cells -quiet -hier -regexp \
+    {.*telemetry_payload_sync_1_reg\[[0-9]+\].*}]

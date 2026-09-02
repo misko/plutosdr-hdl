@@ -56,8 +56,8 @@ module starlink_pss_exact_reducer (
   output reg          [31:0] o_protocol_error_count
 );
 
-  localparam signed [6:0] FIRST_LAG = -7'sd32;
-  localparam signed [6:0] LAST_LAG = 7'sd32;
+  localparam signed [6:0] FIRST_LAG = -7'sd30;
+  localparam signed [6:0] LAST_LAG = 7'sd30;
 
   localparam [3:0] STATE_IDLE       = 4'd0;
   localparam [3:0] STATE_SQUARE_RE  = 4'd1;

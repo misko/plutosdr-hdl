@@ -185,8 +185,8 @@ def main() -> None:
     require(
         reducer,
         (
-            "FIRST_LAG = -7'sd32",
-            "LAST_LAG = 7'sd32",
+            "FIRST_LAG = -7'sd30",
+            "LAST_LAG = 7'sd30",
             "reg [76:0] current_magnitude_squared",
             "reg [68:0] current_denominator",
             "reg [145:0] left_cross_product",

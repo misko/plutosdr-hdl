@@ -292,11 +292,11 @@ module tb_starlink_pss_exact_reducer;
     integer signed_lag;
     begin
       reference_clear(mode_include_eh);
-      for (tuple_index = 0; tuple_index < 65;
+      for (tuple_index = 0; tuple_index < 61;
            tuple_index = tuple_index + 1) begin
-        signed_lag = tuple_index - 32;
+        signed_lag = tuple_index - 30;
         tuple_first = (tuple_index == 0);
-        tuple_last = (tuple_index == 64);
+        tuple_last = (tuple_index == 60);
         include_eh = mode_include_eh;
         request_id = job_request;
         center_index = job_center;
@@ -399,10 +399,10 @@ module tb_starlink_pss_exact_reducer;
     // One malformed first lag starts a single fail-closed discard episode.
     // The remaining tuples are accepted only to drain through the last marker.
     reference_clear(1'b0);
-    for (malformed_index = 0; malformed_index < 65;
+    for (malformed_index = 0; malformed_index < 61;
          malformed_index = malformed_index + 1) begin
       tuple_first = (malformed_index == 0);
-      tuple_last = (malformed_index == 64);
+      tuple_last = (malformed_index == 60);
       include_eh = 1'b0;
       request_id = 32'hdead_0001;
       center_index = 64'd2400;
@@ -427,7 +427,7 @@ module tb_starlink_pss_exact_reducer;
     if (result_valid)
       fail("malformed job published a result");
     if (processed_job_count != 5 || emitted_result_count != 5 ||
-        invalid_tuple_count != 65 || bound_error_count != 3 ||
+        invalid_tuple_count != 61 || bound_error_count != 3 ||
         protocol_error_count != 1)
       fail("final reducer counters mismatch");
 

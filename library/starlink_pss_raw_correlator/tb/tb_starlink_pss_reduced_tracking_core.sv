@@ -221,7 +221,7 @@ module tb_starlink_pss_reduced_tracking_core;
   task automatic build_expected_packet;
     reg signed [47:0] winner_ex;
     begin
-      winner_ex = expected_energy(432);
+      winner_ex = expected_energy(430);
       expected_word[0] = 32'h3153_5350;
       expected_word[1] = 32'h1a01_0001;
       expected_word[2] = REQUEST_ID;
@@ -229,13 +229,13 @@ module tb_starlink_pss_reduced_tracking_core;
       expected_word[4] = CENTER_INDEX[63:32];
       expected_word[5] = (TIMESTAMP_BASE + CENTER_INDEX);
       expected_word[6] = (TIMESTAMP_BASE + CENTER_INDEX) >> 32;
-      expected_word[7] = 32'd32;
-      expected_word[8] = (TIMESTAMP_BASE + 64'd432);
-      expected_word[9] = (TIMESTAMP_BASE + 64'd432) >> 32;
+      expected_word[7] = 32'd30;
+      expected_word[8] = (TIMESTAMP_BASE + 64'd430);
+      expected_word[9] = (TIMESTAMP_BASE + 64'd430) >> 32;
       expected_word[10] = 32'd77;
-      expected_word[11] = 32'd432;
+      expected_word[11] = 32'd430;
       expected_word[12] = 32'd0;
-      expected_word[13] = -32'sd432;
+      expected_word[13] = -32'sd430;
       expected_word[14] = 32'hffff_ffff;
       expected_word[15] = winner_ex[31:0];
       expected_word[16] = {
@@ -244,7 +244,7 @@ module tb_starlink_pss_reduced_tracking_core;
       expected_word[17] = 32'd1;
       expected_word[18] = 32'd0;
       expected_word[19] = 32'd0;
-      expected_word[20] = 32'd373248;
+      expected_word[20] = 32'd369800;
       expected_word[21] = 32'd0;
       expected_word[22] = 32'd0;
       expected_word[23] = winner_ex[31:0];
@@ -367,7 +367,7 @@ module tb_starlink_pss_reduced_tracking_core;
         result_bank_free !== 2'b11 || result_available)
       fail("published winner bank was not released");
 
-    $display("REDUCED_TRACKING_PASS jobs=1 tuples=65 winner_lag=32 packet_words=26 score=absC2_over_Ex");
+    $display("REDUCED_TRACKING_PASS jobs=1 raw_tuples=65 reduced_tuples=61 winner_lag=30 packet_words=26 score=absC2_over_Ex");
     $finish;
   end
 

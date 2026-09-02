@@ -290,8 +290,9 @@ rate-parameterized 30/60 MS/s geometry.
 
 ## Exact normalized winner reducer
 
-`starlink_pss_exact_reducer.v` consumes one strictly ordered 65-lag tuple job
-and selects the earliest maximum of the exact score `|C|^2/(Ex*Eh)`. In the
+`starlink_pss_exact_reducer.v` consumes one strictly ordered 61-lag
+`-30..+30` tuple job and selects the earliest maximum of the exact score
+`|C|^2/(Ex*Eh)`. In the
 single-bank tracking mode, `Eh` is constant across the job and is cancelled
 exactly; validation mode retains it. The implementation never divides and
 uses strict rational cross-products, so it neither rounds a score nor changes
@@ -378,20 +379,22 @@ slack.
 
 ## Complete TRACK_ONE composition
 
-`starlink_pss_reduced_tracking_core.v` preserves the raw-trace core unchanged
-and connects its ordered lag `-32..+32` stream to the exact reducer in
-single-bank `|C|^2/Ex` mode, then connects the retained winner to the atomic
-result store. Keeping TRACE as the existing raw core and TRACK_ONE as a
+`starlink_pss_reduced_tracking_core.v` preserves the 65-tuple raw-trace core
+unchanged, drains its four `-32,-31,+31,+32` guard tuples, and connects only
+the frozen `-30..+30` tracking aperture to the exact reducer in single-bank
+`|C|^2/Ex` mode. It then connects the retained winner to the atomic result
+store. Keeping TRACE as the existing raw core and TRACK_ONE as a
 separate fixed wrapper prevents an unsafe runtime mode change in the middle of
 a job; a future command ABI can add per-job modes without weakening either
 current contract.
 
 The asynchronous end-to-end test loads an impulse coefficient bank, captures
-one real 130-sample window, processes all 65 lags, proves that exact normalized
-comparison selects lag `+32`, and checks every word of the published packet in
-reverse read order. It also checks scheduler, capture, correlator, reducer, and
-publication accounting and requires every clean-run error counter to remain
-zero. The accompanying structure check fixes the first/last lag markers,
+one real 130-sample window, processes all 65 raw tuples and 61 reducer tuples,
+proves that exact normalized comparison selects the qualified boundary lag
+`+30`, and checks every word of the published packet in reverse read order. It
+also checks scheduler, capture, correlator, reducer, and publication accounting
+and requires every clean-run error counter to remain zero. The accompanying
+structure check fixes the first/last qualified lag markers, outer-tuple drain,
 exact `Eh` cancellation, and both ready/valid boundaries.
 
 Run the complete Vivado 2022.2 OOC gate with:
@@ -405,8 +408,8 @@ the control/engine clocks at 10 ns, declares all three domains asynchronous,
 requires clean methodology and timing coverage, exactly three DSP48E1s, at
 most 4,800 Slice LUTs, at most 4,000 registers, and at most six
 RAMB36-equivalent tiles. The current local post-opt, unplaced complete result
-passes at 4,111 LUTs, 3,487 registers, 5.5 block-RAM tiles, exactly three DSPs,
-and +0.190 ns maximum-delay setup slack. The integrated total is smaller than
+passes at 4,267 LUTs, 3,565 registers, 5.5 block-RAM tiles, exactly three DSPs,
+and +1.576 ns maximum-delay setup slack. The integrated total is smaller than
 the sum of independently synthesized blocks because Vivado removes and shares
 logic across their boundaries.
 
