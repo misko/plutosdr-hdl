@@ -36,6 +36,14 @@ iverilog -g2012 -Wall \
   tb/tb_starlink_pss_spectrum_product.sv
 vvp build/starlink_pss_spectrum_product.vvp
 
+python3 tb/verify_upper_edge_pss_kernel.py
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_kernel_rom \
+  -o build/starlink_pss_kernel_rom.vvp \
+  starlink_pss_kernel_rom.v \
+  tb/tb_starlink_pss_kernel_rom.sv
+vvp build/starlink_pss_kernel_rom.vvp
+
 iverilog -g2012 -Wall \
   -s tb_starlink_pss_energy_cache \
   -o build/starlink_pss_energy_cache.vvp \

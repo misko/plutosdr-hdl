@@ -35,6 +35,16 @@ overflow event.  Its three-stage elastic pipeline sustains one bin per clock
 and carries the FFT block exponent and absolute block identity unchanged.  It
 is independent of generated Xilinx FFT source and kernel-ROM packaging.
 
+`starlink_pss_kernel_rom.v` is the hash-locked coefficient boundary between
+the forward XFFT adapter and that spectrum product.  Its 512 upper-edge PSS
+frequency-domain coefficients are signed Q1.23, packed as `{Q,I}`, and served
+from a synchronous block ROM at one bin per clock.  It independently checks
+all bin indexes, TLAST, per-block exponent stability, absolute block identity,
+and the 447-sample overlap-save stride.  Any malformed beat is consumed but
+never emitted, and the boundary remains quarantined until common flush.  The
+checked-in memory artifact is also verified byte-for-byte against its frozen
+canonical signed-I/Q SHA-256 before RTL simulation.
+
 `starlink_pss_energy_cache.v` computes the exact 66-sample CI16 denominator
 stream beside the FFT path.  It retains 2,048 consecutive 38-bit energies in
 an absolute-indexed circular BRAM, so delayed IFFT results request the matching
@@ -147,6 +157,12 @@ input/output frame with independent stalls, proves data cannot precede either
 configuration or block status, checks exact lane/index/exponent/block metadata,
 and injects application framing, orphan status, hard core-event, status-halt,
 and output-index faults across explicit flush recovery.
+The kernel-ROM test verifies all 512 coefficients across consecutive blocks,
+continuous one-bin-per-clock input, deterministic downstream stalls, exact
+metadata propagation, output stability, and fail-closed recovery from index,
+TLAST, exponent, block-identity, and overlap-stride faults.  A separate Python
+gate binds both the textual memory image and canonical little-endian signed-I/Q
+stream to fixed SHA-256 digests.
 
 Run the default-geometry Zynq-7010 out-of-context gate with:
 
@@ -200,6 +216,12 @@ Run the strict generated-XFFT boundary-adapter OOC gate with:
 
 ```sh
 ./run_xfft_block_adapter_ooc.sh /absolute/output/directory
+```
+
+Run the hash-locked kernel-ROM OOC gate with:
+
+```sh
+./run_kernel_rom_ooc.sh /absolute/output/directory
 ```
 
 The OOC gate requires the canonical Vivado 2022.2 installation and fails if
@@ -256,3 +278,10 @@ logic, clean methodology/check-timing reports, and nonnegative 100 MHz
 post-opt unplaced setup/hold slack.  It proves the reusable protocol boundary
 only; it does not include a generated XFFT instance, coefficient ROM, transform
 arithmetic, or the full forward/product/inverse composition.
+
+The kernel-ROM OOC gate first verifies both frozen SHA-256 identities, then
+requires exactly two initialized RAMB18E1s (one BRAM tile) and no RAMB36E1 or
+DSPs, bounded control logic, clean methodology/check-timing reports, and
+nonnegative 100 MHz post-opt unplaced setup/hold slack.  It proves the
+coefficient lookup and its streaming protocol guard, not the forward XFFT
+values or complex-product composition.
