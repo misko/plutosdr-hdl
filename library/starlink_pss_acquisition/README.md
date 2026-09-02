@@ -52,6 +52,16 @@ cases intentionally take the same eight cycles as ordinary ratios, making a
 later two-lane dispatcher deterministic.  This slice does not calculate the
 wide numerator/denominator or join them to the energy cache.
 
+`starlink_pss_score_prepare.v` is the exact wide-arithmetic stage immediately
+before those divider lanes.  It squares signed Q1.23 IFFT components, restores
+correlation power by `2^(2*(1 + Ef + Ei))`, and multiplies the indexed 38-bit
+sample energy by the frozen 31-bit coefficient energy.  A mathematical
+numerator beyond 69 bits saturates to the ratio maximum, which is exactly
+equivalent to a unity-or-greater score because every denominator fits 69 bits.
+Its three elastic stages sustain one result per clock and preserve candidate
+identity through stalls and flush.  The raw IFFT-result FIFO, energy-cache
+lookup join, and two-lane dispatcher remain separate composition work.
+
 Run the deterministic simulation with:
 
 ```sh
@@ -71,6 +81,10 @@ backpressure, a stalled-response gap flush, index restart, and disable.
 The divider test replays thousands of independently generated 69-bit rational
 cases, including even/odd half-way ties, zero denominator, saturation, output
 stalls, and flushes during calculation and completed-output hold.
+The score-preparation test independently forms thousands of signed
+correlation-power, exponent, and full-width energy cases.  It covers actual and
+extreme block exponents, numerator-width boundaries, exact denominator
+multiplication, pipeline backpressure, metadata, and flushes.
 
 Run the default-geometry Zynq-7010 out-of-context gate with:
 
@@ -102,6 +116,12 @@ Run one exact score-divider lane's independent OOC gate with:
 ./run_score_divider_ooc.sh /absolute/output/directory
 ```
 
+Run the exponent-aware ratio-preparation OOC gate with:
+
+```sh
+./run_score_prepare_ooc.sh /absolute/output/directory
+```
+
 The OOC gate requires the canonical Vivado 2022.2 installation and fails if
 the map does not infer exactly 20 RAMB36E1 blocks, uses a DSP, exceeds its logic
 budget, has a methodology/check-timing violation, or misses 100 MHz post-opt
@@ -131,3 +151,9 @@ The score-divider OOC gate requires no BRAM or DSPs, bounded restoring-divider
 logic, clean reports, and nonnegative 100 MHz post-opt unplaced setup and hold
 slack.  It proves one fixed-latency lane; the later two-lane dispatcher, result
 FIFO, and ordered merge remain composition gates.
+
+The ratio-preparation OOC gate requires no BRAM, bounded squaring and sparse
+constant-product resources, clean reports, and nonnegative 100 MHz post-opt
+unplaced setup and hold slack.  It proves only the wide arithmetic pipeline;
+the raw-result FIFO, indexed-energy join, and divider composition remain later
+gates.
