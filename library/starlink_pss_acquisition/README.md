@@ -76,6 +76,18 @@ block-start field in the complete 512-result IFFT stream.  It discards indexes
 latches a protocol fault until flush if framing, metadata stability, or the
 447-sample next-block stride is wrong.
 
+`starlink_pss_xfft_block_adapter.v` is the vendor-IP-independent control and
+metadata boundary for one generated 512-point XFFT core.  It stretches reset,
+sends exactly one fixed transform-direction configuration before opening the
+data input, permits only one block in flight, preserves its absolute start
+identity, and validates both application and XFFT framing.  It captures the
+per-frame block exponent from the always-ready status channel and requires the
+same value on every indexed TUSER result before publication.  Missing status
+holds output; malformed index, TLAST, padding, exponent, status identity, or a
+hard XFFT event latches a fail-closed quarantine until explicit common flush.
+Data-input/output halt events remain visible telemetry because ordinary AXI
+backpressure can cause them; they do not silently invalidate good data.
+
 `starlink_pss_energy_join.v` keeps raw correlation metadata aligned with the
 one-outstanding absolute-indexed energy-cache transaction.  It can retire one
 response while issuing the next lookup, sustaining one join per clock.  A
@@ -130,6 +142,11 @@ independent exact-integer vectors.  Finally, the candidate-path integration
 test uses the real energy cache: one dense 512-result IFFT block produces all
 447 exact scores without input backpressure, while a missing-energy replay
 publishes no score and latches the path fault.
+The XFFT-adapter test drives a mock AXI core through a complete 512-sample
+input/output frame with independent stalls, proves data cannot precede either
+configuration or block status, checks exact lane/index/exponent/block metadata,
+and injects application framing, orphan status, hard core-event, status-halt,
+and output-index faults across explicit flush recovery.
 
 Run the default-geometry Zynq-7010 out-of-context gate with:
 
@@ -177,6 +194,12 @@ Run the composed IFFT-to-score path OOC gate with:
 
 ```sh
 ./run_candidate_score_path_ooc.sh /absolute/output/directory
+```
+
+Run the strict generated-XFFT boundary-adapter OOC gate with:
+
+```sh
+./run_xfft_block_adapter_ooc.sh /absolute/output/directory
 ```
 
 The OOC gate requires the canonical Vivado 2022.2 installation and fails if
@@ -227,3 +250,9 @@ logic, clean methodology/check-timing reports, and nonnegative 100 MHz
 post-opt unplaced setup/hold slack.  It does not include the energy cache,
 either XFFT core, coefficient ROM, scheduler, phase map, AXI/CDC shell, or
 complete placement and routing.
+
+The XFFT-boundary-adapter OOC gate requires no BRAM or DSPs, bounded control
+logic, clean methodology/check-timing reports, and nonnegative 100 MHz
+post-opt unplaced setup/hold slack.  It proves the reusable protocol boundary
+only; it does not include a generated XFFT instance, coefficient ROM, transform
+arithmetic, or the full forward/product/inverse composition.

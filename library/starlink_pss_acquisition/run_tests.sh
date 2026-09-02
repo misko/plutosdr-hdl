@@ -76,6 +76,13 @@ iverilog -g2012 -Wall \
 vvp build/starlink_pss_ifft_qualifier.vvp
 
 iverilog -g2012 -Wall \
+  -s tb_starlink_pss_xfft_block_adapter \
+  -o build/starlink_pss_xfft_block_adapter.vvp \
+  starlink_pss_xfft_block_adapter.v \
+  tb/tb_starlink_pss_xfft_block_adapter.sv
+vvp build/starlink_pss_xfft_block_adapter.vvp
+
+iverilog -g2012 -Wall \
   -s tb_starlink_pss_energy_join \
   -o build/starlink_pss_energy_join.vvp \
   starlink_pss_energy_join.v \
