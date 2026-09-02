@@ -66,8 +66,21 @@ module starlink_pss_injection_mux #(
   reg [63:0] arm_start_mailbox;
   reg [31:0] arm_generation_mailbox;
   reg arm_request_toggle;
+  reg arm_validation_pending;
+  reg [1:0] arm_validation_count;
+  reg [63:0] arm_validation_start;
   reg arm_pending;
   reg arm_inflight;
+
+  // Break the Gray-decoded current-index plus 64-bit lead comparison into
+  // separate control-clock stages. The host polls arm_ready after staging the
+  // start word; the full-width equality keeps that readiness bound to the
+  // exact staged command rather than a previous start value.
+  reg [63:0] control_current_index_stage;
+  reg [63:0] arm_start_checked_stage;
+  reg [63:0] arm_lead_difference_stage;
+  reg arm_start_not_before_stage;
+  reg arm_window_no_overflow_stage;
 
   (* ASYNC_REG = "TRUE", SHREG_EXTRACT = "NO" *)
   reg [1:0] arm_ack_sync;
@@ -87,15 +100,16 @@ module starlink_pss_injection_mux #(
       (fixture_clear && arm) ||
       (fixture_commit && arm);
   wire accepted_sample_control_lead =
-      arm_start_stage >= control_current_index &&
-      arm_start_stage - control_current_index >= MINIMUM_ARM_LEAD_SAMPLES &&
-      arm_start_stage <= 64'hffff_ffff_ffff_ffff - (SAMPLE_COUNT - 1);
+      arm_start_stage == arm_start_checked_stage &&
+      arm_start_not_before_stage &&
+      arm_lead_difference_stage >= MINIMUM_ARM_LEAD_SAMPLES &&
+      arm_window_no_overflow_stage;
 
   assign fixture_write_ready =
-      !fixture_valid && !arm_pending && !arm_inflight &&
+      !fixture_valid && !arm_validation_pending && !arm_pending && !arm_inflight &&
       fixture_count < SAMPLE_COUNT;
   assign arm_ready =
-      fixture_valid && !arm_pending && !arm_inflight &&
+      fixture_valid && !arm_validation_pending && !arm_pending && !arm_inflight &&
       accepted_sample_control_lead;
   assign status = {
     16'd0,
@@ -105,7 +119,7 @@ module starlink_pss_injection_mux #(
     rejected_sticky,
     completed_sticky,
     sample_active_sync[1],
-    arm_pending,
+    (arm_pending || arm_validation_pending),
     arm_ready,
     fixture_valid
   };
@@ -122,8 +136,16 @@ module starlink_pss_injection_mux #(
       arm_start_mailbox <= 64'd0;
       arm_generation_mailbox <= 32'd0;
       arm_request_toggle <= 1'b0;
+      arm_validation_pending <= 1'b0;
+      arm_validation_count <= 2'd0;
+      arm_validation_start <= 64'd0;
       arm_pending <= 1'b0;
       arm_inflight <= 1'b0;
+      control_current_index_stage <= 64'd0;
+      arm_start_checked_stage <= 64'd0;
+      arm_lead_difference_stage <= 64'd0;
+      arm_start_not_before_stage <= 1'b0;
+      arm_window_no_overflow_stage <= 1'b0;
       arm_ack_sync <= 2'b00;
       arm_ack_seen <= 1'b0;
       completion_sync <= 2'b00;
@@ -132,10 +154,40 @@ module starlink_pss_injection_mux #(
       mismatch_seen <= 1'b0;
       sample_active_sync <= 2'b00;
     end else begin
+      control_current_index_stage <= control_current_index;
+      arm_start_checked_stage <= arm_start_stage;
+      arm_lead_difference_stage <=
+          arm_start_stage - control_current_index_stage;
+      arm_start_not_before_stage <=
+          arm_start_stage >= control_current_index_stage;
+      arm_window_no_overflow_stage <=
+          arm_start_stage <= 64'hffff_ffff_ffff_ffff - (SAMPLE_COUNT - 1);
+
       arm_ack_sync <= {arm_ack_sync[0], sample_arm_ack_toggle};
       completion_sync <= {completion_sync[0], sample_completion_toggle};
       mismatch_sync <= {mismatch_sync[0], sample_mismatch_toggle};
       sample_active_sync <= {sample_active_sync[0], sample_injection_active};
+
+      if (arm_validation_pending) begin
+        if (arm_validation_count != 2'd1) begin
+          arm_validation_count <= arm_validation_count - 1'b1;
+        end else begin
+          arm_validation_pending <= 1'b0;
+          arm_validation_count <= 2'd0;
+          if (arm_start_stage == arm_validation_start &&
+              accepted_sample_control_lead) begin
+            arm_start_mailbox <= arm_validation_start;
+            arm_generation_mailbox <= fixture_generation;
+            arm_request_toggle <= ~arm_request_toggle;
+            arm_pending <= 1'b1;
+            arm_inflight <= 1'b1;
+            completed_sticky <= 1'b0;
+            mismatch_sticky <= 1'b0;
+          end else begin
+            rejected_sticky <= 1'b1;
+          end
+        end
+      end
 
       if (arm_ack_sync[1] != arm_ack_seen) begin
         arm_ack_seen <= arm_ack_sync[1];
@@ -166,7 +218,7 @@ module starlink_pss_injection_mux #(
           (!command_onehot || command_multiple)) begin
         rejected_sticky <= 1'b1;
       end else if (fixture_clear) begin
-        if (!arm_pending && !arm_inflight) begin
+        if (!arm_validation_pending && !arm_pending && !arm_inflight) begin
           fixture_count <= 8'd0;
           fixture_valid <= 1'b0;
           fixture_generation <= 32'd0;
@@ -178,7 +230,8 @@ module starlink_pss_injection_mux #(
           rejected_sticky <= 1'b1;
         end
       end else if (fixture_commit) begin
-        if (!fixture_valid && !arm_pending && !arm_inflight &&
+        if (!fixture_valid && !arm_validation_pending &&
+            !arm_pending && !arm_inflight &&
             fixture_count == SAMPLE_COUNT &&
             fixture_generation_stage != 32'd0) begin
           fixture_valid <= 1'b1;
@@ -187,14 +240,11 @@ module starlink_pss_injection_mux #(
           rejected_sticky <= 1'b1;
         end
       end else if (arm) begin
-        if (arm_ready) begin
-          arm_start_mailbox <= arm_start_stage;
-          arm_generation_mailbox <= fixture_generation;
-          arm_request_toggle <= ~arm_request_toggle;
-          arm_pending <= 1'b1;
-          arm_inflight <= 1'b1;
-          completed_sticky <= 1'b0;
-          mismatch_sticky <= 1'b0;
+        if (fixture_valid && !arm_validation_pending &&
+            !arm_pending && !arm_inflight) begin
+          arm_validation_pending <= 1'b1;
+          arm_validation_count <= 2'd2;
+          arm_validation_start <= arm_start_stage;
         end else begin
           rejected_sticky <= 1'b1;
         end

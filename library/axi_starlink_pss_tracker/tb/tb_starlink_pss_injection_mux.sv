@@ -225,8 +225,16 @@ module tb_starlink_pss_injection_mux;
     control_current_index = next_source_index;
     arm_start_stage = next_source_index + 64'd32;
     pulse_arm();
-    if (!status[5] || status[2] || status[7])
+    timeout = 0;
+    while (status[2] && timeout < 20) begin
+      @(posedge control_clk);
+      timeout = timeout + 1;
+    end
+    if (!status[5] || status[2] || status[7]) begin
+      $display("late_status=%08x current=%0d start=%0d ready=%0b",
+               status, control_current_index, arm_start_stage, arm_ready);
       fail("late arm was not rejected before crossing domains");
+    end
 
     // Clear and reload so the overlap rejection below is independently
     // observable rather than inheriting the late-command sticky bit.
