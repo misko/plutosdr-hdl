@@ -62,6 +62,14 @@ Its three elastic stages sustain one result per clock and preserve candidate
 identity through stalls and flush.  The raw IFFT-result FIFO, energy-cache
 lookup join, and two-lane dispatcher remain separate composition work.
 
+`starlink_pss_raw_result_fifo.v` absorbs the 447 qualified outputs from each
+512-point overlap-save IFFT block.  Its 512-entry, 123-bit storage preserves
+signed correlation, both block exponents, the absolute candidate-start index,
+and the block-last marker.  A registered synchronous read keeps the wide FIFO
+in block RAM.  The declared capacity includes the prefetched output register;
+overflow is reported without mutating queued state, and flush invalidates
+pointers/count/output without clearing memory contents.
+
 Run the deterministic simulation with:
 
 ```sh
@@ -85,6 +93,10 @@ The score-preparation test independently forms thousands of signed
 correlation-power, exponent, and full-width energy cases.  It covers actual and
 extreme block exponents, numerator-width boundaries, exact denominator
 multiplication, pipeline backpressure, metadata, and flushes.
+The raw-result FIFO test holds its consumer stalled for an entire 447-result
+IFFT burst, checks exact payload/order while draining with stalls, exercises
+1,200 results of simultaneous input/output traffic, fills all 512 declared
+entries, verifies fail-closed overflow, and flushes all retained state.
 
 Run the default-geometry Zynq-7010 out-of-context gate with:
 
@@ -122,6 +134,12 @@ Run the exponent-aware ratio-preparation OOC gate with:
 ./run_score_prepare_ooc.sh /absolute/output/directory
 ```
 
+Run the raw IFFT-result FIFO's independent OOC gate with:
+
+```sh
+./run_raw_result_fifo_ooc.sh /absolute/output/directory
+```
+
 The OOC gate requires the canonical Vivado 2022.2 installation and fails if
 the map does not infer exactly 20 RAMB36E1 blocks, uses a DSP, exceeds its logic
 budget, has a methodology/check-timing violation, or misses 100 MHz post-opt
@@ -157,3 +175,9 @@ constant-product resources, clean reports, and nonnegative 100 MHz post-opt
 unplaced setup and hold slack.  It proves only the wide arithmetic pipeline;
 the raw-result FIFO, indexed-energy join, and divider composition remain later
 gates.
+
+The raw-result FIFO OOC gate requires its 512-by-123-bit storage to infer
+exactly two RAMB36E1 blocks, no RAMB18E1 or DSPs, bounded control logic, clean
+reports, and nonnegative 100 MHz post-opt unplaced setup and hold slack.  It
+proves only burst storage; IFFT qualification, indexed-energy lookup, and
+fail-closed block lifecycle remain composition gates.

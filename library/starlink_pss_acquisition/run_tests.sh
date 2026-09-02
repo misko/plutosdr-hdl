@@ -60,3 +60,10 @@ iverilog -g2012 -Wall \
   starlink_pss_score_prepare.v \
   tb/tb_starlink_pss_score_prepare.sv
 vvp build/starlink_pss_score_prepare.vvp
+
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_raw_result_fifo \
+  -o build/starlink_pss_raw_result_fifo.vvp \
+  starlink_pss_raw_result_fifo.v \
+  tb/tb_starlink_pss_raw_result_fifo.sv
+vvp build/starlink_pss_raw_result_fifo.vvp
