@@ -15,7 +15,7 @@ M_DEPS += ../../library/axi_ad9361/axi_ad9361_delay.tcl
 
 LIB_DEPS += axi_ad9361
 LIB_DEPS += axi_dmac
-LIB_DEPS += axi_starlink_pss_monitor
+LIB_DEPS += axi_starlink_pss_tracker
 LIB_DEPS += util_pack/util_cpack2
 
 include ../scripts/project-xilinx.mk

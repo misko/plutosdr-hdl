@@ -48,6 +48,7 @@ module starlink_pss_tracking_core #(
   output wire         [31:0] o_active_coefficient_generation,
   output wire signed  [47:0] o_active_coefficient_energy,
   output wire          [6:0] o_shadow_coefficient_count,
+  output wire                o_configuration_idle,
 
   output wire                o_result_valid,
   input  wire                i_result_ready,
@@ -222,6 +223,7 @@ module starlink_pss_tracking_core #(
     .o_active_coefficient_generation  (o_active_coefficient_generation),
     .o_active_coefficient_energy      (o_active_coefficient_energy),
     .o_shadow_coefficient_count       (o_shadow_coefficient_count),
+    .o_configuration_idle             (o_configuration_idle),
     .i_sample_clear                   (1'b0),
     .i_sample_valid                   (bridge_engine_sample_valid),
     .o_sample_ready                   (bridge_engine_sample_ready),

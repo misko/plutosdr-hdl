@@ -97,6 +97,7 @@ module starlink_pss_exact_reducer (
   reg [68:0] current_denominator;
   reg [145:0] compare_accumulator;
   reg [145:0] left_cross_product;
+  reg [76:0] compare_multiplicand;
   reg [37:0] square_multiplier_shift;
   reg [30:0] denominator_multiplier_shift;
   reg [68:0] compare_multiplier_shift;
@@ -140,9 +141,6 @@ module starlink_pss_exact_reducer (
       {denominator_accumulator[67:0], 1'b0} +
       (denominator_multiplier_bit ? {31'd0, working_ex} : 69'd0);
 
-  wire [76:0] compare_multiplicand =
-      (state == STATE_LEFT) ? current_magnitude_squared :
-      winner_magnitude_squared;
   wire compare_multiplier_bit = compare_multiplier_shift[68];
   wire [145:0] compare_accumulator_next =
       {compare_accumulator[144:0], 1'b0} +
@@ -206,6 +204,7 @@ module starlink_pss_exact_reducer (
       current_denominator <= 69'd0;
       compare_accumulator <= 146'd0;
       left_cross_product <= 146'd0;
+      compare_multiplicand <= 77'd0;
       square_multiplier_shift <= 38'd0;
       denominator_multiplier_shift <= 31'd0;
       compare_multiplier_shift <= 69'd0;
@@ -331,6 +330,7 @@ module starlink_pss_exact_reducer (
             state <= STATE_DECIDE;
           end else begin
             compare_accumulator <= 146'd0;
+            compare_multiplicand <= current_magnitude_squared;
             compare_multiplier_shift <= winner_denominator;
             compare_bit_index <= 7'd68;
             state <= STATE_LEFT;
@@ -341,6 +341,7 @@ module starlink_pss_exact_reducer (
           if (compare_bit_index == 0) begin
             left_cross_product <= compare_accumulator_next;
             compare_accumulator <= 146'd0;
+            compare_multiplicand <= winner_magnitude_squared;
             compare_multiplier_shift <= current_denominator;
             compare_bit_index <= 7'd68;
             state <= STATE_RIGHT;

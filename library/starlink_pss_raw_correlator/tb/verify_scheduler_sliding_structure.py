@@ -100,6 +100,23 @@ def main() -> None:
         raise RuntimeError("sliding engine gained undeclared multiply/divide arithmetic")
     if sliding_source.count('use_dsp = "yes"') != 3:
         raise RuntimeError("sliding engine must request exactly three DSP result registers")
+    for ready_name in (
+        "o_coefficient_ready",
+        "o_coefficient_commit_ready",
+        "o_sample_ready",
+        "o_start_ready",
+    ):
+        ready_expression = re.search(
+            rf"assign\s+{ready_name}\s*=(.*?);", sliding, flags=re.DOTALL
+        )
+        if ready_expression is None or re.search(
+            r"\bi_(coefficient_clear|coefficient_valid|coefficient_commit|"
+            r"sample_clear|sample_valid|start)\b",
+            ready_expression.group(1),
+        ):
+            raise RuntimeError(
+                f"{ready_name} must describe capacity independently of inputs"
+            )
 
     require(
         bridge,
@@ -139,9 +156,16 @@ def main() -> None:
             "sample_timestamp_memory[lag_index]",
             "o_result_coefficient_generation",
             "o_bound_error_count",
+            "sliding_energy_bound_error_pending",
+            "i_coefficient_saturator",
+            "i_sample_saturator",
+            "i_correlation_real_saturator",
+            "i_correlation_imag_saturator",
         ),
         label="sliding correlator",
     )
+    if "saturator_0_accumulator" in sliding:
+        raise RuntimeError("sliding correlator reintroduced the phase-shared carry mux")
 
     require(
         tracking,
@@ -166,6 +190,9 @@ def main() -> None:
             "reg [76:0] current_magnitude_squared",
             "reg [68:0] current_denominator",
             "reg [145:0] left_cross_product",
+            "reg [76:0] compare_multiplicand",
+            "compare_multiplicand <= current_magnitude_squared",
+            "compare_multiplicand <= winner_magnitude_squared",
             "correlation_bound_legal",
             "energy_bound_legal",
             "left_cross_product > compare_accumulator",

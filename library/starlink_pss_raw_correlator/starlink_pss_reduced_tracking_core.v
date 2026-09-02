@@ -48,6 +48,7 @@ module starlink_pss_reduced_tracking_core #(
   output wire         [31:0] o_active_coefficient_generation,
   output wire signed  [47:0] o_active_coefficient_energy,
   output wire          [6:0] o_shadow_coefficient_count,
+  output wire                o_configuration_idle,
 
   output wire                o_result_available,
   output wire                o_result_bank,
@@ -141,6 +142,7 @@ module starlink_pss_reduced_tracking_core #(
     .o_active_coefficient_generation   (o_active_coefficient_generation),
     .o_active_coefficient_energy       (o_active_coefficient_energy),
     .o_shadow_coefficient_count        (o_shadow_coefficient_count),
+    .o_configuration_idle              (o_configuration_idle),
     .o_result_valid                    (raw_result_valid),
     .i_result_ready                    (raw_result_ready),
     .o_result_request_id               (raw_result_request_id),

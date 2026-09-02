@@ -25,6 +25,7 @@ module starlink_pss_sliding_correlator (
   output reg         [31:0] o_active_coefficient_generation,
   output reg  signed [47:0] o_active_coefficient_energy,
   output wire         [6:0] o_shadow_coefficient_count,
+  output wire               o_configuration_idle,
 
   input  wire               i_sample_clear,
   input  wire               i_sample_valid,
@@ -101,29 +102,25 @@ module starlink_pss_sliding_correlator (
   reg         [8:0] correlation_saturation_count;
 
   assign o_shadow_coefficient_count = shadow_coefficient_load_count;
+  assign o_configuration_idle =
+      (state == STATE_IDLE) && (sample_load_count == 0);
   assign o_sample_count = sample_load_count;
   assign o_busy = (state != STATE_IDLE);
   assign o_result_valid = (state == STATE_EMIT);
 
   assign o_coefficient_ready =
       (state == STATE_IDLE) && (sample_load_count == 0) &&
-      !i_coefficient_clear && !i_coefficient_commit && !i_start &&
       (shadow_coefficient_load_count < COEFFICIENT_COUNT);
   assign o_coefficient_commit_ready =
       (state == STATE_IDLE) && (sample_load_count == 0) &&
-      !i_coefficient_clear && !i_start &&
       (shadow_coefficient_load_count == COEFFICIENT_COUNT);
   assign o_sample_ready =
       (state == STATE_IDLE) && o_active_coefficient_valid &&
       (shadow_coefficient_load_count == 0) &&
-      !i_coefficient_clear && !i_coefficient_valid &&
-      !i_coefficient_commit && !i_sample_clear && !i_start &&
       (sample_load_count < CAPTURE_COUNT);
   assign o_start_ready =
       (state == STATE_IDLE) && o_active_coefficient_valid &&
       (shadow_coefficient_load_count == 0) &&
-      !i_coefficient_clear && !i_coefficient_valid &&
-      !i_coefficient_commit && !i_sample_clear &&
       (sample_load_count == CAPTURE_COUNT);
 
   wire [7:0] sample_memory_address =
@@ -296,52 +293,45 @@ module starlink_pss_sliding_correlator (
     end
   end
 
-  reg signed [47:0] saturator_0_accumulator;
-  reg signed [35:0] saturator_0_addend;
-  reg signed [47:0] saturator_1_accumulator;
-  reg signed [35:0] saturator_1_addend;
-  wire signed [47:0] saturator_0_result;
-  wire signed [47:0] saturator_1_result;
-  wire saturator_0_event;
-  wire saturator_1_event;
+  // Phase-specific saturators deliberately trade a small amount of LUT area
+  // for routed margin.  Sharing one 48-bit carry chain put the FSM decode and
+  // a wide accumulator mux in front of that chain, making state rather than
+  // arithmetic the limiting path in the complete Pluto shell.
+  wire signed [47:0] coefficient_saturator_result;
+  wire signed [47:0] sample_saturator_result;
+  wire signed [47:0] correlation_real_saturator_result;
+  wire signed [47:0] correlation_imag_saturator_result;
+  wire coefficient_saturator_event;
+  wire sample_saturator_event;
+  wire correlation_real_saturator_event;
+  wire correlation_imag_saturator_event;
 
-  always @* begin
-    saturator_0_accumulator = 48'sd0;
-    saturator_0_addend = 36'sd0;
-    saturator_1_accumulator = 48'sd0;
-    saturator_1_addend = 36'sd0;
-    case (state)
-      STATE_COEFFICIENT_ENERGY: begin
-        saturator_0_accumulator = coefficient_energy_accumulator;
-        saturator_0_addend = tap_energy_addend;
-      end
-      STATE_SAMPLE_ENERGY: begin
-        saturator_0_accumulator = sample_energy_accumulator;
-        saturator_0_addend = tap_energy_addend;
-      end
-      STATE_CORRELATION: begin
-        saturator_0_accumulator = correlation_real_accumulator;
-        saturator_0_addend = tap_correlation_real_addend;
-        saturator_1_accumulator = correlation_imag_accumulator;
-        saturator_1_addend = tap_correlation_imag_addend;
-      end
-      default: begin
-      end
-    endcase
-  end
-
-  starlink_sat_add48 i_saturator_0 (
-    .i_accumulator (saturator_0_accumulator),
-    .i_addend      (saturator_0_addend),
-    .o_result      (saturator_0_result),
-    .o_saturated   (saturator_0_event)
+  starlink_sat_add48 i_coefficient_saturator (
+    .i_accumulator (coefficient_energy_accumulator),
+    .i_addend      (tap_energy_addend),
+    .o_result      (coefficient_saturator_result),
+    .o_saturated   (coefficient_saturator_event)
   );
 
-  starlink_sat_add48 i_saturator_1 (
-    .i_accumulator (saturator_1_accumulator),
-    .i_addend      (saturator_1_addend),
-    .o_result      (saturator_1_result),
-    .o_saturated   (saturator_1_event)
+  starlink_sat_add48 i_sample_saturator (
+    .i_accumulator (sample_energy_accumulator),
+    .i_addend      (tap_energy_addend),
+    .o_result      (sample_saturator_result),
+    .o_saturated   (sample_saturator_event)
+  );
+
+  starlink_sat_add48 i_correlation_real_saturator (
+    .i_accumulator (correlation_real_accumulator),
+    .i_addend      (tap_correlation_real_addend),
+    .o_result      (correlation_real_saturator_result),
+    .o_saturated   (correlation_real_saturator_event)
+  );
+
+  starlink_sat_add48 i_correlation_imag_saturator (
+    .i_accumulator (correlation_imag_accumulator),
+    .i_addend      (tap_correlation_imag_addend),
+    .o_result      (correlation_imag_saturator_result),
+    .o_saturated   (correlation_imag_saturator_event)
   );
 
   wire [7:0] sliding_add_address =
@@ -352,6 +342,11 @@ module starlink_pss_sliding_correlator (
       $signed({18'd0, sample_energy_memory[sliding_add_address]});
   wire sliding_energy_bound_error =
       sliding_energy_wide[49] || (|sliding_energy_wide[48:47]);
+  // Register the rare diagnostic event before it reaches the 32-bit
+  // saturating counter.  The counter is observability only; keeping the
+  // sliding-address/energy decision out of its carry/enable cone prevents a
+  // diagnostic from becoming the 100 MHz tracking-engine critical path.
+  reg sliding_energy_bound_error_pending;
 
   always @(posedge i_clk) begin
     if (i_reset) begin
@@ -385,10 +380,15 @@ module starlink_pss_sliding_correlator (
       o_result_saturation_events <= 9'd0;
       o_done <= 1'b0;
       o_bound_error_count <= 32'd0;
+      sliding_energy_bound_error_pending <= 1'b0;
     end else begin
       o_coefficient_commit_accepted <= 1'b0;
       o_coefficient_commit_rejected <= 1'b0;
       o_done <= 1'b0;
+      sliding_energy_bound_error_pending <= 1'b0;
+
+      if (sliding_energy_bound_error_pending)
+        o_bound_error_count <= increment_saturating_32(o_bound_error_count);
 
       case (state)
         STATE_IDLE: begin
@@ -432,9 +432,9 @@ module starlink_pss_sliding_correlator (
           if (multiplier_issue)
             phase_issue_count <= phase_issue_count + 1'b1;
           if (tap_valid) begin
-            coefficient_energy_accumulator <= saturator_0_result;
+            coefficient_energy_accumulator <= coefficient_saturator_result;
             coefficient_saturation_count <=
-                coefficient_saturation_count + saturator_0_event;
+                coefficient_saturation_count + coefficient_saturator_event;
             phase_consume_count <= phase_consume_count + 1'b1;
             if (phase_consume_count == COEFFICIENT_COUNT-1)
               state <= STATE_COEFFICIENT_CHECK;
@@ -477,9 +477,9 @@ module starlink_pss_sliding_correlator (
           if (tap_valid) begin
             sample_energy_memory[phase_consume_count] <= tap_energy_addend[31:0];
             if (phase_consume_count < COEFFICIENT_COUNT) begin
-              sample_energy_accumulator <= saturator_0_result;
+              sample_energy_accumulator <= sample_saturator_result;
               sample_saturation_count <=
-                  sample_saturation_count + saturator_0_event;
+                  sample_saturation_count + sample_saturator_event;
             end
             phase_consume_count <= phase_consume_count + 1'b1;
             if (phase_consume_count == CAPTURE_COUNT-1) begin
@@ -497,11 +497,12 @@ module starlink_pss_sliding_correlator (
           if (multiplier_issue)
             phase_issue_count <= phase_issue_count + 1'b1;
           if (tap_valid) begin
-            correlation_real_accumulator <= saturator_0_result;
-            correlation_imag_accumulator <= saturator_1_result;
+            correlation_real_accumulator <= correlation_real_saturator_result;
+            correlation_imag_accumulator <= correlation_imag_saturator_result;
             correlation_saturation_count <=
                 correlation_saturation_count +
-                saturator_0_event + saturator_1_event;
+                correlation_real_saturator_event +
+                correlation_imag_saturator_event;
             phase_consume_count <= phase_consume_count + 1'b1;
             if (phase_consume_count == COEFFICIENT_COUNT-1)
               state <= STATE_FINALIZE;
@@ -537,7 +538,7 @@ module starlink_pss_sliding_correlator (
 
         STATE_SLIDE_ENERGY: begin
           if (sliding_energy_bound_error) begin
-            o_bound_error_count <= increment_saturating_32(o_bound_error_count);
+            sliding_energy_bound_error_pending <= 1'b1;
             sample_saturation_count <= sample_saturation_count + 1'b1;
           end
           sample_energy_accumulator <= sliding_energy_wide[47:0];

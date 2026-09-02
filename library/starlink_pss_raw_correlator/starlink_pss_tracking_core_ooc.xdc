@@ -132,6 +132,7 @@ set_output_delay -clock tracking_engine_clock -max 2.000 [get_ports {
   o_active_coefficient_generation[*]
   o_active_coefficient_energy[*]
   o_shadow_coefficient_count[*]
+  o_configuration_idle
   o_result_valid
   o_result_request_id[*]
   o_result_center_index[*]
@@ -156,6 +157,7 @@ set_output_delay -clock tracking_engine_clock -min 0.000 [get_ports {
   o_active_coefficient_generation[*]
   o_active_coefficient_energy[*]
   o_shadow_coefficient_count[*]
+  o_configuration_idle
   o_result_valid
   o_result_request_id[*]
   o_result_center_index[*]
