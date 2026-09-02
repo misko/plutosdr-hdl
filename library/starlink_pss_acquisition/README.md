@@ -70,6 +70,31 @@ in block RAM.  The declared capacity includes the prefetched output register;
 overflow is reported without mutating queued state, and flush invalidates
 pointers/count/output without clearing memory contents.
 
+`starlink_pss_ifft_qualifier.v` validates every index, TLAST, exponent, and
+block-start field in the complete 512-result IFFT stream.  It discards indexes
+0 through 64, maps indexes 65 through 511 to absolute candidate starts, and
+latches a protocol fault until flush if framing, metadata stability, or the
+447-sample next-block stride is wrong.
+
+`starlink_pss_energy_join.v` keeps raw correlation metadata aligned with the
+one-outstanding absolute-indexed energy-cache transaction.  It can retire one
+response while issuing the next lookup, sustaining one join per clock.  A
+miss, returned-index mismatch, or orphan response is consumed but never
+emitted; the interfaces remain quarantined until flush.
+
+`starlink_pss_score_lanes.v` alternates ratios across two fixed-latency exact
+divider instances and independently alternates the selected output only on
+handshake.  This preserves FIFO order through arbitrary downstream stalls and
+provides 22.22 million score starts/s at a 100 MHz clock.
+
+`starlink_pss_candidate_score_path.v` composes the qualifier, raw FIFO, energy
+join, ratio preparation, and two ordered divider lanes.  It exposes the energy
+cache transaction port and normalized score stream.  Any component fault is
+latched and immediately gates input and output; the external acquisition
+controller must then apply the same explicit flush to this path and its energy
+cache.  XFFT cores, coefficient ROM, scheduler wiring, phase-map wiring, and
+the real RX shell remain outside this source-only top.
+
 Run the deterministic simulation with:
 
 ```sh
@@ -97,6 +122,14 @@ The raw-result FIFO test holds its consumer stalled for an entire 447-result
 IFFT burst, checks exact payload/order while draining with stalls, exercises
 1,200 results of simultaneous input/output traffic, fills all 512 declared
 entries, verifies fail-closed overflow, and flushes all retained state.
+The qualifier test checks two full blocks through deterministic stalls and
+injects index, TLAST, metadata, and next-block-stride faults.  The energy join
+sustains 1,000 consecutive lookups and proves miss, mismatch, and orphan
+quarantine.  The two-lane and composed score tests compare ordered results to
+independent exact-integer vectors.  Finally, the candidate-path integration
+test uses the real energy cache: one dense 512-result IFFT block produces all
+447 exact scores without input backpressure, while a missing-energy replay
+publishes no score and latches the path fault.
 
 Run the default-geometry Zynq-7010 out-of-context gate with:
 
@@ -140,6 +173,12 @@ Run the raw IFFT-result FIFO's independent OOC gate with:
 ./run_raw_result_fifo_ooc.sh /absolute/output/directory
 ```
 
+Run the composed IFFT-to-score path OOC gate with:
+
+```sh
+./run_candidate_score_path_ooc.sh /absolute/output/directory
+```
+
 The OOC gate requires the canonical Vivado 2022.2 installation and fails if
 the map does not infer exactly 20 RAMB36E1 blocks, uses a DSP, exceeds its logic
 budget, has a methodology/check-timing violation, or misses 100 MHz post-opt
@@ -181,3 +220,10 @@ exactly two RAMB36E1 blocks, no RAMB18E1 or DSPs, bounded control logic, clean
 reports, and nonnegative 100 MHz post-opt unplaced setup and hold slack.  It
 proves only burst storage; IFFT qualification, indexed-energy lookup, and
 fail-closed block lifecycle remain composition gates.
+
+The candidate-score-path OOC gate covers the complete composed tail named
+above.  It requires exactly two RAMB36E1 blocks, four DSP48E1 cells, bounded
+logic, clean methodology/check-timing reports, and nonnegative 100 MHz
+post-opt unplaced setup/hold slack.  It does not include the energy cache,
+either XFFT core, coefficient ROM, scheduler, phase map, AXI/CDC shell, or
+complete placement and routing.

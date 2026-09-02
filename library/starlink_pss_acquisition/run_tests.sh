@@ -67,3 +67,52 @@ iverilog -g2012 -Wall \
   starlink_pss_raw_result_fifo.v \
   tb/tb_starlink_pss_raw_result_fifo.sv
 vvp build/starlink_pss_raw_result_fifo.vvp
+
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_ifft_qualifier \
+  -o build/starlink_pss_ifft_qualifier.vvp \
+  starlink_pss_ifft_qualifier.v \
+  tb/tb_starlink_pss_ifft_qualifier.sv
+vvp build/starlink_pss_ifft_qualifier.vvp
+
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_energy_join \
+  -o build/starlink_pss_energy_join.vvp \
+  starlink_pss_energy_join.v \
+  tb/tb_starlink_pss_energy_join.sv
+vvp build/starlink_pss_energy_join.vvp
+
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_score_lanes \
+  -o build/starlink_pss_score_lanes.vvp \
+  starlink_pss_score_divider.v \
+  starlink_pss_score_lanes.v \
+  tb/tb_starlink_pss_score_lanes.sv
+vvp build/starlink_pss_score_lanes.vvp
+
+python3 tb/generate_score_pipeline_vectors.py \
+  build/starlink_pss_score_pipeline_vectors.txt
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_score_pipeline \
+  -o build/starlink_pss_score_pipeline.vvp \
+  starlink_pss_score_prepare.v \
+  starlink_pss_score_divider.v \
+  starlink_pss_score_lanes.v \
+  tb/tb_starlink_pss_score_pipeline.sv
+vvp build/starlink_pss_score_pipeline.vvp
+
+python3 tb/generate_candidate_score_path_vectors.py \
+  build/starlink_pss_candidate_score_path_vectors.txt
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_candidate_score_path \
+  -o build/starlink_pss_candidate_score_path.vvp \
+  starlink_pss_energy_cache.v \
+  starlink_pss_ifft_qualifier.v \
+  starlink_pss_raw_result_fifo.v \
+  starlink_pss_energy_join.v \
+  starlink_pss_score_prepare.v \
+  starlink_pss_score_divider.v \
+  starlink_pss_score_lanes.v \
+  starlink_pss_candidate_score_path.v \
+  tb/tb_starlink_pss_candidate_score_path.sv
+vvp build/starlink_pss_candidate_score_path.vvp
