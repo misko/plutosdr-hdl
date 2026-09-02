@@ -141,7 +141,7 @@ Run the self-checking AXI/core simulation from this directory:
 ```
 
 After a routed Pluto build, validate timing, hold, the tracker Gray-bus skew,
-the complete synchronizer/payload structure, exact 3-DSP and 5.5-BRAM tracker
+the complete synchronizer/payload structure, exact 3-DSP and 6-BRAM tracker
 footprint, absence of TX DMA, routing completeness, and tracker-specific CDC:
 
 ```sh
@@ -186,6 +186,28 @@ hashes are:
 | `system_top_routed.dcp` | `3283a9b0855241415cd2b3d3a7ea2cd36363f7d8597291687feb49ba0ca7220b` |
 | `system_top.bit` | `a1c3e01a78cc71f2984290f98677e9b44acb3f7e2bdf4a86405916a537fb83fe` |
 | `system_top.xsa` | `eee9d8fd5ade10dfcee674a2dba1acfb413662ff915c9b21b33519a28a2b3a9c` |
+
+ABI 1.2 deterministic injection source is HDL commit
+`e106eabf79245f394fe1ef43fc4a274779e9fc0a`, annotated by the explicitly
+do-not-merge tag
+`starlink-rx-only-dnm-v1-source/hdl-pss15-injection-abi12-v3`. Its clean,
+non-incremental Vivado 2022.2 route passes with setup WNS `+0.328 ns`, hold WHS
+`+0.009 ns`, zero routing errors, zero tracker Critical CDC rows, and no TX-DMA
+hierarchy. All three 10 ns bus-skew constraints are met: `1.851 ns` for the
+Gray scheduling index, `1.692 ns` for the 448-bit telemetry payload, and
+`1.740 ns` for the 64-bit injection-start mailbox. The validator finds all 64
+logical mailbox bits, 128 two-stage synchronizer bits, and 84 physical source
+cells after legal synthesis replication. The dual-clock fixture is exactly one
+RAMB18E1; tracker resources are exactly 3 DSP48E1, 4 RAMB18E1, and 4 RAMB36E1
+(6 BRAM tiles). The complete RX-only shell uses 9,740 LUTs (55.34%), 14,961
+registers (42.50%), 9 BRAM tiles (15.00%), and 31 DSPs (38.75%). The qualified
+artifact hashes are:
+
+| Artifact | SHA-256 |
+|---|---|
+| `system_top_routed.dcp` | `c8631df82584b7b2c418603e936a700bb6c7c5ce66d2bf8446a7eb18a421eae6` |
+| `system_top.bit` | `a92415ed08d03c9fccbcdac0d24c91835c7d8f701058d8383e257f0f0381bbf6` |
+| `system_top.xsa` | `b8270e4789a9164b78dbccac19de0a6219083a65e736be045cbfc92fdf22b657` |
 
 These are offline implementation artifacts, not permission or evidence to boot
 a radio. Firmware packaging and target-radio qualification remain separate

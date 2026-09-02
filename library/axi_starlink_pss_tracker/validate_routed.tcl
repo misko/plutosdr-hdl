@@ -119,10 +119,10 @@ set injection_sync_1_d [get_pins -quiet -of_objects $injection_payload_sync_1 \
   -filter {REF_PIN_NAME == D}]
 set injection_sync_2_d [get_pins -quiet -of_objects $injection_payload_sync_2 \
   -filter {REF_PIN_NAME == D}]
-if {[llength $injection_payload_source] != 64 ||
+if {[llength $injection_payload_source] < 64 ||
     [llength $injection_sync_1_d] != 64 ||
     [llength $injection_sync_2_d] != 64} {
-  error "injection arm payload timing objects are incomplete"
+  error "injection arm payload timing objects are incomplete: source=[llength $injection_payload_source] sync1=[llength $injection_sync_1_d] sync2=[llength $injection_sync_2_d]"
 }
 set injection_first_path [get_timing_paths -quiet -delay_type max \
   -max_paths 1 -from $injection_payload_source -to $injection_sync_1_d]
@@ -258,9 +258,10 @@ puts $summary "tx_dma_hierarchies=[llength $tx_dma_cells]"
 puts $summary "telemetry_payload_bits=[llength $telemetry_payload_source]"
 puts $summary "telemetry_payload_synchronizer_bits=[expr {[llength $telemetry_payload_sync_1] + [llength $telemetry_payload_sync_2]}]"
 puts $summary "telemetry_snapshot_bits=[llength $telemetry_snapshot]"
-puts $summary "injection_payload_bits=[llength $injection_payload_source]"
+puts $summary "injection_payload_logical_bits=64"
+puts $summary "injection_payload_source_cells=[llength $injection_payload_source]"
 puts $summary "injection_payload_synchronizer_bits=[expr {[llength $injection_payload_sync_1] + [llength $injection_payload_sync_2]}]"
 close $summary
 
-puts "STARLINK_PSS_TRACKER_ROUTED_PASS setup_wns_ns=$setup_wns hold_whs_ns=$hold_whs dsp48e1=[llength $tracker_dsps] ramb18e1=[llength $tracker_ramb18] ramb36e1=[llength $tracker_ramb36] injection_payload_bits=[llength $injection_payload_source]"
+puts "STARLINK_PSS_TRACKER_ROUTED_PASS setup_wns_ns=$setup_wns hold_whs_ns=$hold_whs dsp48e1=[llength $tracker_dsps] ramb18e1=[llength $tracker_ramb18] ramb36e1=[llength $tracker_ramb36] injection_payload_logical_bits=64 injection_payload_source_cells=[llength $injection_payload_source]"
 close_design
