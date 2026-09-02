@@ -147,6 +147,30 @@ audit trail; ABI 1.1 must be freshly routed and packaged:
 | `system_top.bit` | `0e783199a0a56c7742d6079daeb4ebc6ac4750e58f543d4020529275a39b3e49` |
 | `system_top.xsa` | `44dd4c0525fa67630dbb0f225999d0498a62baf27991fca497d6cfba96ff565d` |
 
+The corrected ABI 1.1 source is HDL commit
+`6a73ee090ff17b48cad2e089daa4d7a1013c993f`, annotated by the explicitly
+do-not-merge tag
+`starlink-rx-only-dnm-v1-source/hdl-pss15-track-one-v2`. Its clean Vivado
+2022.2 full route passes with setup WNS `+0.314 ns`, hold WHS `+0.024 ns`, zero
+routing errors, zero tracker Critical CDC rows, no TX-DMA hierarchy, and both
+10 ns bus-skew constraints met: `1.235 ns` for the Gray scheduling index and
+`1.880 ns` for the 448-bit telemetry payload. The validator finds exactly 448
+sample payload bits, 896 two-stage synchronizer bits, and 448 immutable
+snapshot bits. The complete shell uses 9,176 LUTs (52.14%), 13,820 registers
+(39.26%), 8.5 BRAM tiles (14.17%), and 31 DSPs (38.75%); tracker DSP/BRAM counts
+remain exactly 3 DSP48E1, 3 RAMB18E1, and 4 RAMB36E1. The corrected artifact
+hashes are:
+
+| Artifact | SHA-256 |
+|---|---|
+| `system_top_routed.dcp` | `3283a9b0855241415cd2b3d3a7ea2cd36363f7d8597291687feb49ba0ca7220b` |
+| `system_top.bit` | `a1c3e01a78cc71f2984290f98677e9b44acb3f7e2bdf4a86405916a537fb83fe` |
+| `system_top.xsa` | `eee9d8fd5ade10dfcee674a2dba1acfb413662ff915c9b21b33519a28a2b3a9c` |
+
+These are offline implementation artifacts, not permission or evidence to boot
+a radio. Firmware packaging and target-radio qualification remain separate
+gates.
+
 ## Host sequence
 
 1. Verify ID, exact ABI 1.1, rate, geometry, and capabilities.

@@ -28,6 +28,11 @@ foreach {label suffix expected} {
   sample_to_control_reset_synchronizers "sample_reset_control_sync_reg*" 2
   sample_index_source "sample_index_gray_reg*" 64
   sample_index_synchronizers "sample_index_gray_sync_*_reg*" 128
+  telemetry_request_synchronizers "telemetry_request_sync_reg*" 2
+  telemetry_ack_synchronizers "telemetry_ack_sync_reg*" 2
+  telemetry_payload_source "telemetry_sample_payload_reg*" 448
+  telemetry_payload_synchronizers "telemetry_payload_sync_*_reg*" 896
+  telemetry_snapshot_registers "telemetry_snapshot_reg*" 448
   candidate_status_synchronizers "candidate_pending_sync_reg*" 2
   capture_status_synchronizers "capture_active_sync_reg*" 2
   candidate_pointer_synchronizers
@@ -50,6 +55,49 @@ foreach {label suffix expected} {
       }
     }
   }
+}
+
+# The telemetry mailbox uses a stable bundled-data payload: exactly 448 source
+# bits feed an ASYNC_REG two-stage destination bank, then a separate immutable
+# snapshot.  Only the source-to-first-stage arc is cut; the second stage and
+# snapshot remain ordinarily timed in the AXI domain.
+set telemetry_payload_source [tracker_cells $tracker_glob \
+  "telemetry_sample_payload_reg*"]
+set telemetry_payload_sync_1 [tracker_cells $tracker_glob \
+  "telemetry_payload_sync_1_reg*"]
+set telemetry_payload_sync_2 [tracker_cells $tracker_glob \
+  "telemetry_payload_sync_2_reg*"]
+set telemetry_snapshot [tracker_cells $tracker_glob "telemetry_snapshot_reg*"]
+set telemetry_sync_1_d [get_pins -quiet -of_objects $telemetry_payload_sync_1 \
+  -filter {REF_PIN_NAME == D}]
+set telemetry_sync_2_d [get_pins -quiet -of_objects $telemetry_payload_sync_2 \
+  -filter {REF_PIN_NAME == D}]
+set telemetry_snapshot_d [get_pins -quiet -of_objects $telemetry_snapshot \
+  -filter {REF_PIN_NAME == D}]
+if {[llength $telemetry_sync_1_d] != 448 ||
+    [llength $telemetry_sync_2_d] != 448 ||
+    [llength $telemetry_snapshot_d] != 448} {
+  error "telemetry payload timing objects are incomplete"
+}
+set telemetry_first_path [get_timing_paths -quiet -delay_type max \
+  -max_paths 1 -from $telemetry_payload_source -to $telemetry_sync_1_d]
+set telemetry_second_path [get_timing_paths -quiet -delay_type max \
+  -max_paths 1 -from $telemetry_payload_sync_1 -to $telemetry_sync_2_d]
+set telemetry_snapshot_path [get_timing_paths -quiet -delay_type max \
+  -max_paths 1 -from $telemetry_payload_sync_2 -to $telemetry_snapshot_d]
+if {[llength $telemetry_first_path] != 1 ||
+    [get_property EXCEPTION $telemetry_first_path] ne "False Path"} {
+  error "telemetry source-to-first-stage arc is not false-pathed"
+}
+if {[llength $telemetry_second_path] != 1 ||
+    [get_property EXCEPTION $telemetry_second_path] eq "False Path" ||
+    [get_property SLACK $telemetry_second_path] < 0.0} {
+  error "telemetry first-to-second-stage arc is not safely timed"
+}
+if {[llength $telemetry_snapshot_path] != 1 ||
+    [get_property EXCEPTION $telemetry_snapshot_path] eq "False Path" ||
+    [get_property SLACK $telemetry_snapshot_path] < 0.0} {
+  error "telemetry second-stage-to-snapshot arc is not safely timed"
 }
 
 # The distributed descriptor RAM is bundled data.  Its RAM-write-clock data
@@ -122,8 +170,8 @@ puts -nonewline $bus_skew_file $tracker_bus_skew
 close $bus_skew_file
 set bus_skew_violated [regexp -all {Slack \(VIOLATED\)} $tracker_bus_skew]
 set bus_skew_met [regexp -all {Slack \(MET\)} $tracker_bus_skew]
-if {$bus_skew_violated != 0 || $bus_skew_met != 1} {
-  error "expected one met tracker bus-skew constraint, got met=$bus_skew_met violated=$bus_skew_violated"
+if {$bus_skew_violated != 0 || $bus_skew_met != 2} {
+  error "expected two met tracker bus-skew constraints, got met=$bus_skew_met violated=$bus_skew_violated"
 }
 
 set cdc_path [file join $report_dir starlink_pss_tracker_cdc.rpt]
@@ -164,6 +212,9 @@ puts $summary "tracker_bus_skew_met=$bus_skew_met"
 puts $summary "tracker_bus_skew_violated=$bus_skew_violated"
 puts $summary "tracker_critical_cdc_rows=$tracker_critical_cdc"
 puts $summary "tx_dma_hierarchies=[llength $tx_dma_cells]"
+puts $summary "telemetry_payload_bits=[llength $telemetry_payload_source]"
+puts $summary "telemetry_payload_synchronizer_bits=[expr {[llength $telemetry_payload_sync_1] + [llength $telemetry_payload_sync_2]}]"
+puts $summary "telemetry_snapshot_bits=[llength $telemetry_snapshot]"
 close $summary
 
 puts "STARLINK_PSS_TRACKER_ROUTED_PASS setup_wns_ns=$setup_wns hold_whs_ns=$hold_whs dsp48e1=[llength $tracker_dsps] ramb18e1=[llength $tracker_ramb18] ramb36e1=[llength $tracker_ramb36]"
