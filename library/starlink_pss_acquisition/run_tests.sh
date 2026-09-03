@@ -6,6 +6,22 @@ cd "$script_dir"
 mkdir -p build
 
 iverilog -g2012 -Wall \
+  -s tb_starlink_pss_sample_cdc \
+  -P tb_starlink_pss_sample_cdc.FIFO_ADDRESS_WIDTH=2 \
+  -o build/starlink_pss_sample_cdc_depth4.vvp \
+  starlink_pss_sample_cdc.v \
+  tb/tb_starlink_pss_sample_cdc.sv
+vvp build/starlink_pss_sample_cdc_depth4.vvp
+
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_sample_cdc \
+  -P tb_starlink_pss_sample_cdc.FIFO_ADDRESS_WIDTH=7 \
+  -o build/starlink_pss_sample_cdc_depth128.vvp \
+  starlink_pss_sample_cdc.v \
+  tb/tb_starlink_pss_sample_cdc.sv
+vvp build/starlink_pss_sample_cdc_depth128.vvp
+
+iverilog -g2012 -Wall \
   -s tb_starlink_pss_phase_map \
   -o build/starlink_pss_phase_map.vvp \
   starlink_pss_phase_map_bank.v \

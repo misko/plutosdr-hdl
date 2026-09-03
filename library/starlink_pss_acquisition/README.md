@@ -5,6 +5,24 @@ experiment.  It is developed only on `codex/starlink-rx-only-do-not-merge`.
 It is not release firmware and is never persistently flashed.
 
 `starlink_pss_phase_map.v` is the first independently testable hardware slice.
+
+`starlink_pss_sample_cdc.v` is the non-backpressured one-RX ingress boundary.
+It transfers CI16 samples and their 64-bit accepted-sample index from the
+AD936x receive clock into the 100 MHz acquisition domain through a 128-entry
+dual-clock FIFO.  Each reset is independently synchronized into both clock
+domains and purges both pointer domains.  The first sample
+after reset, or after any FIFO-full drop, is explicitly gap tagged; a
+saturating drop counter, sticky overflow indication, live FIFO level, and
+maximum observed level are exported in the acquisition domain.  Consequently
+the detector never silently correlates across lost or stale samples.
+
+The functional suite runs the CDC contract at both four-entry stress depth and
+the default 128-entry implementation depth.  The independent Zynq-7010 timing,
+CDC, methodology, and resource gate is:
+
+```sh
+./run_sample_cdc_ooc.sh /absolute/output/directory
+```
 It consumes one already-normalized eight-bit score for each candidate start at
 the canonical 15 MS/s acquisition rate.  It keeps all 20,000 one-sample phase
 hypotheses, sums exactly 64 complete frames into a 16-bit map, and uses two
