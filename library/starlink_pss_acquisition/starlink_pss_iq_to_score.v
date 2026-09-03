@@ -131,6 +131,7 @@ module starlink_pss_iq_to_score #(
   wire inverse_output_last;
   wire inverse_output_accept;
   wire candidate_ifft_ready;
+  wire candidate_backpressure_fault;
   wire inverse_core_aresetn;
   wire [7:0] inverse_core_config_tdata;
   wire inverse_core_config_tvalid;
@@ -203,7 +204,14 @@ module starlink_pss_iq_to_score #(
 
   assign cache_lookup_ready_to_path = cache_lookup_ready;
   assign cache_output_ready = cache_output_ready_from_path;
-  assign inverse_output_ready = candidate_ifft_ready;
+  // The generated inverse XFFT is a real-time boundary: downstream scoring
+  // may not propagate backpressure into it.  The 512-entry candidate FIFO is
+  // dimensioned to absorb the complete 447-result burst.  If that bounded
+  // contract is ever violated, consume the XFFT beat, suppress it locally,
+  // and quarantine the detector rather than stalling the transform.
+  assign inverse_output_ready = 1'b1;
+  assign candidate_backpressure_fault = inverse_output_valid &&
+                                         !candidate_ifft_ready;
 
   assign path_score_ready = score_ready;
   assign score_valid = path_score_valid && interfaces_open;
@@ -212,6 +220,7 @@ module starlink_pss_iq_to_score #(
                        product_overflow_fault || inverse_fft_fault ||
                        inverse_forward_exponent_error_now ||
                        forward_exponent_fault_latched || path_fault ||
+                       candidate_backpressure_fault ||
                        scheduler_overflow_pulse;
 
   starlink_pss_overlap_scheduler scheduler (
@@ -497,7 +506,8 @@ module starlink_pss_iq_to_score #(
     .clk                       (clk),
     .resetn                    (pipeline_resetn),
     .flush                     (pipeline_flush),
-    .ifft_valid                (inverse_output_valid),
+    .ifft_valid                (inverse_output_valid &&
+                                !candidate_backpressure_fault),
     .ifft_ready                (candidate_ifft_ready),
     .ifft_correlation_i        (inverse_output_i),
     .ifft_correlation_q        (inverse_output_q),
@@ -527,7 +537,7 @@ module starlink_pss_iq_to_score #(
     .fifo_maximum_stored_count (candidate_fifo_maximum_stored_count)
   );
 
-  assign candidate_path_fault = path_fault;
+  assign candidate_path_fault = path_fault || candidate_backpressure_fault;
 
   // Reset, enable, flush, scheduler restart, and detector faults are lifecycle
   // controls rather than datapath flow control.  Suppress publication in the

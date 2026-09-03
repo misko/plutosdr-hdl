@@ -84,10 +84,8 @@ lookup join, and two-lane dispatcher remain separate composition work.
 signed correlation, both block exponents, the absolute candidate-start index,
 and the block-last marker.  A registered synchronous read keeps the wide FIFO
 in block RAM.  The declared capacity includes the prefetched output register;
-admission depends only on registered occupancy, preventing downstream divider
-readiness from propagating back to the XFFT output. Overflow is reported
-without mutating queued state, and flush invalidates pointers/count/output
-without clearing memory contents.
+overflow is reported without mutating queued state, and flush invalidates
+pointers/count/output without clearing memory contents.
 
 `starlink_pss_ifft_qualifier.v` validates every index, TLAST, exponent, and
 block-start field in the complete 512-result IFFT stream.  It discards indexes
@@ -133,7 +131,10 @@ complex product, inverse-result qualification, and normalized score tail.  It
 publishes 447 exact timing scores per complete 512-sample overlap-save block
 and quarantines the detector on any constituent protocol or arithmetic fault.
 Registered lifecycle control keeps external reset/flush/fault inputs out of
-the internal ready chain while same-cycle output gates still fail closed.
+the internal ready chain while same-cycle output gates still fail closed. The
+inverse XFFT output is consumed without downstream backpressure; if the
+burst-sized candidate path ever cannot accept, the beat is suppressed and the
+whole detector quarantines instead of stalling the real-time transform.
 
 `starlink_pss_score_phase_tagger.v` establishes phase zero on the first valid
 score after reset, disable, flush, or a stream discontinuity, then advances
