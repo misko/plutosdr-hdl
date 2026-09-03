@@ -67,8 +67,12 @@ module starlink_pss_raw_result_fifo #(
   assign current_stored_count = memory_count + output_valid;
   assign stored_count = current_stored_count;
   assign output_stage_ready = !output_valid || output_ready;
+  // Keep admission dependent only on registered occupancy.  Conservatively
+  // refusing a same-cycle replacement while completely full costs at most one
+  // cycle, and prevents the downstream divider ready chain from reaching back
+  // through this burst-absorbing boundary to the XFFT output interface.
   assign input_ready = resetn && !flush &&
-    (current_stored_count < FIFO_DEPTH || output_accept);
+    current_stored_count < FIFO_DEPTH;
   assign input_accept = input_valid && input_ready;
   assign output_accept = output_valid && output_ready;
   assign memory_read = output_stage_ready && memory_count != 0;

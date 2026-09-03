@@ -50,6 +50,7 @@ module starlink_pss_iq_to_score #(
   wire pipeline_resetn;
   wire pipeline_flush;
   wire fault_event;
+  reg pipeline_active;
 
   wire scheduler_fft_valid;
   wire scheduler_fft_ready;
@@ -170,14 +171,17 @@ module starlink_pss_iq_to_score #(
   wire interfaces_open;
 
   assign effective_enable = enable && !detector_fault;
-  assign scheduler_enable = effective_enable && !flush;
-  assign pipeline_resetn = resetn && effective_enable;
-  assign pipeline_flush = flush || scheduler_flush_pulse;
+  assign scheduler_enable = effective_enable && !flush &&
+                            pipeline_active;
+  assign pipeline_resetn = pipeline_active;
+  assign pipeline_flush = !pipeline_active;
   // Constituent blocks suppress the malformed beat locally.  Keep the global
   // quarantine registered through detector_fault and out of the internal
   // ready chain; pipeline_resetn clears every retained transaction on the next
   // clock instead of creating a full-pipeline ready/fault/ready path.
-  assign interfaces_open = effective_enable && !pipeline_flush;
+  assign interfaces_open = resetn && effective_enable && pipeline_active &&
+                           !flush &&
+                           !scheduler_flush_pulse && !pipeline_flush;
 
   assign product_overflow_fault = product_output_valid &&
                                   product_output_overflow;
@@ -212,7 +216,7 @@ module starlink_pss_iq_to_score #(
 
   starlink_pss_overlap_scheduler scheduler (
     .clk                     (clk),
-    .resetn                  (resetn),
+    .resetn                  (pipeline_resetn),
     .enable                  (scheduler_enable),
     .sample_valid            (sample_valid),
     .sample_gap              (sample_gap),
@@ -239,9 +243,9 @@ module starlink_pss_iq_to_score #(
 
   starlink_pss_energy_cache energy_cache (
     .clk                       (clk),
-    .resetn                    (resetn),
+    .resetn                    (pipeline_resetn),
     .enable                    (effective_enable),
-    .flush                     (flush),
+    .flush                     (pipeline_flush),
     .sample_valid              (sample_valid),
     .sample_gap                (sample_gap),
     .sample_i                  (sample_i),
@@ -524,6 +528,20 @@ module starlink_pss_iq_to_score #(
   );
 
   assign candidate_path_fault = path_fault;
+
+  // Reset, enable, flush, scheduler restart, and detector faults are lifecycle
+  // controls rather than datapath flow control.  Suppress publication in the
+  // assertion cycle, then use this registered active state as the sole reset
+  // source for every retained detector transaction.  This keeps high-fanout
+  // external control inputs out of the complete FIFO/ready chain.
+  always @(posedge clk) begin
+    if (!resetn || !enable)
+      pipeline_active <= 1'b0;
+    else if (flush || scheduler_flush_pulse || fault_event || detector_fault)
+      pipeline_active <= 1'b0;
+    else
+      pipeline_active <= 1'b1;
+  end
 
   always @(posedge clk) begin
     if (!resetn || !enable || flush) begin

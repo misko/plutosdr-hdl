@@ -84,8 +84,10 @@ lookup join, and two-lane dispatcher remain separate composition work.
 signed correlation, both block exponents, the absolute candidate-start index,
 and the block-last marker.  A registered synchronous read keeps the wide FIFO
 in block RAM.  The declared capacity includes the prefetched output register;
-overflow is reported without mutating queued state, and flush invalidates
-pointers/count/output without clearing memory contents.
+admission depends only on registered occupancy, preventing downstream divider
+readiness from propagating back to the XFFT output. Overflow is reported
+without mutating queued state, and flush invalidates pointers/count/output
+without clearing memory contents.
 
 `starlink_pss_ifft_qualifier.v` validates every index, TLAST, exponent, and
 block-start field in the complete 512-result IFFT stream.  It discards indexes
@@ -130,8 +132,24 @@ energy cache, two regenerated XFFT v9.1 instances, hash-locked kernel join,
 complex product, inverse-result qualification, and normalized score tail.  It
 publishes 447 exact timing scores per complete 512-sample overlap-save block
 and quarantines the detector on any constituent protocol or arithmetic fault.
-Phase-map accumulation, register/CDC control, RX-shell routing, placement and
-routing, and hardware qualification remain separate later gates.
+Registered lifecycle control keeps external reset/flush/fault inputs out of
+the internal ready chain while same-cycle output gates still fail closed.
+
+`starlink_pss_score_phase_tagger.v` establishes phase zero on the first valid
+score after reset, disable, flush, or a stream discontinuity, then advances
+modulo the configured frame length only on score events. It checks consecutive
+absolute candidate indexes, suppresses a mismatched score, and cleanly rebases
+the next consecutive score at phase zero; wall-clock gaps with no score-valid
+event do not change phase.
+
+`starlink_pss_iq_to_phase_map.v` composes the complete score path, phase tagger,
+and qualified ping-pong phase map. A one-cycle, one-score-per-clock boundary
+separates the tagger's absolute-index comparison from the map's independent
+continuity checks and segmented BRAM enables. At the default geometry it
+accumulates 20,000 phases across 64 frames and exposes only complete immutable
+40,000-byte maps for the eventual processor interface. Register/CDC control,
+RX-shell routing, complete placement and routing, and hardware qualification
+remain separate later gates.
 
 Run the deterministic simulation with:
 
@@ -145,6 +163,14 @@ oracle vectors and replay the full IQ-to-score top against the actual Vivado
 
 ```sh
 ./run_starlink_pss15_iq_to_score_xfft.sh
+```
+
+Replay the same exact IQ, transform, product, inverse, and score vectors
+through a reduced-geometry three-frame map, then exhaustively read every
+published bin, with:
+
+```sh
+./run_starlink_pss15_iq_to_phase_map_xfft.sh
 ```
 
 The simulation suite checks the phase map plus both default-geometry and small-
@@ -255,6 +281,12 @@ root with:
 ./run_starlink_pss15_iq_to_score_xfft_ooc.sh /absolute/output/directory
 ```
 
+Run the default 20,000-bin, 64-frame IQ-to-phase-map composition gate with:
+
+```sh
+./run_starlink_pss15_iq_to_phase_map_xfft_ooc.sh /absolute/output/directory
+```
+
 The OOC gate requires the canonical Vivado 2022.2 installation and fails if
 the map does not infer exactly 20 RAMB36E1 blocks, uses a DSP, exceeds its logic
 budget, has a methodology/check-timing violation, or misses 100 MHz post-opt
@@ -323,3 +355,11 @@ with the complete source-only score path for `xc7z010clg400-1`.  It rejects a
 resource overflow, methodology/check-timing error, or negative 100 MHz
 post-opt unplaced setup/hold slack.  It is still not a placed-and-routed RX
 shell result and includes neither the phase map nor AXI/CDC/control plumbing.
+
+The full IQ-to-phase-map OOC gate adds the default two-bank map and requires
+the whole composition to fit the Zynq-7010 and close 100 MHz after optimization
+with clean methodology and `check_timing` reports. Its timing-driven lifecycle,
+FIFO-admission, and score-to-map register boundaries do not reduce the
+one-score-per-clock internal throughput. This remains an unplaced OOC gate;
+the actual RX tap, AXI/CDC/control boundary, and complete shell route are the
+next source milestones.
