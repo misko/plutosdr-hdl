@@ -45,6 +45,13 @@ never emitted, and the boundary remains quarantined until common flush.  The
 checked-in memory artifact is also verified byte-for-byte against its frozen
 canonical signed-I/Q SHA-256 before RTL simulation.
 
+`starlink_pss_forward_kernel_join.v` supplies the explicit data alignment that
+the coefficient-only ROM intentionally omits.  It captures each accepted
+forward-XFFT I/Q bin in the same handshake as the synchronous lookup and emits
+the complex bin, matching coefficient, and checked metadata as one elastic
+transaction.  Downstream stalls hold the entire combined payload; a ROM
+protocol fault publishes neither the malformed coefficient nor its I/Q.
+
 `starlink_pss_energy_cache.v` computes the exact 66-sample CI16 denominator
 stream beside the FFT path.  It retains 2,048 consecutive 38-bit energies in
 an absolute-indexed circular BRAM, so delayed IFFT results request the matching
@@ -117,10 +124,27 @@ controller must then apply the same explicit flush to this path and its energy
 cache.  XFFT cores, coefficient ROM, scheduler wiring, phase-map wiring, and
 the real RX shell remain outside this source-only top.
 
+`starlink_pss_iq_to_score.v` closes the source-only 15 MS/s datapath from a
+continuous CI16 accepted-sample stream through the overlap scheduler, exact
+energy cache, two regenerated XFFT v9.1 instances, hash-locked kernel join,
+complex product, inverse-result qualification, and normalized score tail.  It
+publishes 447 exact timing scores per complete 512-sample overlap-save block
+and quarantines the detector on any constituent protocol or arithmetic fault.
+Phase-map accumulation, register/CDC control, RX-shell routing, placement and
+routing, and hardware qualification remain separate later gates.
+
 Run the deterministic simulation with:
 
 ```sh
 ./run_tests.sh
+```
+
+From the firmware repository root, regenerate the deterministic three-block
+oracle vectors and replay the full IQ-to-score top against the actual Vivado
+2022.2 XFFT behavioral model with:
+
+```sh
+./run_starlink_pss15_iq_to_score_xfft.sh
 ```
 
 The simulation suite checks the phase map plus both default-geometry and small-
@@ -224,6 +248,13 @@ Run the hash-locked kernel-ROM OOC gate with:
 ./run_kernel_rom_ooc.sh /absolute/output/directory
 ```
 
+Run the full IQ-to-score generated-XFFT OOC gate from the firmware repository
+root with:
+
+```sh
+./run_starlink_pss15_iq_to_score_xfft_ooc.sh /absolute/output/directory
+```
+
 The OOC gate requires the canonical Vivado 2022.2 installation and fails if
 the map does not infer exactly 20 RAMB36E1 blocks, uses a DSP, exceeds its logic
 budget, has a methodology/check-timing violation, or misses 100 MHz post-opt
@@ -285,3 +316,10 @@ DSPs, bounded control logic, clean methodology/check-timing reports, and
 nonnegative 100 MHz post-opt unplaced setup/hold slack.  It proves the
 coefficient lookup and its streaming protocol guard, not the forward XFFT
 values or complex-product composition.
+
+The full IQ-to-score OOC gate regenerates the exact two-core 24-bit,
+block-floating, radix-4-burst XFFT definition used by replay and synthesizes it
+with the complete source-only score path for `xc7z010clg400-1`.  It rejects a
+resource overflow, methodology/check-timing error, or negative 100 MHz
+post-opt unplaced setup/hold slack.  It is still not a placed-and-routed RX
+shell result and includes neither the phase map nor AXI/CDC/control plumbing.

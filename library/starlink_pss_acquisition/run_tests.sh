@@ -45,6 +45,14 @@ iverilog -g2012 -Wall \
 vvp build/starlink_pss_kernel_rom.vvp
 
 iverilog -g2012 -Wall \
+  -s tb_starlink_pss_forward_kernel_join \
+  -o build/starlink_pss_forward_kernel_join.vvp \
+  starlink_pss_kernel_rom.v \
+  starlink_pss_forward_kernel_join.v \
+  tb/tb_starlink_pss_forward_kernel_join.sv
+vvp build/starlink_pss_forward_kernel_join.vvp
+
+iverilog -g2012 -Wall \
   -s tb_starlink_pss_energy_cache \
   -o build/starlink_pss_energy_cache.vvp \
   starlink_pss_energy_cache.v \
