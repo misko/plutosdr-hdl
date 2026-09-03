@@ -2,8 +2,8 @@
 //
 // Computes round_ties_even(255 * numerator / denominator), saturating at 255
 // when numerator >= denominator and returning zero for a zero numerator or
-// denominator. Every accepted item, including special cases, has the same
-// eight-cycle calculation latency so two lanes can later preserve FIFO order.
+// denominator. Every accepted item, including special cases, performs eight
+// restoring iterations followed by one registered ties-to-even rounding cycle.
 
 `timescale 1ns/1ps
 
@@ -25,8 +25,8 @@ module starlink_pss_score_divider #(
   output reg                     output_valid,
   input  wire                    output_ready,
   output reg [SCORE_BITS-1:0]    output_score,
-  output reg [63:0]              output_start_index,
-  output reg                     output_denominator_zero,
+  output wire [63:0]             output_start_index,
+  output wire                    output_denominator_zero,
 
   output reg                     accepted_pulse,
   output reg                     completed_pulse,
@@ -38,9 +38,9 @@ module starlink_pss_score_divider #(
 
   reg [WORK_BITS-1:0] remainder;
   reg [WORK_BITS-1:0] shifted_denominator;
-  reg [WORK_BITS-1:0] denominator_extended;
   reg [SCORE_BITS-1:0] quotient;
   reg [2:0] iteration;
+  reg round_pending;
   reg special_case;
   reg [SCORE_BITS-1:0] special_score;
   reg special_denominator_zero;
@@ -48,6 +48,7 @@ module starlink_pss_score_divider #(
 
   wire output_stage_ready;
   wire input_accept;
+  wire [WORK_BITS:0] difference;
   wire subtract_step;
   wire [WORK_BITS-1:0] next_remainder;
   wire [SCORE_BITS-1:0] next_quotient;
@@ -56,22 +57,31 @@ module starlink_pss_score_divider #(
   wire [SCORE_BITS:0] rounded_quotient;
   wire [WORK_BITS-1:0] input_numerator_extended;
   wire [WORK_BITS-1:0] input_denominator_extended;
-  wire [WORK_BITS-1:0] input_scaled_by_score_max;
+  (* use_dsp = "yes" *) wire [WORK_BITS-1:0]
+    input_scaled_by_score_max;
 
   assign output_stage_ready = !output_valid || output_ready;
-  assign input_ready = resetn && !flush && !busy && output_stage_ready;
+  assign input_ready = resetn && !flush && !busy && !round_pending &&
+                       output_stage_ready;
   assign input_accept = input_valid && input_ready;
 
-  assign subtract_step = remainder >= shifted_denominator;
+  // One extended subtraction supplies both the comparison sign and the
+  // accepted difference.  This prevents synthesis from constructing a
+  // separate wide comparator beside the restoring subtractor.
+  assign difference = {1'b0, remainder} -
+                      {1'b0, shifted_denominator};
+  assign subtract_step = !difference[WORK_BITS];
   assign next_remainder = subtract_step ?
-                          remainder - shifted_denominator : remainder;
+                          difference[WORK_BITS-1:0] : remainder;
   assign next_quotient = subtract_step ?
                          quotient | ({{(SCORE_BITS-1){1'b0}}, 1'b1}
                                      << iteration) : quotient;
-  assign doubled_remainder = next_remainder << 1;
-  assign round_up = doubled_remainder > denominator_extended ||
-    (doubled_remainder == denominator_extended && next_quotient[0]);
-  assign rounded_quotient = {1'b0, next_quotient} + round_up;
+  assign doubled_remainder = remainder << 1;
+  // After the final iteration, shifted_denominator is deliberately held at
+  // the original unshifted denominator for the registered rounding cycle.
+  assign round_up = doubled_remainder > shifted_denominator ||
+    (doubled_remainder == shifted_denominator && quotient[0]);
+  assign rounded_quotient = {1'b0, quotient} + round_up;
 
   assign input_numerator_extended =
     {{SCORE_BITS{1'b0}}, input_numerator};
@@ -80,21 +90,25 @@ module starlink_pss_score_divider #(
   assign input_scaled_by_score_max =
     {input_numerator, {SCORE_BITS{1'b0}}} - input_numerator_extended;
 
+  // The pending metadata cannot be replaced while output_valid is stalled.
+  // Reuse it directly as the output stage instead of duplicating 64 index bits
+  // and the denominator-zero flag in a second bank of registers.
+  assign output_start_index = pending_start_index;
+  assign output_denominator_zero = special_denominator_zero;
+
   always @(posedge clk) begin
     if (!resetn || flush) begin
       remainder <= 0;
       shifted_denominator <= 0;
-      denominator_extended <= 0;
       quotient <= 0;
       iteration <= 0;
+      round_pending <= 1'b0;
       special_case <= 1'b0;
       special_score <= 0;
       special_denominator_zero <= 1'b0;
       pending_start_index <= 0;
       output_valid <= 1'b0;
       output_score <= 0;
-      output_start_index <= 0;
-      output_denominator_zero <= 1'b0;
       accepted_pulse <= 1'b0;
       completed_pulse <= 1'b0;
       zero_denominator_pulse <= 1'b0;
@@ -111,7 +125,6 @@ module starlink_pss_score_divider #(
         remainder <= input_scaled_by_score_max;
         shifted_denominator <= input_denominator_extended <<
                                (SCORE_BITS - 1);
-        denominator_extended <= input_denominator_extended;
         quotient <= 0;
         iteration <= SCORE_BITS - 1;
         special_case <= input_numerator == 0 ||
@@ -128,19 +141,20 @@ module starlink_pss_score_divider #(
       end else if (busy) begin
         remainder <= next_remainder;
         quotient <= next_quotient;
-        shifted_denominator <= shifted_denominator >> 1;
         if (iteration == 0) begin
-          output_valid <= 1'b1;
-          output_score <= special_case ?
-                          special_score : rounded_quotient[SCORE_BITS-1:0];
-          output_start_index <= pending_start_index;
-          output_denominator_zero <= special_denominator_zero;
-          completed_pulse <= 1'b1;
-          zero_denominator_pulse <= special_denominator_zero;
           busy <= 1'b0;
+          round_pending <= 1'b1;
         end else begin
+          shifted_denominator <= shifted_denominator >> 1;
           iteration <= iteration - 1'b1;
         end
+      end else if (round_pending) begin
+        output_valid <= 1'b1;
+        output_score <= special_case ?
+                        special_score : rounded_quotient[SCORE_BITS-1:0];
+        completed_pulse <= 1'b1;
+        zero_denominator_pulse <= special_denominator_zero;
+        round_pending <= 1'b0;
       end
     end
   end

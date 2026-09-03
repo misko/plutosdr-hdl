@@ -1,10 +1,18 @@
 `timescale 1ns/1ps
 
-module tb_starlink_pss_reduced_tracking_core;
+module tb_starlink_pss_reduced_tracking_core #(
+  parameter integer RATE_MULTIPLIER = 1
+);
 
   localparam [63:0] TIMESTAMP_BASE = 64'h0000_0001_0000_0000;
   localparam [31:0] REQUEST_ID = 32'h5151_0001;
   localparam [63:0] CENTER_INDEX = 64'd400;
+  localparam integer COEFFICIENT_COUNT = 66 * RATE_MULTIPLIER;
+  localparam integer COEFFICIENT_COUNT_WIDTH =
+      $clog2(COEFFICIENT_COUNT + 1);
+  localparam integer LAG_WIDTH = $clog2(64 * RATE_MULTIPLIER + 1);
+  localparam integer TRACK_LAST_LAG = 30 * RATE_MULTIPLIER;
+  localparam integer WINNER_SAMPLE_INDEX = 400 + TRACK_LAST_LAG;
 
   reg control_clk = 1'b0;
   reg sample_clk = 1'b0;
@@ -45,7 +53,7 @@ module tb_starlink_pss_reduced_tracking_core;
   wire active_coefficient_valid;
   wire [31:0] active_coefficient_generation;
   wire signed [47:0] active_coefficient_energy;
-  wire [6:0] shadow_coefficient_count;
+  wire [COEFFICIENT_COUNT_WIDTH-1:0] shadow_coefficient_count;
 
   wire result_available;
   wire result_bank;
@@ -86,7 +94,9 @@ module tb_starlink_pss_reduced_tracking_core;
 
   reg [31:0] expected_word [0:25];
 
-  starlink_pss_reduced_tracking_core dut (
+  starlink_pss_reduced_tracking_core #(
+    .RATE_MULTIPLIER (RATE_MULTIPLIER)
+  ) dut (
     .i_control_clk                     (control_clk),
     .i_sample_clk                      (sample_clk),
     .i_engine_clk                      (engine_clk),
@@ -173,7 +183,7 @@ module tb_starlink_pss_reduced_tracking_core;
     reg signed [63:0] value;
     begin
       sum = 64'sd0;
-      for (tap = 0; tap < 66; tap = tap + 1) begin
+      for (tap = 0; tap < COEFFICIENT_COUNT; tap = tap + 1) begin
         value = first_index + tap;
         sum = sum + value * value + value * value;
       end
@@ -184,7 +194,7 @@ module tb_starlink_pss_reduced_tracking_core;
   task automatic load_impulse_coefficient;
     integer tap;
     begin
-      for (tap = 0; tap < 66; tap = tap + 1) begin
+      for (tap = 0; tap < COEFFICIENT_COUNT; tap = tap + 1) begin
         @(negedge engine_clk);
         while (!coefficient_ready)
           @(negedge engine_clk);
@@ -221,7 +231,7 @@ module tb_starlink_pss_reduced_tracking_core;
   task automatic build_expected_packet;
     reg signed [47:0] winner_ex;
     begin
-      winner_ex = expected_energy(430);
+      winner_ex = expected_energy(WINNER_SAMPLE_INDEX);
       expected_word[0] = 32'h3153_5350;
       expected_word[1] = 32'h1a01_0001;
       expected_word[2] = REQUEST_ID;
@@ -229,13 +239,14 @@ module tb_starlink_pss_reduced_tracking_core;
       expected_word[4] = CENTER_INDEX[63:32];
       expected_word[5] = (TIMESTAMP_BASE + CENTER_INDEX);
       expected_word[6] = (TIMESTAMP_BASE + CENTER_INDEX) >> 32;
-      expected_word[7] = 32'd30;
-      expected_word[8] = (TIMESTAMP_BASE + 64'd430);
-      expected_word[9] = (TIMESTAMP_BASE + 64'd430) >> 32;
+      expected_word[7] = TRACK_LAST_LAG;
+      expected_word[8] = TIMESTAMP_BASE + WINNER_SAMPLE_INDEX;
+      expected_word[9] =
+          (TIMESTAMP_BASE + WINNER_SAMPLE_INDEX) >> 32;
       expected_word[10] = 32'd77;
-      expected_word[11] = 32'd430;
+      expected_word[11] = WINNER_SAMPLE_INDEX;
       expected_word[12] = 32'd0;
-      expected_word[13] = -32'sd430;
+      expected_word[13] = -WINNER_SAMPLE_INDEX;
       expected_word[14] = 32'hffff_ffff;
       expected_word[15] = winner_ex[31:0];
       expected_word[16] = {
@@ -244,7 +255,8 @@ module tb_starlink_pss_reduced_tracking_core;
       expected_word[17] = 32'd1;
       expected_word[18] = 32'd0;
       expected_word[19] = 32'd0;
-      expected_word[20] = 32'd369800;
+      expected_word[20] =
+          2 * WINNER_SAMPLE_INDEX * WINNER_SAMPLE_INDEX;
       expected_word[21] = 32'd0;
       expected_word[22] = 32'd0;
       expected_word[23] = winner_ex[31:0];
@@ -367,7 +379,9 @@ module tb_starlink_pss_reduced_tracking_core;
         result_bank_free !== 2'b11 || result_available)
       fail("published winner bank was not released");
 
-    $display("REDUCED_TRACKING_PASS jobs=1 raw_tuples=65 reduced_tuples=61 winner_lag=30 packet_words=26 score=absC2_over_Ex");
+    $display("REDUCED_TRACKING_PASS rate_multiplier=%0d jobs=1 raw_tuples=%0d reduced_tuples=%0d winner_lag=%0d packet_words=26 score=absC2_over_Ex",
+             RATE_MULTIPLIER, 64 * RATE_MULTIPLIER + 1,
+             60 * RATE_MULTIPLIER + 1, TRACK_LAST_LAG);
     $finish;
   end
 

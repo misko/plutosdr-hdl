@@ -60,16 +60,17 @@ module starlink_pss_overlap_scheduler #(
   reg [RING_ADDRESS_WIDTH-1:0] next_block_start_pointer;
   reg [63:0] next_block_start_index;
 
-  reg [RING_ADDRESS_WIDTH-1:0] queue_start_pointer [0:BLOCK_QUEUE_DEPTH-1];
-  reg [63:0] queue_start_index [0:BLOCK_QUEUE_DEPTH-1];
+  // Block descriptors are generated in strict STRIDE_SAMPLES order.  Store
+  // only the queue head and occupancy instead of shifting four identical-
+  // stride 75-bit descriptors through fabric registers.
+  reg [RING_ADDRESS_WIDTH-1:0] queue_head_start_pointer;
+  reg [63:0] queue_head_start_index;
   reg [QUEUE_COUNT_WIDTH-1:0] queue_count;
 
   reg active_block;
   reg [RING_ADDRESS_WIDTH-1:0] active_start_pointer;
   reg [63:0] active_start_index;
   reg [POSITION_WIDTH-1:0] read_issue_position;
-
-  integer queue_slot;
 
   wire pop_descriptor;
   wire block_ready_on_sample;
@@ -92,7 +93,7 @@ module starlink_pss_overlap_scheduler #(
     !sample_gap && !index_error && (samples_to_next_block == 1);
   assign required_block_present = active_block || (queue_count != 0);
   assign earliest_required_pointer = active_block ? active_start_pointer :
-    queue_start_pointer[0];
+    queue_head_start_pointer;
   assign retention_overflow = sample_valid && history_valid &&
     required_block_present && (write_pointer == earliest_required_pointer);
   assign queue_overflow = block_ready_on_sample &&
@@ -107,7 +108,11 @@ module starlink_pss_overlap_scheduler #(
   assign memory_write_enable = resetn && enable && sample_valid;
   assign memory_write_address = restart_segment ?
     {RING_ADDRESS_WIDTH{1'b0}} : write_pointer;
-  assign memory_read_enable = enable && !restart_segment && issue_read;
+  // A restart invalidates fft_valid/active_block on the same edge, so a read
+  // already issued from the old segment is harmless and its data is never
+  // observed.  Do not put the 64-bit continuity comparison in the BRAM enable
+  // path merely to suppress that quarantined read.
+  assign memory_read_enable = enable && issue_read;
   assign read_address = active_start_pointer + read_issue_position;
 
   assign busy = active_block || fft_valid || (queue_count != 0);
@@ -157,6 +162,8 @@ module starlink_pss_overlap_scheduler #(
       samples_to_next_block <= FFT_SAMPLES;
       next_block_start_pointer <= 0;
       next_block_start_index <= 0;
+      queue_head_start_pointer <= 0;
+      queue_head_start_index <= 0;
       queue_count <= 0;
       active_block <= 1'b0;
       active_start_pointer <= 0;
@@ -190,6 +197,8 @@ module starlink_pss_overlap_scheduler #(
         samples_to_next_block <= FFT_SAMPLES;
         next_block_start_pointer <= 0;
         next_block_start_index <= 0;
+        queue_head_start_pointer <= 0;
+        queue_head_start_index <= 0;
         queue_count <= 0;
         active_block <= 1'b0;
         read_issue_position <= 0;
@@ -216,6 +225,8 @@ module starlink_pss_overlap_scheduler #(
         samples_to_next_block <= FFT_SAMPLES - 1;
         next_block_start_pointer <= 0;
         next_block_start_index <= sample_index;
+        queue_head_start_pointer <= 0;
+        queue_head_start_index <= sample_index;
         queue_count <= 0;
         active_block <= 1'b0;
         read_issue_position <= 0;
@@ -241,14 +252,14 @@ module starlink_pss_overlap_scheduler #(
 
         if (pop_descriptor) begin
           active_block <= 1'b1;
-          active_start_pointer <= queue_start_pointer[0];
-          active_start_index <= queue_start_index[0];
+          active_start_pointer <= queue_head_start_pointer;
+          active_start_index <= queue_head_start_index;
           read_issue_position <= 0;
-          for (queue_slot = 0;
-               queue_slot < BLOCK_QUEUE_DEPTH - 1;
-               queue_slot = queue_slot + 1) begin
-            queue_start_pointer[queue_slot] <= queue_start_pointer[queue_slot + 1];
-            queue_start_index[queue_slot] <= queue_start_index[queue_slot + 1];
+          if (queue_count > 1) begin
+            queue_head_start_pointer <= queue_head_start_pointer +
+                                        STRIDE_SAMPLES;
+            queue_head_start_index <= queue_head_start_index +
+                                      STRIDE_SAMPLES;
           end
         end
 
@@ -258,8 +269,13 @@ module starlink_pss_overlap_scheduler #(
           expected_sample_index <= sample_index + 1'b1;
 
           if (block_ready_on_sample) begin
-            queue_start_pointer[queue_count_after_pop] <= next_block_start_pointer;
-            queue_start_index[queue_count_after_pop] <= next_block_start_index;
+            // If a simultaneous pop emptied the queue, the newly generated
+            // descriptor becomes its new head.  Otherwise the existing head
+            // advances independently in the pop block above.
+            if (queue_count_after_pop == 0) begin
+              queue_head_start_pointer <= next_block_start_pointer;
+              queue_head_start_index <= next_block_start_index;
+            end
             next_block_start_pointer <= next_block_start_pointer + STRIDE_SAMPLES;
             next_block_start_index <= next_block_start_index + STRIDE_SAMPLES;
             samples_to_next_block <= STRIDE_SAMPLES;

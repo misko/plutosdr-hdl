@@ -1,10 +1,18 @@
 `timescale 1ns/1ps
 
-module tb_axi_starlink_pss_tracker;
+module tb_axi_starlink_pss_tracker #(
+  parameter integer RATE_MSPS = 15
+);
 
   localparam [63:0] TIMESTAMP_BASE = 64'h0000_0001_0000_0000;
   localparam [31:0] REQUEST_ID = 32'h6161_0001;
-  localparam [63:0] CENTER_INDEX = 64'd256;
+  localparam integer RATE_MULTIPLIER = RATE_MSPS / 15;
+  localparam [63:0] CENTER_INDEX = 64'd256 * RATE_MULTIPLIER;
+  localparam integer COEFFICIENT_COUNT = 66 * RATE_MULTIPLIER;
+  localparam integer CAPTURE_COUNT = 130 * RATE_MULTIPLIER;
+  localparam integer QUALIFIED_LAG_COUNT = 60 * RATE_MULTIPLIER + 1;
+  localparam integer TRACK_LAST_LAG = 30 * RATE_MULTIPLIER;
+  localparam integer ENABLE_INJECTION = (RATE_MSPS == 15) ? 1 : 0;
 
   reg sample_clk = 1'b0;
   reg s_axi_aclk = 1'b0;
@@ -43,8 +51,13 @@ module tb_axi_starlink_pss_tracker;
   reg [31:0] expected_word [0:25];
   reg [31:0] read_value;
   reg [63:0] current_index_snapshot;
+  reg [63:0] telemetry_test_center_1;
+  reg [63:0] telemetry_test_center_2;
 
-  axi_starlink_pss_tracker dut (
+  axi_starlink_pss_tracker #(
+    .RATE_MSPS       (RATE_MSPS),
+    .ENABLE_INJECTION (ENABLE_INJECTION)
+  ) dut (
     .sample_clk        (sample_clk),
     .sample_reset      (sample_reset),
     .sample_i          (sample_i),
@@ -92,7 +105,7 @@ module tb_axi_starlink_pss_tracker;
     reg signed [63:0] value;
     begin
       sum = 64'sd0;
-      for (tap = 0; tap < 66; tap = tap + 1) begin
+      for (tap = 0; tap < COEFFICIENT_COUNT; tap = tap + 1) begin
         value = first_index + tap;
         sum = sum + value * value + value * value;
       end
@@ -169,7 +182,7 @@ module tb_axi_starlink_pss_tracker;
     integer winner_first_index;
     integer winner_numerator;
     begin
-      winner_first_index = CENTER_INDEX + 30;
+      winner_first_index = CENTER_INDEX + TRACK_LAST_LAG;
       winner_ex = expected_energy(winner_first_index);
       winner_numerator = 2 * winner_first_index * winner_first_index;
       expected_word[0] = 32'h3153_5350;
@@ -179,7 +192,7 @@ module tb_axi_starlink_pss_tracker;
       expected_word[4] = CENTER_INDEX[63:32];
       expected_word[5] = (TIMESTAMP_BASE + CENTER_INDEX);
       expected_word[6] = (TIMESTAMP_BASE + CENTER_INDEX) >> 32;
-      expected_word[7] = 32'd30;
+      expected_word[7] = TRACK_LAST_LAG;
       expected_word[8] = TIMESTAMP_BASE + winner_first_index;
       expected_word[9] = (TIMESTAMP_BASE + winner_first_index) >> 32;
       expected_word[10] = 32'd77;
@@ -240,23 +253,28 @@ module tb_axi_starlink_pss_tracker;
     if (read_value !== 32'h5053_5354)
       fail("identification mismatch");
     axi_read(8'h04, read_value);
-    if (read_value !== 32'h0001_0002)
+    if (read_value !== ((RATE_MSPS == 15) ?
+                        32'h0001_0002 : 32'h0001_0003))
       fail("version mismatch");
     axi_read(8'h08, read_value);
-    if (read_value !== 32'd15)
+    if (read_value !== RATE_MSPS)
       fail("rate mismatch");
     axi_read(8'h0c, read_value);
-    if (read_value !== {8'd0, 8'd61, 8'd130, 8'd66})
+    if (read_value !== ((RATE_MSPS == 15) ?
+                        {8'd0, 8'd61, 8'd130, 8'd66} :
+                        {5'd1, QUALIFIED_LAG_COUNT[7:0],
+                         CAPTURE_COUNT[9:0], COEFFICIENT_COUNT[8:0]}))
       fail("geometry mismatch");
     axi_read(8'h10, read_value);
-    if (read_value !== 32'h0000_003d)
+    if (read_value !== (ENABLE_INJECTION ?
+                        32'h0000_003d : 32'h0000_001d))
       fail("capabilities mismatch");
 
     // Keep the sample stream idle while software configures the bank.  This
     // mirrors the intended bring-up sequence and avoids doing irrelevant
-    // correlation work during 66 AXI writes in the portable simulator.
+    // correlation work during the coefficient writes in the portable simulator.
     axi_write(8'h44, 32'h0000_0001); // Clear shadow coefficients.
-    for (tap = 0; tap < 66; tap = tap + 1)
+    for (tap = 0; tap < COEFFICIENT_COUNT; tap = tap + 1)
       axi_write(8'h40, (tap == 0) ? 32'h0000_0001 : 32'd0);
     axi_write(8'h48, 32'd77);
     axi_write(8'h44, 32'h0000_0002); // Commit.
@@ -282,7 +300,7 @@ module tb_axi_starlink_pss_tracker;
     axi_read(8'h18, current_index_snapshot[31:0]);
     axi_read(8'h1c, current_index_snapshot[63:32]);
     if (current_index_snapshot == 0 ||
-        current_index_snapshot + 64 > CENTER_INDEX)
+        current_index_snapshot + 64 * RATE_MULTIPLIER > CENTER_INDEX)
       fail("Gray-synchronized scheduling reference is not safely in range");
 
     axi_write(8'h20, REQUEST_ID);
@@ -293,11 +311,11 @@ module tb_axi_starlink_pss_tracker;
     axi_write(8'h34, 32'h0000_0001);
 
     timeout = 0;
-    while (!irq && timeout < 100000) begin
+    while (!irq && timeout < 100000 * RATE_MULTIPLIER) begin
       @(posedge s_axi_aclk);
       timeout = timeout + 1;
     end
-    if (timeout == 100000)
+    if (timeout == 100000 * RATE_MULTIPLIER)
       fail("exact winner interrupt did not assert");
 
     // Every packet read goes through the synchronous result RAM and delayed
@@ -373,6 +391,96 @@ module tb_axi_starlink_pss_tracker;
         fail("clean capture snapshot accumulated an error counter");
     end
 
+    // Request another snapshot while a future candidate is live, then submit
+    // a second candidate while telemetry is busy.  The first snapshot must
+    // wait for candidate 2, must not include candidate 3, and must remain
+    // immutable after candidate 3 completes.  A subsequent snapshot must then
+    // include both.  This proves quiescing, deferred submission, and atomic RAM
+    // publication under concurrent control traffic.
+    axi_read(8'h18, current_index_snapshot[31:0]);
+    axi_read(8'h1c, current_index_snapshot[63:32]);
+    telemetry_test_center_1 =
+        current_index_snapshot + 64'd512 * RATE_MULTIPLIER;
+    telemetry_test_center_2 =
+        telemetry_test_center_1 + 64'd384 * RATE_MULTIPLIER;
+
+    axi_write(8'h20, 32'h6161_0002);
+    axi_write(8'h24, telemetry_test_center_1[31:0]);
+    axi_write(8'h28, telemetry_test_center_1[63:32]);
+    axi_write(8'h2c, TIMESTAMP_BASE + telemetry_test_center_1);
+    axi_write(8'h30, (TIMESTAMP_BASE + telemetry_test_center_1) >> 32);
+    axi_write(8'h34, 32'h0000_0001);
+    axi_write(8'h68, 32'h0000_0001);
+
+    axi_read(8'h6c, read_value);
+    if (!read_value[1] || read_value[0])
+      fail("telemetry request did not enter busy/invalid state");
+
+    axi_write(8'h20, 32'h6161_0003);
+    axi_write(8'h24, telemetry_test_center_2[31:0]);
+    axi_write(8'h28, telemetry_test_center_2[63:32]);
+    axi_write(8'h2c, TIMESTAMP_BASE + telemetry_test_center_2);
+    axi_write(8'h30, (TIMESTAMP_BASE + telemetry_test_center_2) >> 32);
+    axi_write(8'h34, 32'h0000_0001);
+    axi_read(8'h14, read_value);
+    if (!read_value[2])
+      fail("candidate submitted during telemetry was not deferred");
+
+    timeout = 0;
+    read_value = 32'd0;
+    while ((!read_value[0] || read_value[1]) && timeout < 2000) begin
+      axi_read(8'h6c, read_value);
+      timeout = timeout + 1;
+    end
+    if (timeout == 2000)
+      fail("busy telemetry snapshot did not drain the active candidate");
+    axi_read(8'h70, read_value);
+    if (read_value !== 32'd2)
+      fail("concurrent telemetry generation mismatch");
+    axi_read(8'h84, read_value);
+    if (read_value !== 32'd2)
+      fail("concurrent telemetry admitted counter is not atomic");
+    axi_read(8'h88, read_value);
+    if (read_value !== 32'd2)
+      fail("concurrent telemetry completed counter is not atomic");
+    axi_read(8'hac, read_value);
+    if (read_value !== 32'd2)
+      fail("concurrent telemetry published counter is not atomic");
+
+    timeout = 0;
+    read_value = 32'd0;
+    while ((read_value != 32'd3) && timeout < 100000 * RATE_MULTIPLIER) begin
+      axi_read(8'hbc, read_value);
+      timeout = timeout + 1;
+    end
+    if (timeout == 100000 * RATE_MULTIPLIER)
+      fail("candidate deferred by telemetry was lost or not consumed");
+    axi_read(8'h84, read_value);
+    if (read_value !== 32'd2)
+      fail("published telemetry RAM changed without a new request");
+
+    axi_write(8'h68, 32'h0000_0001);
+    timeout = 0;
+    read_value = 32'd0;
+    while ((!read_value[0] || read_value[1]) && timeout < 2000) begin
+      axi_read(8'h6c, read_value);
+      timeout = timeout + 1;
+    end
+    if (timeout == 2000)
+      fail("follow-up telemetry snapshot timeout");
+    axi_read(8'h70, read_value);
+    if (read_value !== 32'd3)
+      fail("follow-up telemetry generation mismatch");
+    axi_read(8'h84, read_value);
+    if (read_value !== 32'd3)
+      fail("deferred candidate missing from follow-up admitted count");
+    axi_read(8'h88, read_value);
+    if (read_value !== 32'd3)
+      fail("deferred candidate missing from follow-up completed count");
+    axi_read(8'hac, read_value);
+    if (read_value !== 32'd3)
+      fail("deferred candidate missing from follow-up published count");
+
     // A sample-domain reset must assert the common epoch and flush CPU-side
     // command/result state even though the external AXI reset stays released.
     @(negedge sample_clk);
@@ -386,7 +494,9 @@ module tb_axi_starlink_pss_tracker;
     if (read_value !== 32'd0 || irq)
       fail("sample reset did not flush the coordinated epoch");
 
-    $display("AXI_TRACKER_PASS rate=15 taps=66 lags=61 winner_lag=30 packet_words=26 irq=level reset_epoch=coordinated");
+    $display("AXI_TRACKER_PASS rate=%0d taps=%0d lags=%0d winner_lag=%0d packet_words=26 telemetry=serial_bram concurrent_snapshot=1 deferred_candidate=1 irq=level reset_epoch=coordinated",
+             RATE_MSPS, COEFFICIENT_COUNT, QUALIFIED_LAG_COUNT,
+             TRACK_LAST_LAG);
     $finish;
   end
 

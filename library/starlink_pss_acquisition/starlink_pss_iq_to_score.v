@@ -1,17 +1,20 @@
 // Complete continuous CI16-to-normalized-score acquisition pipeline.
 //
-// This composition owns one generated forward and one generated inverse
-// 512-point XFFT v9.1 core.  The raw accepted-sample stream fans out to the
-// overlap scheduler and exact energy cache.  FFT output is paired with the
-// hash-locked upper-edge kernel, multiplied, transformed back, and qualified
-// into 447 exact normalized scores per complete block.  The full-rate CI16
-// source remains non-backpressured.  Any component fault closes publication
-// and disables acquisition until explicit flush or disable recovery.
+// This composition time-shares one generated 512-point 18-bit XFFT v9.1 core
+// between the forward and inverse transforms.  A one-RAMB18 spectrum buffer
+// commits each complete forward product before the core is reset, reconfigured,
+// and replayed in the inverse direction.  The 15 MS/s conditioned stream leaves
+// enough cycles between overlap blocks for this serial schedule.  The raw
+// accepted-sample stream still fans out to the overlap scheduler and exact
+// energy cache, and remains non-backpressured.  Any component fault closes
+// publication and disables acquisition until explicit flush or disable recovery.
 
 `timescale 1ns/1ps
 
 module starlink_pss_iq_to_score #(
-  parameter KERNEL_ROM_FILE = "upper_edge_pss_kernel_q23.mem"
+  parameter KERNEL_ROM_FILE = "upper_edge_pss_kernel_q17.mem",
+  parameter [30:0] COEFFICIENT_ENERGY = 31'd1073742825,
+  parameter integer DATA_WIDTH = 18
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -59,11 +62,14 @@ module starlink_pss_iq_to_score #(
   wire [8:0] scheduler_fft_position;
   wire scheduler_fft_last;
   wire [63:0] scheduler_fft_block_start;
+  wire forward_adapter_input_ready;
+  wire forward_input_block_complete_pulse;
+  wire forward_output_block_complete_pulse;
 
   wire forward_output_valid;
   wire forward_output_ready;
-  wire signed [23:0] forward_output_i;
-  wire signed [23:0] forward_output_q;
+  wire signed [DATA_WIDTH-1:0] forward_output_i;
+  wire signed [DATA_WIDTH-1:0] forward_output_q;
   wire [8:0] forward_output_position;
   wire [4:0] forward_output_exponent;
   wire [63:0] forward_output_block_start;
@@ -93,10 +99,10 @@ module starlink_pss_iq_to_score #(
 
   wire joined_valid;
   wire joined_ready;
-  wire signed [23:0] joined_i;
-  wire signed [23:0] joined_q;
-  wire signed [23:0] joined_kernel_i;
-  wire signed [23:0] joined_kernel_q;
+  wire signed [DATA_WIDTH-1:0] joined_i;
+  wire signed [DATA_WIDTH-1:0] joined_q;
+  wire signed [DATA_WIDTH-1:0] joined_kernel_i;
+  wire signed [DATA_WIDTH-1:0] joined_kernel_q;
   wire [8:0] joined_bin_index;
   wire [4:0] joined_forward_exponent;
   wire joined_last;
@@ -104,8 +110,8 @@ module starlink_pss_iq_to_score #(
 
   wire product_output_valid;
   wire product_output_ready;
-  wire signed [23:0] product_output_i;
-  wire signed [23:0] product_output_q;
+  wire signed [DATA_WIDTH-1:0] product_output_i;
+  wire signed [DATA_WIDTH-1:0] product_output_q;
   wire [8:0] product_output_bin_index;
   wire [4:0] product_output_exponent;
   wire product_output_last;
@@ -115,21 +121,30 @@ module starlink_pss_iq_to_score #(
 
   wire inverse_input_ready;
   wire inverse_input_valid;
-  wire inverse_input_accept;
-  wire inverse_forward_exponent_error_now;
-  reg inverse_forward_exponent_seen;
-  reg [4:0] inverse_forward_exponent;
-  reg forward_exponent_fault_latched;
+  wire signed [DATA_WIDTH-1:0] inverse_input_i;
+  wire signed [DATA_WIDTH-1:0] inverse_input_q;
+  wire [8:0] inverse_input_position;
+  wire [4:0] inverse_forward_exponent;
+  wire [63:0] inverse_input_block_start;
+  wire inverse_input_last;
 
   wire inverse_output_valid;
   wire inverse_output_ready;
-  wire signed [23:0] inverse_output_i;
-  wire signed [23:0] inverse_output_q;
+  wire signed [DATA_WIDTH-1:0] inverse_output_i;
+  wire signed [DATA_WIDTH-1:0] inverse_output_q;
   wire [8:0] inverse_output_position;
   wire [4:0] inverse_output_exponent;
   wire [63:0] inverse_output_block_start;
   wire inverse_output_last;
   wire inverse_output_accept;
+  reg inverse_stage_valid;
+  reg signed [DATA_WIDTH-1:0] inverse_stage_i;
+  reg signed [DATA_WIDTH-1:0] inverse_stage_q;
+  reg [8:0] inverse_stage_position;
+  reg [4:0] inverse_stage_forward_exponent;
+  reg [4:0] inverse_stage_exponent;
+  reg [63:0] inverse_stage_block_start;
+  reg inverse_stage_last;
   wire candidate_ifft_ready;
   wire candidate_backpressure_fault;
   wire inverse_core_aresetn;
@@ -155,6 +170,38 @@ module starlink_pss_iq_to_score #(
   wire inverse_core_event_data_in_channel_halt;
   wire inverse_core_event_data_out_channel_halt;
 
+  wire shared_core_aresetn;
+  wire [7:0] shared_core_config_tdata;
+  wire shared_core_config_tvalid;
+  wire shared_core_config_tready;
+  wire [47:0] shared_core_input_tdata;
+  wire shared_core_input_tvalid;
+  wire shared_core_input_tready;
+  wire shared_core_input_tlast;
+  wire [47:0] shared_core_output_tdata;
+  wire [23:0] shared_core_output_tuser;
+  wire shared_core_output_tvalid;
+  wire shared_core_output_tready;
+  wire shared_core_output_tlast;
+  wire [7:0] shared_core_status_tdata;
+  wire shared_core_status_tvalid;
+  wire shared_core_status_tready;
+  wire shared_core_event_frame_started;
+  wire shared_core_event_tlast_unexpected;
+  wire shared_core_event_tlast_missing;
+  wire shared_core_event_status_channel_halt;
+  wire shared_core_event_data_in_channel_halt;
+  wire shared_core_event_data_out_channel_halt;
+
+  reg processing_inverse;
+  reg forward_input_closed;
+  wire intermediate_input_ready;
+  wire intermediate_write_complete_pulse;
+  wire intermediate_read_complete_pulse;
+  wire intermediate_protocol_fault;
+  wire [9:0] intermediate_stored_count;
+  wire intermediate_release;
+
   wire cache_lookup_valid_from_path;
   wire cache_lookup_ready_to_path;
   wire [63:0] cache_lookup_start_from_path;
@@ -171,6 +218,12 @@ module starlink_pss_iq_to_score #(
   wire path_fault;
   wire interfaces_open;
 
+  generate
+    if (DATA_WIDTH != 18) begin : g_invalid_generated_xfft_width
+      initial $fatal(1, "generated acquisition XFFT requires DATA_WIDTH=18");
+    end
+  endgenerate
+
   assign effective_enable = enable && !detector_fault;
   assign scheduler_enable = effective_enable && !flush &&
                             pipeline_active;
@@ -186,21 +239,15 @@ module starlink_pss_iq_to_score #(
 
   assign product_overflow_fault = product_output_valid &&
                                   product_output_overflow;
-  assign forward_exponent_fault = forward_exponent_fault_latched;
-  assign inverse_input_valid = product_output_valid &&
-                               !product_output_overflow &&
-                               !inverse_forward_exponent_error_now;
-  assign product_output_ready = (product_output_overflow ||
-                                 inverse_forward_exponent_error_now) ? 1'b1 :
-                                inverse_input_ready;
-  assign inverse_input_accept = inverse_input_valid && inverse_input_ready;
+  assign forward_exponent_fault = intermediate_protocol_fault;
+  assign product_output_ready = product_output_overflow ? 1'b1 :
+                                intermediate_input_ready;
   assign inverse_output_accept = inverse_output_valid && inverse_output_ready;
+  assign intermediate_release = inverse_output_accept && inverse_output_last;
 
-  assign inverse_forward_exponent_error_now = product_output_valid &&
-    !product_output_overflow &&
-    ((product_output_bin_index == 0) ? inverse_forward_exponent_seen :
-     (!inverse_forward_exponent_seen ||
-      product_output_exponent != inverse_forward_exponent));
+  assign scheduler_fft_ready = (!processing_inverse &&
+                                !forward_input_closed) ?
+                               forward_adapter_input_ready : 1'b0;
 
   assign cache_lookup_ready_to_path = cache_lookup_ready;
   assign cache_output_ready = cache_output_ready_from_path;
@@ -210,7 +257,7 @@ module starlink_pss_iq_to_score #(
   // contract is ever violated, consume the XFFT beat, suppress it locally,
   // and quarantine the detector rather than stalling the transform.
   assign inverse_output_ready = 1'b1;
-  assign candidate_backpressure_fault = inverse_output_valid &&
+  assign candidate_backpressure_fault = inverse_stage_valid &&
                                          !candidate_ifft_ready;
 
   assign path_score_ready = score_ready;
@@ -218,8 +265,7 @@ module starlink_pss_iq_to_score #(
 
   assign fault_event = forward_fft_fault || kernel_join_fault ||
                        product_overflow_fault || inverse_fft_fault ||
-                       inverse_forward_exponent_error_now ||
-                       forward_exponent_fault_latched || path_fault ||
+                       intermediate_protocol_fault || path_fault ||
                        candidate_backpressure_fault ||
                        scheduler_overflow_pulse;
 
@@ -281,15 +327,20 @@ module starlink_pss_iq_to_score #(
   );
 
   starlink_pss_xfft_block_adapter #(
-    .FORWARD_TRANSFORM (1)
+    .FORWARD_TRANSFORM (1),
+    .DATA_WIDTH        (DATA_WIDTH)
   ) forward_adapter (
     .clk                            (clk),
-    .resetn                         (pipeline_resetn),
+    .resetn                         (pipeline_resetn && !processing_inverse),
     .flush                          (pipeline_flush),
-    .input_valid                    (scheduler_fft_valid),
-    .input_ready                    (scheduler_fft_ready),
-    .input_i                        ({scheduler_fft_i, 8'b0}),
-    .input_q                        ({scheduler_fft_q, 8'b0}),
+    .input_valid                    (scheduler_fft_valid &&
+                                     !forward_input_closed &&
+                                     !processing_inverse),
+    .input_ready                    (forward_adapter_input_ready),
+    .input_i                        ({scheduler_fft_i,
+                                      {(DATA_WIDTH-16){1'b0}}}),
+    .input_q                        ({scheduler_fft_q,
+                                      {(DATA_WIDTH-16){1'b0}}}),
     .input_position                 (scheduler_fft_position),
     .input_block_start_index        (scheduler_fft_block_start),
     .input_last                     (scheduler_fft_last),
@@ -324,8 +375,8 @@ module starlink_pss_iq_to_score #(
     .core_event_data_in_channel_halt(forward_core_event_data_in_channel_halt),
     .core_event_data_out_channel_halt(forward_core_event_data_out_channel_halt),
     .configured_pulse               (),
-    .input_block_complete_pulse     (),
-    .output_block_complete_pulse    (),
+    .input_block_complete_pulse     (forward_input_block_complete_pulse),
+    .output_block_complete_pulse    (forward_output_block_complete_pulse),
     .protocol_error_pulse           (),
     .input_framing_error_pulse      (),
     .output_metadata_error_pulse    (),
@@ -336,34 +387,9 @@ module starlink_pss_iq_to_score #(
     .protocol_fault                 (forward_fft_fault)
   );
 
-  starlink_pss_fft512_bfp24 forward_xfft (
-    .aclk                          (clk),
-    .aresetn                       (forward_core_aresetn),
-    .s_axis_config_tdata           (forward_core_config_tdata),
-    .s_axis_config_tvalid          (forward_core_config_tvalid),
-    .s_axis_config_tready          (forward_core_config_tready),
-    .s_axis_data_tdata             (forward_core_input_tdata),
-    .s_axis_data_tvalid            (forward_core_input_tvalid),
-    .s_axis_data_tready            (forward_core_input_tready),
-    .s_axis_data_tlast             (forward_core_input_tlast),
-    .m_axis_data_tdata             (forward_core_output_tdata),
-    .m_axis_data_tuser             (forward_core_output_tuser),
-    .m_axis_data_tvalid            (forward_core_output_tvalid),
-    .m_axis_data_tready            (forward_core_output_tready),
-    .m_axis_data_tlast             (forward_core_output_tlast),
-    .m_axis_status_tdata           (forward_core_status_tdata),
-    .m_axis_status_tvalid          (forward_core_status_tvalid),
-    .m_axis_status_tready          (forward_core_status_tready),
-    .event_frame_started           (forward_core_event_frame_started),
-    .event_tlast_unexpected        (forward_core_event_tlast_unexpected),
-    .event_tlast_missing           (forward_core_event_tlast_missing),
-    .event_status_channel_halt     (forward_core_event_status_channel_halt),
-    .event_data_in_channel_halt    (forward_core_event_data_in_channel_halt),
-    .event_data_out_channel_halt   (forward_core_event_data_out_channel_halt)
-  );
-
   starlink_pss_forward_kernel_join #(
-    .KERNEL_ROM_FILE (KERNEL_ROM_FILE)
+    .KERNEL_ROM_FILE (KERNEL_ROM_FILE),
+    .DATA_WIDTH      (DATA_WIDTH)
   ) forward_kernel_join (
     .clk                       (clk),
     .resetn                    (pipeline_resetn),
@@ -394,7 +420,9 @@ module starlink_pss_iq_to_score #(
     .protocol_fault            (kernel_join_fault)
   );
 
-  starlink_pss_spectrum_product spectrum_product (
+  starlink_pss_spectrum_product #(
+    .DATA_WIDTH(DATA_WIDTH)
+  ) spectrum_product (
     .clk                      (clk),
     .resetn                   (pipeline_resetn),
     .flush                    (pipeline_flush),
@@ -420,19 +448,52 @@ module starlink_pss_iq_to_score #(
     .overflow_pulse           (product_overflow_pulse)
   );
 
+  starlink_pss_xfft_intermediate_buffer #(
+    .DATA_WIDTH(DATA_WIDTH)
+  ) intermediate_buffer (
+    .clk                       (clk),
+    .resetn                    (pipeline_resetn),
+    .flush                     (pipeline_flush),
+    .release_buffer            (intermediate_release),
+    .input_valid               (product_output_valid &&
+                                !product_output_overflow),
+    .input_ready               (intermediate_input_ready),
+    .input_i                   (product_output_i),
+    .input_q                   (product_output_q),
+    .input_position            (product_output_bin_index),
+    .input_block_exponent      (product_output_exponent),
+    .input_block_start_index   (product_output_block_start),
+    .input_last                (product_output_last),
+    .read_enable               (processing_inverse),
+    .output_valid              (inverse_input_valid),
+    .output_ready              (inverse_input_ready),
+    .output_i                  (inverse_input_i),
+    .output_q                  (inverse_input_q),
+    .output_position           (inverse_input_position),
+    .output_block_exponent     (inverse_forward_exponent),
+    .output_block_start_index  (inverse_input_block_start),
+    .output_last               (inverse_input_last),
+    .write_complete_pulse      (intermediate_write_complete_pulse),
+    .read_complete_pulse       (intermediate_read_complete_pulse),
+    .protocol_error_pulse      (),
+    .protocol_fault            (intermediate_protocol_fault),
+    .stored_count              (intermediate_stored_count)
+  );
+
   starlink_pss_xfft_block_adapter #(
-    .FORWARD_TRANSFORM (0)
+    .FORWARD_TRANSFORM (0),
+    .DATA_WIDTH        (DATA_WIDTH)
   ) inverse_adapter (
     .clk                            (clk),
-    .resetn                         (pipeline_resetn),
+    .resetn                         (pipeline_resetn && processing_inverse),
     .flush                          (pipeline_flush),
     .input_valid                    (inverse_input_valid),
     .input_ready                    (inverse_input_ready),
-    .input_i                        (product_output_i),
-    .input_q                        (product_output_q),
-    .input_position                 (product_output_bin_index),
-    .input_block_start_index        (product_output_block_start),
-    .input_last                     (product_output_last),
+    .input_i                        (inverse_input_i),
+    .input_q                        (inverse_input_q),
+    .input_position                 (inverse_input_position),
+    .input_block_start_index        (inverse_input_block_start),
+    .input_last                     (inverse_input_last),
     .output_valid                   (inverse_output_valid),
     .output_ready                   (inverse_output_ready),
     .output_i                       (inverse_output_i),
@@ -476,46 +537,124 @@ module starlink_pss_iq_to_score #(
     .protocol_fault                 (inverse_fft_fault)
   );
 
-  starlink_pss_fft512_bfp24 inverse_xfft (
+  // Only the active adapter can drive or observe the generated core.  The
+  // inactive adapter is held in reset, and each direction change therefore
+  // gives the XFFT a clean reset stretch followed by an explicit direction
+  // configuration transaction.
+  assign shared_core_aresetn = processing_inverse ?
+      inverse_core_aresetn : forward_core_aresetn;
+  assign shared_core_config_tdata = processing_inverse ?
+      inverse_core_config_tdata : forward_core_config_tdata;
+  assign shared_core_config_tvalid = processing_inverse ?
+      inverse_core_config_tvalid : forward_core_config_tvalid;
+  assign shared_core_input_tdata = processing_inverse ?
+      inverse_core_input_tdata : forward_core_input_tdata;
+  assign shared_core_input_tvalid = processing_inverse ?
+      inverse_core_input_tvalid : forward_core_input_tvalid;
+  assign shared_core_input_tlast = processing_inverse ?
+      inverse_core_input_tlast : forward_core_input_tlast;
+  assign shared_core_output_tready = processing_inverse ?
+      inverse_core_output_tready : forward_core_output_tready;
+  assign shared_core_status_tready = processing_inverse ?
+      inverse_core_status_tready : forward_core_status_tready;
+
+  assign forward_core_config_tready = !processing_inverse &&
+                                      shared_core_config_tready;
+  assign forward_core_input_tready = !processing_inverse &&
+                                     shared_core_input_tready;
+  assign inverse_core_config_tready = processing_inverse &&
+                                      shared_core_config_tready;
+  assign inverse_core_input_tready = processing_inverse &&
+                                     shared_core_input_tready;
+
+  assign forward_core_output_tdata = shared_core_output_tdata;
+  assign forward_core_output_tuser = shared_core_output_tuser;
+  assign forward_core_output_tvalid = !processing_inverse &&
+                                      shared_core_output_tvalid;
+  assign forward_core_output_tlast = shared_core_output_tlast;
+  assign forward_core_status_tdata = shared_core_status_tdata;
+  assign forward_core_status_tvalid = !processing_inverse &&
+                                      shared_core_status_tvalid;
+  assign forward_core_event_frame_started = !processing_inverse &&
+      shared_core_event_frame_started;
+  assign forward_core_event_tlast_unexpected = !processing_inverse &&
+      shared_core_event_tlast_unexpected;
+  assign forward_core_event_tlast_missing = !processing_inverse &&
+      shared_core_event_tlast_missing;
+  assign forward_core_event_status_channel_halt = !processing_inverse &&
+      shared_core_event_status_channel_halt;
+  assign forward_core_event_data_in_channel_halt = !processing_inverse &&
+      shared_core_event_data_in_channel_halt;
+  assign forward_core_event_data_out_channel_halt = !processing_inverse &&
+      shared_core_event_data_out_channel_halt;
+
+  assign inverse_core_output_tdata = shared_core_output_tdata;
+  assign inverse_core_output_tuser = shared_core_output_tuser;
+  assign inverse_core_output_tvalid = processing_inverse &&
+                                      shared_core_output_tvalid;
+  assign inverse_core_output_tlast = shared_core_output_tlast;
+  assign inverse_core_status_tdata = shared_core_status_tdata;
+  assign inverse_core_status_tvalid = processing_inverse &&
+                                      shared_core_status_tvalid;
+  assign inverse_core_event_frame_started = processing_inverse &&
+      shared_core_event_frame_started;
+  assign inverse_core_event_tlast_unexpected = processing_inverse &&
+      shared_core_event_tlast_unexpected;
+  assign inverse_core_event_tlast_missing = processing_inverse &&
+      shared_core_event_tlast_missing;
+  assign inverse_core_event_status_channel_halt = processing_inverse &&
+      shared_core_event_status_channel_halt;
+  assign inverse_core_event_data_in_channel_halt = processing_inverse &&
+      shared_core_event_data_in_channel_halt;
+  assign inverse_core_event_data_out_channel_halt = processing_inverse &&
+      shared_core_event_data_out_channel_halt;
+
+  starlink_pss_fft512_bfp18 shared_xfft (
     .aclk                          (clk),
-    .aresetn                       (inverse_core_aresetn),
-    .s_axis_config_tdata           (inverse_core_config_tdata),
-    .s_axis_config_tvalid          (inverse_core_config_tvalid),
-    .s_axis_config_tready          (inverse_core_config_tready),
-    .s_axis_data_tdata             (inverse_core_input_tdata),
-    .s_axis_data_tvalid            (inverse_core_input_tvalid),
-    .s_axis_data_tready            (inverse_core_input_tready),
-    .s_axis_data_tlast             (inverse_core_input_tlast),
-    .m_axis_data_tdata             (inverse_core_output_tdata),
-    .m_axis_data_tuser             (inverse_core_output_tuser),
-    .m_axis_data_tvalid            (inverse_core_output_tvalid),
-    .m_axis_data_tready            (inverse_core_output_tready),
-    .m_axis_data_tlast             (inverse_core_output_tlast),
-    .m_axis_status_tdata           (inverse_core_status_tdata),
-    .m_axis_status_tvalid          (inverse_core_status_tvalid),
-    .m_axis_status_tready          (inverse_core_status_tready),
-    .event_frame_started           (inverse_core_event_frame_started),
-    .event_tlast_unexpected        (inverse_core_event_tlast_unexpected),
-    .event_tlast_missing           (inverse_core_event_tlast_missing),
-    .event_status_channel_halt     (inverse_core_event_status_channel_halt),
-    .event_data_in_channel_halt    (inverse_core_event_data_in_channel_halt),
-    .event_data_out_channel_halt   (inverse_core_event_data_out_channel_halt)
+    .aresetn                       (shared_core_aresetn),
+    .s_axis_config_tdata           (shared_core_config_tdata),
+    .s_axis_config_tvalid          (shared_core_config_tvalid),
+    .s_axis_config_tready          (shared_core_config_tready),
+    .s_axis_data_tdata             (shared_core_input_tdata),
+    .s_axis_data_tvalid            (shared_core_input_tvalid),
+    .s_axis_data_tready            (shared_core_input_tready),
+    .s_axis_data_tlast             (shared_core_input_tlast),
+    .m_axis_data_tdata             (shared_core_output_tdata),
+    .m_axis_data_tuser             (shared_core_output_tuser),
+    .m_axis_data_tvalid            (shared_core_output_tvalid),
+    .m_axis_data_tready            (shared_core_output_tready),
+    .m_axis_data_tlast             (shared_core_output_tlast),
+    .m_axis_status_tdata           (shared_core_status_tdata),
+    .m_axis_status_tvalid          (shared_core_status_tvalid),
+    .m_axis_status_tready          (shared_core_status_tready),
+    .event_frame_started           (shared_core_event_frame_started),
+    .event_tlast_unexpected        (shared_core_event_tlast_unexpected),
+    .event_tlast_missing           (shared_core_event_tlast_missing),
+    .event_status_channel_halt     (shared_core_event_status_channel_halt),
+    .event_data_in_channel_halt    (shared_core_event_data_in_channel_halt),
+    .event_data_out_channel_halt   (shared_core_event_data_out_channel_halt)
   );
 
-  starlink_pss_candidate_score_path candidate_score_path (
+  starlink_pss_candidate_score_path #(
+    .COEFFICIENT_ENERGY(COEFFICIENT_ENERGY),
+    .DATA_WIDTH        (DATA_WIDTH)
+  ) candidate_score_path (
     .clk                       (clk),
     .resetn                    (pipeline_resetn),
     .flush                     (pipeline_flush),
-    .ifft_valid                (inverse_output_valid &&
-                                !candidate_backpressure_fault),
+    // The explicit register boundary separates the XFFT adapter's complete
+    // metadata qualification from this path's independent sequence checks.
+    // The result FIFO is sized for the full 447-result burst, so this stage
+    // sustains one result per clock without propagating ready into the XFFT.
+    .ifft_valid                (inverse_stage_valid),
     .ifft_ready                (candidate_ifft_ready),
-    .ifft_correlation_i        (inverse_output_i),
-    .ifft_correlation_q        (inverse_output_q),
-    .ifft_index                (inverse_output_position),
-    .forward_exponent          (inverse_forward_exponent),
-    .inverse_exponent          (inverse_output_exponent),
-    .block_start_index         (inverse_output_block_start),
-    .ifft_last                 (inverse_output_last),
+    .ifft_correlation_i        (inverse_stage_i),
+    .ifft_correlation_q        (inverse_stage_q),
+    .ifft_index                (inverse_stage_position),
+    .forward_exponent          (inverse_stage_forward_exponent),
+    .inverse_exponent          (inverse_stage_exponent),
+    .block_start_index         (inverse_stage_block_start),
+    .ifft_last                 (inverse_stage_last),
     .cache_lookup_valid        (cache_lookup_valid_from_path),
     .cache_lookup_ready        (cache_lookup_ready_to_path),
     .cache_lookup_start_index  (cache_lookup_start_from_path),
@@ -539,6 +678,35 @@ module starlink_pss_iq_to_score #(
 
   assign candidate_path_fault = path_fault || candidate_backpressure_fault;
 
+  // The generated inverse XFFT is never backpressured.  Its qualified output
+  // is therefore captured into a one-beat elastic timing boundary on every
+  // valid clock.  In normal operation the candidate path consumes the prior
+  // beat on that same edge.  An unexpected stall is still fail-closed through
+  // candidate_backpressure_fault instead of silently overwriting data.
+  always @(posedge clk) begin
+    if (!pipeline_resetn) begin
+      inverse_stage_valid <= 1'b0;
+      inverse_stage_i <= 0;
+      inverse_stage_q <= 0;
+      inverse_stage_position <= 0;
+      inverse_stage_forward_exponent <= 0;
+      inverse_stage_exponent <= 0;
+      inverse_stage_block_start <= 0;
+      inverse_stage_last <= 1'b0;
+    end else begin
+      inverse_stage_valid <= inverse_output_valid;
+      if (inverse_output_valid) begin
+        inverse_stage_i <= inverse_output_i;
+        inverse_stage_q <= inverse_output_q;
+        inverse_stage_position <= inverse_output_position;
+        inverse_stage_forward_exponent <= inverse_forward_exponent;
+        inverse_stage_exponent <= inverse_output_exponent;
+        inverse_stage_block_start <= inverse_output_block_start;
+        inverse_stage_last <= inverse_output_last;
+      end
+    end
+  end
+
   // Reset, enable, flush, scheduler restart, and detector faults are lifecycle
   // controls rather than datapath flow control.  Suppress publication in the
   // assertion cycle, then use this registered active state as the sole reset
@@ -556,28 +724,31 @@ module starlink_pss_iq_to_score #(
   always @(posedge clk) begin
     if (!resetn || !enable || flush) begin
       detector_fault <= 1'b0;
-      inverse_forward_exponent_seen <= 1'b0;
-      inverse_forward_exponent <= 0;
-      forward_exponent_fault_latched <= 1'b0;
     end else begin
       if (fault_event)
         detector_fault <= 1'b1;
+    end
+  end
 
-      if (pipeline_flush) begin
-        inverse_forward_exponent_seen <= 1'b0;
-        inverse_forward_exponent <= 0;
-        forward_exponent_fault_latched <= 1'b0;
-      end else begin
-        if (inverse_input_accept) begin
-          if (product_output_bin_index == 0) begin
-            inverse_forward_exponent_seen <= 1'b1;
-            inverse_forward_exponent <= product_output_exponent;
-          end
-        end
-        if (inverse_forward_exponent_error_now)
-          forward_exponent_fault_latched <= 1'b1;
-        if (inverse_output_accept && inverse_output_last)
-          inverse_forward_exponent_seen <= 1'b0;
+  // The forward adapter is closed as soon as its input block completes, so it
+  // cannot begin another transform while the first block is still producing
+  // spectrum data.  Once the committed product buffer is full, ownership of
+  // the single XFFT moves to the inverse adapter.  The next forward block may
+  // start only after the complete inverse output has been accepted.
+  always @(posedge clk) begin
+    if (!pipeline_resetn || pipeline_flush) begin
+      processing_inverse <= 1'b0;
+      forward_input_closed <= 1'b0;
+    end else begin
+      if (!processing_inverse && forward_input_block_complete_pulse)
+        forward_input_closed <= 1'b1;
+
+      if (!processing_inverse && intermediate_write_complete_pulse) begin
+        processing_inverse <= 1'b1;
+        forward_input_closed <= 1'b0;
+      end else if (processing_inverse && intermediate_release) begin
+        processing_inverse <= 1'b0;
+        forward_input_closed <= 1'b0;
       end
     end
   end

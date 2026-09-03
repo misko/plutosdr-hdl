@@ -106,6 +106,21 @@ module starlink_pss_phase_map #(
   reg [PHASE_INDEX_WIDTH-1:0] update_address;
   reg [SCORE_WIDTH-1:0] update_score;
 
+  // Register the completed read/modify result before driving the segmented
+  // BRAM write ports.  This separates the segment read mux plus accumulator
+  // from the BRAM input path without reducing score-stream throughput.
+  reg write_pending;
+  reg write_bank;
+  reg [PHASE_INDEX_WIDTH-1:0] write_address;
+  reg [MAP_WIDTH-1:0] write_data;
+
+  // A completed tile becomes software-visible on the clock that its final
+  // registered update is committed.  DRAIN may already accept phase zero of
+  // the next tile into the other bank, so publication needs its own pipeline
+  // state rather than stalling the score stream.
+  reg publish_pending;
+  reg publish_bank;
+
   reg ready_0;
   reg ready_1;
   reg clean_0;
@@ -125,52 +140,56 @@ module starlink_pss_phase_map #(
   wire score_accept_wait_frame = acquisition_enable &&
       state == STATE_WAIT_FRAME && score_valid && !stream_discontinuity &&
       score_phase == 0;
-  wire score_accept_fill = acquisition_enable && state == STATE_FILL &&
-      score_valid && !stream_discontinuity &&
-      score_phase == expected_phase &&
-      score_start_index == expected_score_index;
   wire drain_next_bank_clean = fill_bank ?
       (clean_0 && !ready_0 && !clear_active_0) :
       (clean_1 && !ready_1 && !clear_active_1);
   wire score_accept_drain = acquisition_enable && state == STATE_DRAIN &&
       drain_next_bank_clean && score_valid && !stream_discontinuity &&
       score_phase == 0 && score_start_index == expected_score_index;
-  wire score_accept = score_accept_wait_frame || score_accept_fill ||
-      score_accept_drain;
+  // A wrong absolute index aborts the tile and suppresses update_pending, so
+  // an otherwise well-phased speculative BRAM read is harmless.  Keep the
+  // 64-bit protocol comparison in the state/control path, but do not put it
+  // in front of twenty physically distributed BRAM read enables.
+  wire score_read_fill = acquisition_enable && state == STATE_FILL &&
+      score_valid && !stream_discontinuity &&
+      score_phase == expected_phase;
+  wire score_read_drain = acquisition_enable && state == STATE_DRAIN &&
+      drain_next_bank_clean && score_valid && !stream_discontinuity &&
+      score_phase == 0;
+  wire score_read = score_accept_wait_frame || score_read_fill ||
+      score_read_drain;
   wire score_read_bank = (state == STATE_DRAIN) ? !fill_bank : fill_bank;
 
-  wire [MAP_WIDTH:0] update_sum_0 =
-      {1'b0, bank_read_data_0} + update_score;
-  wire [MAP_WIDTH:0] update_sum_1 =
-      {1'b0, bank_read_data_1} + update_score;
-  wire update_overflow = update_pending &&
-      ((!update_bank && update_sum_0[MAP_WIDTH]) ||
-       ( update_bank && update_sum_1[MAP_WIDTH]));
+  // The elaboration guard above proves TILE_FRAMES maximum scores fit in
+  // MAP_WIDTH.  Every clean bank starts at zero and each phase is updated
+  // exactly once per frame, so saturation and a runtime overflow detector
+  // would be unreachable hardware.  Keep the ABI counter as an invariant
+  // zero while retaining the exact full-width sum here.
+  wire [MAP_WIDTH-1:0] update_sum_0 =
+      bank_read_data_0 + update_score;
+  wire [MAP_WIDTH-1:0] update_sum_1 =
+      bank_read_data_1 + update_score;
 
   wire bank_write_enable_0 = clear_active_0 ||
-      (update_pending && !update_bank);
+      (write_pending && !write_bank);
   wire bank_write_enable_1 = clear_active_1 ||
-      (update_pending && update_bank);
+      (write_pending && write_bank);
   wire [PHASE_INDEX_WIDTH-1:0] bank_write_address_0 =
-      clear_active_0 ? clear_address_0 : update_address;
+      clear_active_0 ? clear_address_0 : write_address;
   wire [PHASE_INDEX_WIDTH-1:0] bank_write_address_1 =
-      clear_active_1 ? clear_address_1 : update_address;
+      clear_active_1 ? clear_address_1 : write_address;
   wire [MAP_WIDTH-1:0] bank_write_data_0 = clear_active_0 ?
-      {MAP_WIDTH{1'b0}} :
-      (update_sum_0[MAP_WIDTH] ?
-       {MAP_WIDTH{1'b1}} : update_sum_0[MAP_WIDTH-1:0]);
+      {MAP_WIDTH{1'b0}} : write_data;
   wire [MAP_WIDTH-1:0] bank_write_data_1 = clear_active_1 ?
-      {MAP_WIDTH{1'b0}} :
-      (update_sum_1[MAP_WIDTH] ?
-       {MAP_WIDTH{1'b1}} : update_sum_1[MAP_WIDTH-1:0]);
-  wire bank_read_enable_0 = (score_accept && !score_read_bank) ||
+      {MAP_WIDTH{1'b0}} : write_data;
+  wire bank_read_enable_0 = (score_read && !score_read_bank) ||
       (map_read_request && !map_read_bank);
-  wire bank_read_enable_1 = (score_accept && score_read_bank) ||
+  wire bank_read_enable_1 = (score_read && score_read_bank) ||
       (map_read_request && map_read_bank);
   wire [PHASE_INDEX_WIDTH-1:0] bank_read_address_0 =
-      (score_accept && !score_read_bank) ? score_phase : map_read_index;
+      (score_read && !score_read_bank) ? score_phase : map_read_index;
   wire [PHASE_INDEX_WIDTH-1:0] bank_read_address_1 =
-      (score_accept && score_read_bank) ? score_phase : map_read_index;
+      (score_read && score_read_bank) ? score_phase : map_read_index;
 
   assign map_ready_mask = {ready_1, ready_0};
   assign map_generation_0 = generation_0;
@@ -231,6 +250,12 @@ module starlink_pss_phase_map #(
       update_bank <= 1'b0;
       update_address <= {PHASE_INDEX_WIDTH{1'b0}};
       update_score <= {SCORE_WIDTH{1'b0}};
+      write_pending <= 1'b0;
+      write_bank <= 1'b0;
+      write_address <= {PHASE_INDEX_WIDTH{1'b0}};
+      write_data <= {MAP_WIDTH{1'b0}};
+      publish_pending <= 1'b0;
+      publish_bank <= 1'b0;
 
       ready_0 <= 1'b0;
       ready_1 <= 1'b0;
@@ -265,6 +290,24 @@ module starlink_pss_phase_map #(
       map_read_valid <= 1'b0;
       map_read_error <= 1'b0;
       update_pending <= 1'b0;
+      write_pending <= update_pending;
+      publish_pending <= 1'b0;
+
+      if (update_pending) begin
+        write_bank <= update_bank;
+        write_address <= update_address;
+        write_data <= update_bank ? update_sum_1 : update_sum_0;
+      end
+
+      // The final map word is written by the BRAMs on this same edge.  DRAIN
+      // preloads metadata while ready is low; asserting ready here publishes
+      // that metadata and the now-complete map atomically to software.
+      if (publish_pending) begin
+        if (!publish_bank)
+          ready_0 <= 1'b1;
+        else
+          ready_1 <= 1'b1;
+      end
 
       if (read_pending) begin
         if (read_pending_allowed) begin
@@ -321,14 +364,10 @@ module starlink_pss_phase_map #(
         end
       end
 
-      if (update_overflow)
-        map_arithmetic_overflow_count <=
-            increment_saturating_32(map_arithmetic_overflow_count);
-
-      // DRAIN owns a complete tile whose final read/modify/write is already
-      // pending.  Let that state publish once even if software disables
-      // acquisition on the immediately following cycle; only partial FILL
-      // state is invalidated by disable.
+      // DRAIN owns a complete tile whose final read result is entering the
+      // registered write stage.  Let that state queue publication once even
+      // if software disables acquisition on the immediately following cycle;
+      // only partial FILL state is invalidated by disable.
       if (!acquisition_enable && state != STATE_DRAIN) begin
         if (state == STATE_FILL) begin
           discontinuity_abort_count <=
@@ -437,9 +476,10 @@ module starlink_pss_phase_map #(
           end
 
           STATE_DRAIN: begin
+            publish_pending <= 1'b1;
+            publish_bank <= fill_bank;
             map_publish_count <= increment_saturating_32(map_publish_count);
             if (!fill_bank) begin
-              ready_0 <= 1'b1;
               generation_0 <= increment_saturating_32(map_publish_count);
               start_index_0 <= active_tile_start_index;
               if (acquisition_enable &&
@@ -475,7 +515,6 @@ module starlink_pss_phase_map #(
                       increment_saturating_32(discarded_score_count);
               end
             end else begin
-              ready_1 <= 1'b1;
               generation_1 <= increment_saturating_32(map_publish_count);
               start_index_1 <= active_tile_start_index;
               if (acquisition_enable &&

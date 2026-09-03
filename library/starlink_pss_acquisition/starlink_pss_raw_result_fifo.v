@@ -1,6 +1,6 @@
 // Burst-absorbing FIFO for qualified overlap-save IFFT results.
 //
-// The 123-bit payload preserves signed Q1.23 correlation, both XFFT block
+// The payload preserves signed fixed-point correlation, both XFFT block
 // exponents, the absolute candidate-start index, and the last-result marker.
 // The memory is never bulk-reset; flush invalidates it through pointers/count.
 
@@ -9,7 +9,8 @@
 module starlink_pss_raw_result_fifo #(
   parameter integer FIFO_DEPTH = 512,
   parameter integer ADDRESS_BITS = $clog2(FIFO_DEPTH),
-  parameter integer COUNT_BITS = $clog2(FIFO_DEPTH + 1)
+  parameter integer COUNT_BITS = $clog2(FIFO_DEPTH + 1),
+  parameter integer DATA_WIDTH = 24
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -17,8 +18,8 @@ module starlink_pss_raw_result_fifo #(
 
   input  wire                    input_valid,
   output wire                    input_ready,
-  input  wire signed [23:0]      input_correlation_i,
-  input  wire signed [23:0]      input_correlation_q,
+  input  wire signed [DATA_WIDTH-1:0] input_correlation_i,
+  input  wire signed [DATA_WIDTH-1:0] input_correlation_q,
   input  wire [4:0]              input_forward_exponent,
   input  wire [4:0]              input_inverse_exponent,
   input  wire [63:0]             input_start_index,
@@ -26,8 +27,8 @@ module starlink_pss_raw_result_fifo #(
 
   output reg                     output_valid,
   input  wire                    output_ready,
-  output wire signed [23:0]      output_correlation_i,
-  output wire signed [23:0]      output_correlation_q,
+  output wire signed [DATA_WIDTH-1:0] output_correlation_i,
+  output wire signed [DATA_WIDTH-1:0] output_correlation_q,
   output wire [4:0]              output_forward_exponent,
   output wire [4:0]              output_inverse_exponent,
   output wire [63:0]             output_start_index,
@@ -40,7 +41,7 @@ module starlink_pss_raw_result_fifo #(
   output reg                     overflow_pulse
 );
 
-  localparam integer PAYLOAD_BITS = 123;
+  localparam integer PAYLOAD_BITS = 75 + 2 * DATA_WIDTH;
 
   (* ram_style = "block" *)
   reg [PAYLOAD_BITS-1:0] result_memory [0:FIFO_DEPTH-1];

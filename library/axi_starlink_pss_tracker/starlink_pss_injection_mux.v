@@ -270,20 +270,20 @@ module starlink_pss_injection_mux #(
   reg sample_injection_active;
   reg [63:0] sample_arm_start;
   reg [63:0] sample_expected_index;
+  reg [7:0] sample_fixture_index;
 
   wire source_sample_accepted = source_sample_enable && source_sample_strobe;
   wire sample_index_matches =
       (!sample_started && source_sample_index == sample_arm_start) ||
       (sample_started && source_sample_index == sample_expected_index);
   wire inject_this_sample =
-      sample_armed && source_sample_accepted && sample_index_matches &&
-      source_sample_index >= sample_arm_start &&
-      source_sample_index < sample_arm_start + SAMPLE_COUNT;
-  wire fixture_read_in_range =
-      source_sample_index >= sample_arm_start &&
-      source_sample_index < sample_arm_start + SAMPLE_COUNT;
-  wire [7:0] fixture_read_index = fixture_read_in_range ?
-      source_sample_index - sample_arm_start : 8'd0;
+      sample_armed && source_sample_accepted && sample_index_matches;
+  // Once the exact first index arrives, a local accepted-sample counter is
+  // both the BRAM address and the completion bound. The full 64-bit expected
+  // index still detects every source discontinuity; repeated 64-bit range
+  // compares and a subtractor are unnecessary on the per-sample path.
+  wire [7:0] fixture_read_index = sample_started ?
+      sample_fixture_index : 8'd0;
   reg [31:0] fixture_read_word;
   reg signed [15:0] source_sample_i_stage;
   reg signed [15:0] source_sample_q_stage;
@@ -310,6 +310,7 @@ module starlink_pss_injection_mux #(
       sample_injection_active <= 1'b0;
       sample_arm_start <= 64'd0;
       sample_expected_index <= 64'd0;
+      sample_fixture_index <= 8'd0;
       fixture_read_word <= 32'd0;
       source_sample_i_stage <= 16'sd0;
       source_sample_q_stage <= 16'sd0;
@@ -367,6 +368,7 @@ module starlink_pss_injection_mux #(
         if (arm_settle_count == 1) begin
           sample_arm_start <= arm_start_sync_2;
           sample_expected_index <= arm_start_sync_2;
+          sample_fixture_index <= 8'd0;
           sample_armed <= 1'b1;
           sample_started <= 1'b0;
           sample_arm_ack_toggle <= arm_request_pending_value;
@@ -376,12 +378,11 @@ module starlink_pss_injection_mux #(
       if (sample_armed && source_sample_accepted) begin
         if (!sample_started && source_sample_index < sample_arm_start) begin
           sample_injection_active <= 1'b0;
-        end else if (!sample_index_matches ||
-                     source_sample_index < sample_arm_start ||
-                     source_sample_index >= sample_arm_start + SAMPLE_COUNT) begin
+        end else if (!sample_index_matches) begin
           sample_armed <= 1'b0;
           sample_started <= 1'b0;
           sample_injection_active <= 1'b0;
+          sample_fixture_index <= 8'd0;
           sample_mismatch_toggle <= ~sample_mismatch_toggle;
         end else begin
           sample_started <= 1'b1;
@@ -390,6 +391,9 @@ module starlink_pss_injection_mux #(
           if (fixture_read_index == SAMPLE_COUNT - 1) begin
             sample_armed <= 1'b0;
             sample_started <= 1'b0;
+            sample_fixture_index <= 8'd0;
+          end else begin
+            sample_fixture_index <= fixture_read_index + 1'b1;
           end
         end
       end else if (!sample_armed) begin

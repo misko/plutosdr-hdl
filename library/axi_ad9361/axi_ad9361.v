@@ -659,6 +659,8 @@ module axi_ad9361 #(
 
   // transmit
 
+  generate
+  if (DAC_DATAPATH_DISABLE == 0) begin : g_tx
   axi_ad9361_tx #(
     .ID (ID),
     .FPGA_TECHNOLOGY (FPGA_TECHNOLOGY),
@@ -721,6 +723,33 @@ module axi_ad9361 #(
     .up_raddr (up_raddr_s),
     .up_rdata (up_rdata_tx_s),
     .up_rack (up_rack_tx_s));
+  end else begin : g_rx_only_no_tx
+    // A disabled DAC datapath is physically absent in the RX-only shell, so
+    // do not retain the otherwise idle TX register/control hierarchy. Keep
+    // the shared AXI aperture responsive with a zero-valued null target and
+    // drive every TX-facing signal to an explicitly quiescent value.
+    assign dac_valid_s = 1'b0;
+    assign dac_data_s = 48'd0;
+    assign dac_clksel_s = DAC_CLK_EDGE_SEL;
+    assign dac_r1_mode = MODE_1R1T;
+    assign up_dac_dld_s = 16'd0;
+    assign up_dac_dwdata_s = 80'd0;
+    assign dac_sync_out = 1'b0;
+    assign dac_enable_i0 = 1'b0;
+    assign dac_valid_i0_s = 1'b0;
+    assign dac_enable_q0 = 1'b0;
+    assign dac_valid_q0_s = 1'b0;
+    assign dac_enable_i1 = 1'b0;
+    assign dac_valid_i1_s = 1'b0;
+    assign dac_enable_q1 = 1'b0;
+    assign dac_valid_q1_s = 1'b0;
+    assign up_dac_gpio_out = 32'd0;
+    assign dac_up_pps_irq_mask_s = 1'b0;
+    assign up_wack_tx_s = up_wreq_s;
+    assign up_rack_tx_s = up_rreq_s;
+    assign up_rdata_tx_s = 32'd0;
+  end
+  endgenerate
 
   // axi interface
 

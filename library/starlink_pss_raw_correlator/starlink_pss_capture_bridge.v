@@ -2,13 +2,15 @@
 //
 // Abort-atomic, double-buffered clock-domain bridge between the accepted-
 // sample scheduler and the exact correlator.  A capture bank is visible to the
-// engine only after all 130 tagged samples have been written and capture_done
+// engine only after the full rate-scaled window has been written and capture_done
 // has been observed.  Any capture_abort or malformed partial capture releases
 // the bank locally without publishing a descriptor.
 
 `timescale 1ns/1ps
 
-module starlink_pss_capture_bridge (
+module starlink_pss_capture_bridge #(
+  parameter integer RATE_MULTIPLIER = 1
+) (
   input  wire                i_sample_clk,
   input  wire                i_sample_resetn,
 
@@ -16,7 +18,7 @@ module starlink_pss_capture_bridge (
   input  wire                i_capture_start,
   input  wire                i_capture_done,
   input  wire                i_capture_abort,
-  input  wire          [7:0] i_capture_slot,
+  input  wire  [$clog2(130 * RATE_MULTIPLIER)-1:0] i_capture_slot,
   input  wire         [31:0] i_capture_request_id,
   input  wire         [63:0] i_capture_center_index,
   input  wire         [63:0] i_capture_center_timestamp,
@@ -42,7 +44,7 @@ module starlink_pss_capture_bridge (
   output wire         [63:0] o_engine_center_timestamp,
   output wire                o_engine_sample_valid,
   input  wire                i_engine_sample_ready,
-  output wire          [7:0] o_engine_sample_slot,
+  output wire  [$clog2(130 * RATE_MULTIPLIER)-1:0] o_engine_sample_slot,
   output wire         [63:0] o_engine_sample_timestamp,
   output wire signed  [15:0] o_engine_sample_i,
   output wire signed  [15:0] o_engine_sample_q,
@@ -50,7 +52,18 @@ module starlink_pss_capture_bridge (
 );
 
   localparam integer DESCRIPTOR_WIDTH = 161;
-  localparam [7:0] CAPTURE_LAST_SLOT = 8'd129;
+  localparam integer CAPTURE_COUNT = 130 * RATE_MULTIPLIER;
+  localparam integer CAPTURE_SLOT_WIDTH = $clog2(CAPTURE_COUNT);
+  localparam integer CAPTURE_MEMORY_ADDRESS_WIDTH = CAPTURE_SLOT_WIDTH + 1;
+  localparam [CAPTURE_SLOT_WIDTH-1:0] CAPTURE_LAST_SLOT =
+      CAPTURE_COUNT - 1;
+
+  generate
+    if ((RATE_MULTIPLIER != 1) && (RATE_MULTIPLIER != 2) &&
+        (RATE_MULTIPLIER != 4)) begin : g_invalid_rate_multiplier
+      initial $fatal(1, "RATE_MULTIPLIER must be 1, 2, or 4");
+    end
+  endgenerate
 
   localparam [2:0] ENGINE_IDLE  = 3'd0;
   localparam [2:0] ENGINE_ISSUE = 3'd1;
@@ -73,7 +86,7 @@ module starlink_pss_capture_bridge (
   reg capture_writer_active;
   reg capture_drop_active;
   reg capture_writer_bank;
-  reg [7:0] capture_expected_slot;
+  reg [CAPTURE_SLOT_WIDTH-1:0] capture_expected_slot;
 
   wire selected_capture_bank =
       capture_bank_free[preferred_capture_bank] ? preferred_capture_bank :
@@ -84,7 +97,7 @@ module starlink_pss_capture_bridge (
 
   wire capture_start_well_formed =
       i_capture_start && i_capture_valid && !i_capture_done &&
-      (i_capture_slot == 8'd0);
+      (i_capture_slot == {CAPTURE_SLOT_WIDTH{1'b0}});
   // The paired scheduler drives metadata directly from its registered FIFO
   // destination word and cannot prefetch another word while a capture is
   // pending or active.  That machine-checked composition invariant keeps all
@@ -103,7 +116,7 @@ module starlink_pss_capture_bridge (
   wire capture_memory_write = capture_first_write || capture_active_write;
   wire capture_memory_bank =
       capture_first_write ? selected_capture_bank : capture_writer_bank;
-  wire [8:0] capture_memory_address = {
+  wire [CAPTURE_MEMORY_ADDRESS_WIDTH-1:0] capture_memory_address = {
     capture_memory_bank,
     i_capture_slot
   };
@@ -167,7 +180,7 @@ module starlink_pss_capture_bridge (
       capture_writer_active <= 1'b0;
       capture_drop_active <= 1'b0;
       capture_writer_bank <= 1'b0;
-      capture_expected_slot <= 8'd0;
+      capture_expected_slot <= {CAPTURE_SLOT_WIDTH{1'b0}};
       sample_release_toggle_sync_1 <= 2'b00;
       sample_release_toggle_sync_2 <= 2'b00;
       sample_release_toggle_seen <= 2'b00;
@@ -239,7 +252,7 @@ module starlink_pss_capture_bridge (
           preferred_capture_bank <= ~selected_capture_bank;
           capture_writer_active <= 1'b1;
           capture_writer_bank <= selected_capture_bank;
-          capture_expected_slot <= 8'd1;
+          capture_expected_slot <= {{(CAPTURE_SLOT_WIDTH-1){1'b0}}, 1'b1};
         end else begin
           capture_drop_active <= 1'b1;
           o_capture_buffer_overrun_count <=
@@ -255,14 +268,16 @@ module starlink_pss_capture_bridge (
 
   reg [2:0] engine_state;
   reg engine_bank;
-  reg [7:0] engine_slot;
-  wire [8:0] engine_memory_address = {engine_bank, engine_slot};
+  reg [CAPTURE_SLOT_WIDTH-1:0] engine_slot;
+  wire [CAPTURE_MEMORY_ADDRESS_WIDTH-1:0] engine_memory_address = {
+    engine_bank, engine_slot
+  };
   wire capture_memory_read = (engine_state == ENGINE_ISSUE);
   wire [95:0] capture_memory_read_data;
 
   ad_mem #(
     .DATA_WIDTH    (96),
-    .ADDRESS_WIDTH (9)
+    .ADDRESS_WIDTH (CAPTURE_MEMORY_ADDRESS_WIDTH)
   ) i_capture_memory (
     .clka  (i_sample_clk),
     .wea   (capture_memory_write),
@@ -296,7 +311,7 @@ module starlink_pss_capture_bridge (
     if (!i_engine_resetn) begin
       engine_state <= ENGINE_IDLE;
       engine_bank <= 1'b0;
-      engine_slot <= 8'd0;
+      engine_slot <= {CAPTURE_SLOT_WIDTH{1'b0}};
       engine_release_toggle <= 2'b00;
       o_engine_job_start <= 1'b0;
       o_engine_job_done <= 1'b0;
@@ -309,7 +324,7 @@ module starlink_pss_capture_bridge (
         ENGINE_IDLE: begin
           if (descriptor_read_handshake) begin
             engine_bank <= descriptor_read_bank;
-            engine_slot <= 8'd0;
+            engine_slot <= {CAPTURE_SLOT_WIDTH{1'b0}};
             o_engine_job_start <= 1'b1;
             engine_state <= ENGINE_ISSUE;
           end

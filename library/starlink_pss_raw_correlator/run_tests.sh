@@ -37,6 +37,23 @@ iverilog -g2012 -Wall \
 vvp build/starlink_pss_reduced_tracking_core.vvp
 
 iverilog -g2012 -Wall \
+  -s tb_starlink_pss_reduced_tracking_core \
+  -Ptb_starlink_pss_reduced_tracking_core.RATE_MULTIPLIER=2 \
+  -o build/starlink_pss_reduced_tracking_core_30msps.vvp \
+  ../common/ad_mem.v \
+  starlink_pss_async_fifo.v \
+  starlink_sat_add48.v \
+  starlink_pss_candidate_scheduler.v \
+  starlink_pss_capture_bridge.v \
+  starlink_pss_sliding_correlator.v \
+  starlink_pss_tracking_core.v \
+  starlink_pss_exact_reducer.v \
+  starlink_pss_result_store.v \
+  starlink_pss_reduced_tracking_core.v \
+  tb/tb_starlink_pss_reduced_tracking_core.sv
+vvp build/starlink_pss_reduced_tracking_core_30msps.vvp
+
+iverilog -g2012 -Wall \
   -s tb_starlink_pss_exact_reducer \
   -o build/starlink_pss_exact_reducer.vvp \
   starlink_pss_exact_reducer.v \

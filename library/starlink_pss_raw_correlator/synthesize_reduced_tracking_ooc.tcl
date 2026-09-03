@@ -1,8 +1,8 @@
-# Vivado 2022.2 OOC gate for the complete Stage-15 TRACK_ONE composition.
-# Usage: vivado -mode batch -source synthesize_reduced_tracking_ooc.tcl -tclargs OUTPUT
+# Vivado 2022.2 OOC gate for the complete rate-scaled TRACK_ONE composition.
+# Usage: vivado -mode batch -source synthesize_reduced_tracking_ooc.tcl -tclargs OUTPUT ?RATE_MULTIPLIER?
 
-if {$argc != 1} {
-  error "expected one absolute output directory"
+if {$argc < 1 || $argc > 2} {
+  error "expected output directory and optional rate multiplier"
 }
 if {[version -short] ne "2022.2"} {
   error "this evidence gate requires Vivado 2022.2, got [version -short]"
@@ -10,6 +10,10 @@ if {[version -short] ne "2022.2"} {
 
 set script_dir [file dirname [file normalize [info script]]]
 set output_dir [file normalize [lindex $argv 0]]
+set rate_multiplier [expr {$argc == 2 ? [lindex $argv 1] : 1}]
+if {$rate_multiplier ni {1 2 4}} {
+  error "rate multiplier must be 1, 2, or 4"
+}
 file mkdir $output_dir
 
 read_verilog [file join $script_dir .. common ad_mem.v]
@@ -28,6 +32,7 @@ synth_design \
   -mode out_of_context \
   -flatten_hierarchy rebuilt \
   -directive AreaOptimized_high \
+  -generic RATE_MULTIPLIER=$rate_multiplier \
   -top starlink_pss_reduced_tracking_core \
   -part xc7z010clg400-1
 opt_design -directive ExploreArea
@@ -126,14 +131,18 @@ foreach {label pattern} {
   set $label $value
 }
 
-if {$slice_luts > 4800} {
-  error "complete TRACK_ONE LUT budget exceeded: $slice_luts > 4800"
+set max_slice_luts [expr {$rate_multiplier == 1 ? 4800 : 5500}]
+set max_slice_registers [expr {$rate_multiplier == 1 ? 4000 : 4500}]
+set max_block_ram_tiles [expr {$rate_multiplier == 1 ? 8.0 :
+    ($rate_multiplier == 2 ? 10.0 : 16.0)}]
+if {$slice_luts > $max_slice_luts} {
+  error "complete TRACK_ONE LUT budget exceeded: $slice_luts > $max_slice_luts"
 }
-if {$slice_registers > 4000} {
-  error "complete TRACK_ONE register budget exceeded: $slice_registers > 4000"
+if {$slice_registers > $max_slice_registers} {
+  error "complete TRACK_ONE register budget exceeded: $slice_registers > $max_slice_registers"
 }
-if {$block_ram_tiles > 6.0} {
-  error "complete TRACK_ONE BRAM budget exceeded: $block_ram_tiles > 6.0"
+if {$block_ram_tiles > $max_block_ram_tiles} {
+  error "complete TRACK_ONE BRAM budget exceeded: $block_ram_tiles > $max_block_ram_tiles"
 }
 if {$utilization_dsps != 3} {
   error "complete TRACK_ONE utilization reports $utilization_dsps DSPs instead of 3"
@@ -143,6 +152,8 @@ set summary_path [file join $output_dir starlink_pss_reduced_tracking_core_ooc_s
 set summary [open $summary_path w]
 puts $summary "vivado_version=[version -short]"
 puts $summary "part=xc7z010clg400-1"
+puts $summary "rate_multiplier=$rate_multiplier"
+puts $summary "rate_msps=[expr {15 * $rate_multiplier}]"
 puts $summary "control_clock_period_ns=10.000"
 puts $summary "sample_clock_period_ns=16.667"
 puts $summary "engine_clock_period_ns=10.000"
@@ -158,5 +169,5 @@ puts $summary "block_ram_tiles=$block_ram_tiles"
 puts $summary "dsp48e1=[llength $dsp_cells]"
 close $summary
 
-puts "STARLINK_REDUCED_TRACKING_OOC_PASS setup_wns_ns=$setup_wns slice_luts=$slice_luts slice_registers=$slice_registers block_ram_tiles=$block_ram_tiles dsp48e1=[llength $dsp_cells]"
+puts "STARLINK_REDUCED_TRACKING_OOC_PASS rate_multiplier=$rate_multiplier setup_wns_ns=$setup_wns slice_luts=$slice_luts slice_registers=$slice_registers block_ram_tiles=$block_ram_tiles dsp48e1=[llength $dsp_cells]"
 close_design

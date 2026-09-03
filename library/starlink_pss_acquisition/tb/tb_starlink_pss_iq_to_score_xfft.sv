@@ -5,6 +5,7 @@ module tb_starlink_pss_iq_to_score_xfft;
   localparam integer SAMPLE_COUNT = 1406;
   localparam integer BLOCK_COUNT = 3;
   localparam integer FFT_SAMPLES = 512;
+  localparam integer DATA_WIDTH = 18;
   localparam integer SCORE_COUNT = 1341;
   localparam [63:0] FIRST_SAMPLE_INDEX = 64'd1000000;
 
@@ -37,9 +38,9 @@ module tb_starlink_pss_iq_to_score_xfft;
   wire [9:0] candidate_fifo_maximum_stored_count;
 
   reg [31:0] input_samples [0:SAMPLE_COUNT-1];
-  reg [47:0] expected_forward [0:BLOCK_COUNT*FFT_SAMPLES-1];
-  reg [47:0] expected_product [0:BLOCK_COUNT*FFT_SAMPLES-1];
-  reg [47:0] expected_inverse [0:BLOCK_COUNT*FFT_SAMPLES-1];
+  reg [2*DATA_WIDTH-1:0] expected_forward [0:BLOCK_COUNT*FFT_SAMPLES-1];
+  reg [2*DATA_WIDTH-1:0] expected_product [0:BLOCK_COUNT*FFT_SAMPLES-1];
+  reg [2*DATA_WIDTH-1:0] expected_inverse [0:BLOCK_COUNT*FFT_SAMPLES-1];
   reg [4:0] expected_forward_exponents [0:BLOCK_COUNT-1];
   reg [4:0] expected_inverse_exponents [0:BLOCK_COUNT-1];
   reg [7:0] expected_scores [0:SCORE_COUNT-1];
@@ -202,9 +203,9 @@ module tb_starlink_pss_iq_to_score_xfft;
 
   initial begin
     $readmemh("samples_ci16.mem", input_samples);
-    $readmemh("forward_q23.mem", expected_forward);
-    $readmemh("product_q23.mem", expected_product);
-    $readmemh("inverse_q23.mem", expected_inverse);
+    $readmemh("forward_q17.mem", expected_forward);
+    $readmemh("product_q17.mem", expected_product);
+    $readmemh("inverse_q17.mem", expected_inverse);
     $readmemh("forward_exponents.mem", expected_forward_exponents);
     $readmemh("inverse_exponents.mem", expected_inverse_exponents);
     $readmemh("scores_u8.mem", expected_scores);

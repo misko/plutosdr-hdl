@@ -10,8 +10,6 @@ if {[lsearch $ip_repo_list $quantulum_ip_repo_path] == -1} {
 	puts "Added IP Repo: $quantulum_ip_repo_path"
 }
 
-source $ad_hdl_dir/projects/common/xilinx/adi_fir_filter_bd.tcl
-
 # default ports
 
 create_bd_intf_port -mode Master -vlnv xilinx.com:interface:ddrx_rtl:1.0 ddr
@@ -212,6 +210,8 @@ ad_ip_parameter axi_ad9361 CONFIG.CMOS_OR_LVDS_N 1
 ad_ip_parameter axi_ad9361 CONFIG.MODE_1R1T 1
 ad_ip_parameter axi_ad9361 CONFIG.TDD_DISABLE 1
 ad_ip_parameter axi_ad9361 CONFIG.DAC_DATAPATH_DISABLE 1
+ad_ip_parameter axi_ad9361 CONFIG.ADC_DCFILTER_DISABLE 1
+ad_ip_parameter axi_ad9361 CONFIG.ADC_IQCORRECTION_DISABLE 1
 ad_ip_parameter axi_ad9361 CONFIG.ADC_INIT_DELAY 21
 
 ad_ip_instance axi_dmac axi_ad9361_adc_dma
@@ -230,18 +230,30 @@ ad_ip_parameter axi_ad9361_adc_dma CONFIG.SYNC_TRANSFER_START {true}
 # 26-bit length field keeps every supported metadata frame in one transfer.
 ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_LENGTH_WIDTH 26
 
-ad_add_decimation_filter "rx_fir_decimator" 8 2 1 {61.44} {61.44} \
-                         "$ad_hdl_dir/library/util_fir_int/coefile_int.coe"
-ad_ip_instance xlslice decim_slice
 ad_ip_instance util_cpack2 cpack
 ad_ip_instance c_counter_binary counter_timestamp
 ad_ip_parameter counter_timestamp CONFIG.Output_Width 64
 ad_ip_parameter counter_timestamp CONFIG.CE true
 ad_ip_instance util_cpack2_timestamp cpack_timestamp
+set starlink_pss_rate_msps 15
+if {[info exists ::env(STARLINK_PSS_RATE_MSPS)]} {
+  set starlink_pss_rate_msps $::env(STARLINK_PSS_RATE_MSPS)
+}
+if {$starlink_pss_rate_msps ni {15 30 60}} {
+  error "STARLINK_PSS_RATE_MSPS must be 15, 30, or 60, got $starlink_pss_rate_msps"
+}
+set starlink_pss_minimum_lead_samples [expr {
+  64 * $starlink_pss_rate_msps / 15
+}]
+
+ad_ip_instance axi_starlink_pss_acquisition starlink_pss_acquisition
+ad_ip_parameter starlink_pss_acquisition CONFIG.SAMPLE_FIFO_ADDRESS_WIDTH 7
+ad_ip_parameter starlink_pss_acquisition CONFIG.INPUT_RATE_MSPS $starlink_pss_rate_msps
 ad_ip_instance axi_starlink_pss_tracker starlink_pss_tracker
-ad_ip_parameter starlink_pss_tracker CONFIG.RATE_MSPS 15
+ad_ip_parameter starlink_pss_tracker CONFIG.RATE_MSPS $starlink_pss_rate_msps
 ad_ip_parameter starlink_pss_tracker CONFIG.COMMAND_FIFO_ADDRESS_WIDTH 3
-ad_ip_parameter starlink_pss_tracker CONFIG.MINIMUM_LEAD_SAMPLES 64
+ad_ip_parameter starlink_pss_tracker CONFIG.MINIMUM_LEAD_SAMPLES $starlink_pss_minimum_lead_samples
+ad_ip_parameter starlink_pss_tracker CONFIG.ENABLE_INJECTION 0
 ad_ip_instance util_vector_logic starlink_pss_stream_enable [list \
   C_OPERATION {and} \
   C_SIZE 1]
@@ -268,17 +280,8 @@ ad_connect  axi_ad9361/tdd_sync GND
 ad_connect  sys_200m_clk axi_ad9361/delay_clk
 ad_connect  axi_ad9361/l_clk axi_ad9361/clk
 
-ad_connect axi_ad9361/l_clk rx_fir_decimator/aclk
-
-ad_connect axi_ad9361/adc_valid_i0 rx_fir_decimator/valid_in_0
-ad_connect axi_ad9361/adc_enable_i0 rx_fir_decimator/enable_in_0
-ad_connect axi_ad9361/adc_data_i0 rx_fir_decimator/data_in_0
-ad_connect axi_ad9361/adc_valid_q0 rx_fir_decimator/valid_in_1
-ad_connect axi_ad9361/adc_enable_q0 rx_fir_decimator/enable_in_1
-ad_connect axi_ad9361/adc_data_q0 rx_fir_decimator/data_in_1
-
 ad_connect axi_ad9361/l_clk counter_timestamp/CLK
-ad_connect rx_fir_decimator/valid_out_0 counter_timestamp/CE
+ad_connect axi_ad9361/adc_valid_i0 counter_timestamp/CE
 ad_connect starlink_pss_tracker/selected_sample_timestamp cpack_timestamp/timestamp
 # cpack_timestamp synchronizes this counter word into sys_cpu_clk before it
 # reaches the ARM-visible ADC GPIO status register (0x800000B8).
@@ -287,20 +290,33 @@ ad_connect cpack_timestamp/timestamp_cpu axi_ad9361/up_adc_gpio_in
 # Host-scheduled exact TRACK_ONE pipeline. ABI 1.2 adds a fail-closed, future-
 # indexed 130-sample deterministic injection mux before the shared tracker/DMA
 # fan-out. Outside an explicitly armed window the selected outputs are a two-
-# clock pipeline of the unchanged post-decimator stream. One result remains
+# clock pipeline of the unchanged formatted RX0 stream. One result remains
 # only the exact normalized winner within one scheduled 61-lag window; it is
 # not autonomous search, SSS alignment, cadence qualification, or a Starlink
 # claim.
 ad_connect axi_ad9361/l_clk starlink_pss_tracker/sample_clk
 ad_connect axi_ad9361/rst starlink_pss_tracker/sample_reset
-ad_connect rx_fir_decimator/data_out_0 starlink_pss_tracker/sample_i
-ad_connect rx_fir_decimator/data_out_1 starlink_pss_tracker/sample_q
-ad_connect rx_fir_decimator/valid_out_0 starlink_pss_tracker/sample_strobe
-ad_connect rx_fir_decimator/enable_out_0 starlink_pss_stream_enable/Op1
-ad_connect rx_fir_decimator/enable_out_1 starlink_pss_stream_enable/Op2
+ad_connect axi_ad9361/adc_data_i0 starlink_pss_tracker/sample_i
+ad_connect axi_ad9361/adc_data_q0 starlink_pss_tracker/sample_q
+ad_connect axi_ad9361/adc_valid_i0 starlink_pss_tracker/sample_strobe
+ad_connect axi_ad9361/adc_enable_i0 starlink_pss_stream_enable/Op1
+ad_connect axi_ad9361/adc_enable_q0 starlink_pss_stream_enable/Op2
 ad_connect starlink_pss_stream_enable/Res starlink_pss_tracker/sample_enable
 ad_connect counter_timestamp/Q starlink_pss_tracker/sample_index
 ad_connect counter_timestamp/Q starlink_pss_tracker/sample_timestamp
+
+# Continuous acquisition observes the exact stream already shared by the
+# deterministic injection path, sparse tracker, and RX DMA. It has no ready or
+# backpressure output. The absolute selected index is transported with every
+# accepted CI16 beat through its loss-detecting FIFO into sys_cpu_clk.
+ad_connect axi_ad9361/l_clk starlink_pss_acquisition/sample_clk
+ad_connect axi_ad9361/rst starlink_pss_acquisition/sample_reset
+ad_connect starlink_pss_tracker/selected_sample_strobe starlink_pss_acquisition/sample_strobe
+ad_connect starlink_pss_tracker/selected_sample_enable starlink_pss_acquisition/sample_enable
+ad_connect GND starlink_pss_acquisition/sample_gap
+ad_connect starlink_pss_tracker/selected_sample_i starlink_pss_acquisition/sample_i
+ad_connect starlink_pss_tracker/selected_sample_q starlink_pss_acquisition/sample_q
+ad_connect starlink_pss_tracker/selected_sample_index starlink_pss_acquisition/sample_index
 
 ad_connect axi_ad9361/up_adc_gpio_out cpack_timestamp_every_slice/Din
 ad_connect cpack_timestamp_every_slice/Dout cpack_timestamp_every_concat/In0
@@ -327,9 +343,6 @@ ad_connect starlink_pss_tracker/selected_sample_strobe cpack/fifo_wr_en
 
 ad_connect cpack/packed_fifo_wr cpack_timestamp/packed_fifo_wr
 ad_connect cpack_timestamp/packed_timestamped_fifo_wr axi_ad9361_adc_dma/fifo_wr
-ad_connect axi_ad9361/up_adc_gpio_out decim_slice/Din
-ad_connect rx_fir_decimator/active decim_slice/Dout
-
 # The transmit datapath is compiled out.  Tie every remaining DAC-facing input
 # low so the disabled interface has deterministic, fail-safe values.
 ad_connect GND axi_ad9361/dac_data_i0
@@ -346,6 +359,7 @@ ad_connect  cpack/fifo_wr_overflow axi_ad9361/adc_dovf
 
 ad_cpu_interconnect 0x79020000 axi_ad9361
 ad_cpu_interconnect 0x79030000 starlink_pss_tracker
+ad_cpu_interconnect 0x79040000 starlink_pss_acquisition
 ad_cpu_interconnect 0x7C400000 axi_ad9361_adc_dma
 ad_cpu_interconnect 0x7C430000 axi_spi
 
@@ -366,3 +380,4 @@ ad_connect sys_cpu_resetn axi_ad9361_adc_dma/m_dest_axi_aresetn
 ad_cpu_interrupt ps-13 mb-13 axi_ad9361_adc_dma/irq
 ad_cpu_interrupt ps-12 mb-12 starlink_pss_tracker/irq
 ad_cpu_interrupt ps-11 mb-11 axi_spi/ip2intc_irpt
+ad_cpu_interrupt ps-10 mb-10 starlink_pss_acquisition/irq

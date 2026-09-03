@@ -5,12 +5,15 @@
 // job and is cancelled exactly, reducing the denominator to Ex.  Validation
 // modes retain Ex*Eh.  Winner comparison uses exact rational cross-products
 // at the proved Stage-15 bounds (77-bit numerator, 69-bit denominator, and
-// 146-bit cross-product).  A bit-serial shift/add implementation contains no
-// multiplication operator and therefore cannot silently add DSPs.
+// 146-bit cross-product).  One right-shifting bit-serial multiplier is shared
+// by both squares, optional Ex*Eh, and both ratio cross-products.  It contains
+// no multiplication operator and therefore cannot silently add DSPs.
 
 `timescale 1ns/1ps
 
-module starlink_pss_exact_reducer (
+module starlink_pss_exact_reducer #(
+  parameter integer RATE_MULTIPLIER = 1
+) (
   input  wire                i_clk,
   input  wire                i_reset,
 
@@ -22,7 +25,7 @@ module starlink_pss_exact_reducer (
   input  wire         [31:0] i_request_id,
   input  wire         [63:0] i_center_index,
   input  wire         [63:0] i_center_timestamp,
-  input  wire signed   [6:0] i_lag,
+  input  wire signed [$clog2(64 * RATE_MULTIPLIER + 1)-1:0] i_lag,
   input  wire         [63:0] i_timestamp,
   input  wire         [31:0] i_coefficient_generation,
   input  wire signed  [47:0] i_c_re,
@@ -38,7 +41,7 @@ module starlink_pss_exact_reducer (
   output wire         [31:0] o_result_request_id,
   output wire         [63:0] o_result_center_index,
   output wire         [63:0] o_result_center_timestamp,
-  output wire signed   [6:0] o_result_lag,
+  output wire signed [$clog2(64 * RATE_MULTIPLIER + 1)-1:0] o_result_lag,
   output wire         [63:0] o_result_timestamp,
   output wire         [31:0] o_result_coefficient_generation,
   output wire signed  [47:0] o_result_c_re,
@@ -56,8 +59,18 @@ module starlink_pss_exact_reducer (
   output reg          [31:0] o_protocol_error_count
 );
 
-  localparam signed [6:0] FIRST_LAG = -7'sd30;
-  localparam signed [6:0] LAST_LAG = 7'sd30;
+  localparam integer LAG_WIDTH = $clog2(64 * RATE_MULTIPLIER + 1);
+  localparam signed [LAG_WIDTH-1:0] FIRST_LAG =
+      -30 * RATE_MULTIPLIER;
+  localparam signed [LAG_WIDTH-1:0] LAST_LAG =
+      30 * RATE_MULTIPLIER;
+
+  generate
+    if ((RATE_MULTIPLIER != 1) && (RATE_MULTIPLIER != 2) &&
+        (RATE_MULTIPLIER != 4)) begin : g_invalid_rate_multiplier
+      initial $fatal(1, "RATE_MULTIPLIER must be 1, 2, or 4");
+    end
+  endgenerate
 
   localparam [3:0] STATE_IDLE       = 4'd0;
   localparam [3:0] STATE_SQUARE_RE  = 4'd1;
@@ -85,22 +98,16 @@ module starlink_pss_exact_reducer (
   reg job_active;
   reg drop_until_last;
   reg job_include_eh;
-  reg signed [6:0] expected_lag;
+  reg signed [LAG_WIDTH-1:0] expected_lag;
   reg current_is_better;
 
-  reg [5:0] square_bit_index;
-  reg [6:0] compare_bit_index;
-  reg [76:0] square_accumulator;
+  reg [6:0] multiply_bit_index;
+  reg [146:0] multiply_work;
+  reg [76:0] multiply_multiplicand;
   reg [76:0] real_square;
   reg [76:0] current_magnitude_squared;
-  reg [68:0] denominator_accumulator;
   reg [68:0] current_denominator;
-  reg [145:0] compare_accumulator;
   reg [145:0] left_cross_product;
-  reg [76:0] compare_multiplicand;
-  reg [37:0] square_multiplier_shift;
-  reg [30:0] denominator_multiplier_shift;
-  reg [68:0] compare_multiplier_shift;
 
   // Ex is the repeated multiplicand in validation mode and therefore gets an
   // explicit timing register.  Every other tuple field remains stable until
@@ -114,7 +121,7 @@ module starlink_pss_exact_reducer (
   reg [31:0] winner_request_id;
   reg [63:0] winner_center_index;
   reg [63:0] winner_center_timestamp;
-  reg signed [6:0] winner_lag;
+  reg signed [LAG_WIDTH-1:0] winner_lag;
   reg [63:0] winner_timestamp;
   reg [31:0] winner_coefficient_generation;
   reg signed [47:0] winner_c_re;
@@ -130,21 +137,17 @@ module starlink_pss_exact_reducer (
   wire [37:0] absolute_c_re = absolute_c_re_wide[37:0];
   wire [37:0] absolute_c_im = absolute_c_im_wide[37:0];
 
-  wire [37:0] square_multiplicand =
-      (state == STATE_SQUARE_RE) ? absolute_c_re : absolute_c_im;
-  wire square_multiplier_bit = square_multiplier_shift[37];
-  wire [76:0] square_accumulator_next =
-      {square_accumulator[75:0], 1'b0} +
-      (square_multiplier_bit ? {39'd0, square_multiplicand} : 77'd0);
-  wire denominator_multiplier_bit = denominator_multiplier_shift[30];
-  wire [68:0] denominator_accumulator_next =
-      {denominator_accumulator[67:0], 1'b0} +
-      (denominator_multiplier_bit ? {31'd0, working_ex} : 69'd0);
-
-  wire compare_multiplier_bit = compare_multiplier_shift[68];
-  wire [145:0] compare_accumulator_next =
-      {compare_accumulator[144:0], 1'b0} +
-      (compare_multiplier_bit ? {69'd0, compare_multiplicand} : 146'd0);
+  // Standard add/shift multiplication.  The 69-bit multiplier is held in the
+  // low portion of multiply_work and shifted right while the 78-bit upper
+  // accumulator is updated.  All five exact products use this same datapath.
+  wire [77:0] multiply_accumulator = multiply_work[146:69];
+  wire [77:0] multiply_addend = multiply_work[0] ?
+      {1'b0, multiply_multiplicand} : 78'd0;
+  wire [77:0] multiply_accumulator_next =
+      multiply_accumulator + multiply_addend;
+  wire [146:0] multiply_work_next = {
+    1'b0, multiply_accumulator_next, multiply_work[68:1]
+  };
 
   wire correlation_bound_legal =
       (i_c_re[47:38] == {10{i_c_re[38]}}) &&
@@ -195,19 +198,13 @@ module starlink_pss_exact_reducer (
       job_include_eh <= 1'b0;
       expected_lag <= FIRST_LAG;
       current_is_better <= 1'b0;
-      square_bit_index <= 6'd0;
-      compare_bit_index <= 7'd0;
-      square_accumulator <= 77'd0;
+      multiply_bit_index <= 7'd0;
+      multiply_work <= 147'd0;
+      multiply_multiplicand <= 77'd0;
       real_square <= 77'd0;
       current_magnitude_squared <= 77'd0;
-      denominator_accumulator <= 69'd0;
       current_denominator <= 69'd0;
-      compare_accumulator <= 146'd0;
       left_cross_product <= 146'd0;
-      compare_multiplicand <= 77'd0;
-      square_multiplier_shift <= 38'd0;
-      denominator_multiplier_shift <= 31'd0;
-      compare_multiplier_shift <= 69'd0;
       working_ex <= 38'd0;
       winner_valid <= 1'b0;
       winner_magnitude_squared <= 77'd0;
@@ -215,7 +212,7 @@ module starlink_pss_exact_reducer (
       winner_request_id <= 32'd0;
       winner_center_index <= 64'd0;
       winner_center_timestamp <= 64'd0;
-      winner_lag <= 7'sd0;
+      winner_lag <= {LAG_WIDTH{1'b0}};
       winner_timestamp <= 64'd0;
       winner_coefficient_generation <= 32'd0;
       winner_c_re <= 48'sd0;
@@ -258,45 +255,43 @@ module starlink_pss_exact_reducer (
         end
 
         STATE_LOAD_SQUARE: begin
-          square_accumulator <= 77'd0;
-          square_multiplier_shift <= absolute_c_re;
-          square_bit_index <= 6'd37;
+          multiply_work <= {78'd0, 31'd0, absolute_c_re};
+          multiply_multiplicand <= {39'd0, absolute_c_re};
+          multiply_bit_index <= 7'd68;
           state <= STATE_SQUARE_RE;
         end
 
         STATE_SQUARE_RE: begin
-          if (square_bit_index == 0) begin
-            real_square <= square_accumulator_next;
-            square_accumulator <= 77'd0;
-            square_multiplier_shift <= absolute_c_im;
-            square_bit_index <= 6'd37;
+          if (multiply_bit_index == 0) begin
+            real_square <= multiply_work_next[76:0];
+            multiply_work <= {78'd0, 31'd0, absolute_c_im};
+            multiply_multiplicand <= {39'd0, absolute_c_im};
+            multiply_bit_index <= 7'd68;
             state <= STATE_SQUARE_IM;
           end else begin
-            square_accumulator <= square_accumulator_next;
-            square_multiplier_shift <=
-                {square_multiplier_shift[36:0], 1'b0};
-            square_bit_index <= square_bit_index - 1'b1;
+            multiply_work <= multiply_work_next;
+            multiply_bit_index <= multiply_bit_index - 1'b1;
           end
         end
 
         STATE_SQUARE_IM: begin
-          if (square_bit_index == 0) begin
-            square_accumulator <= square_accumulator_next;
+          if (multiply_bit_index == 0) begin
+            current_magnitude_squared <= multiply_work_next[76:0];
+            multiply_work <= multiply_work_next;
             state <= STATE_MAGNITUDE;
           end else begin
-            square_accumulator <= square_accumulator_next;
-            square_multiplier_shift <=
-                {square_multiplier_shift[36:0], 1'b0};
-            square_bit_index <= square_bit_index - 1'b1;
+            multiply_work <= multiply_work_next;
+            multiply_bit_index <= multiply_bit_index - 1'b1;
           end
         end
 
         STATE_MAGNITUDE: begin
-          current_magnitude_squared <= real_square + square_accumulator;
+          current_magnitude_squared <=
+              real_square + current_magnitude_squared;
           if (i_include_eh) begin
-            denominator_accumulator <= 69'd0;
-            denominator_multiplier_shift <= i_eh[30:0];
-            compare_bit_index <= 7'd30;
+            multiply_work <= {78'd0, 38'd0, i_eh[30:0]};
+            multiply_multiplicand <= {39'd0, working_ex};
+            multiply_bit_index <= 7'd68;
             state <= STATE_DENOMINATOR;
           end else begin
             current_denominator <= {31'd0, working_ex};
@@ -305,14 +300,13 @@ module starlink_pss_exact_reducer (
         end
 
         STATE_DENOMINATOR: begin
-          if (compare_bit_index == 0) begin
-            current_denominator <= denominator_accumulator_next;
+          if (multiply_bit_index == 0) begin
+            current_denominator <= multiply_work_next[68:0];
+            multiply_work <= multiply_work_next;
             state <= STATE_PREPARE;
           end else begin
-            denominator_accumulator <= denominator_accumulator_next;
-            denominator_multiplier_shift <=
-                {denominator_multiplier_shift[29:0], 1'b0};
-            compare_bit_index <= compare_bit_index - 1'b1;
+            multiply_work <= multiply_work_next;
+            multiply_bit_index <= multiply_bit_index - 1'b1;
           end
         end
 
@@ -329,48 +323,42 @@ module starlink_pss_exact_reducer (
             current_is_better <= 1'b1;
             state <= STATE_DECIDE;
           end else begin
-            compare_accumulator <= 146'd0;
-            compare_multiplicand <= current_magnitude_squared;
-            compare_multiplier_shift <= winner_denominator;
-            compare_bit_index <= 7'd68;
+            multiply_work <= {78'd0, winner_denominator};
+            multiply_multiplicand <= current_magnitude_squared;
+            multiply_bit_index <= 7'd68;
             state <= STATE_LEFT;
           end
         end
 
         STATE_LEFT: begin
-          if (compare_bit_index == 0) begin
-            left_cross_product <= compare_accumulator_next;
-            compare_accumulator <= 146'd0;
-            compare_multiplicand <= winner_magnitude_squared;
-            compare_multiplier_shift <= current_denominator;
-            compare_bit_index <= 7'd68;
+          if (multiply_bit_index == 0) begin
+            left_cross_product <= multiply_work_next[145:0];
+            multiply_work <= {78'd0, current_denominator};
+            multiply_multiplicand <= winner_magnitude_squared;
+            multiply_bit_index <= 7'd68;
             state <= STATE_RIGHT;
           end else begin
-            compare_accumulator <= compare_accumulator_next;
-            compare_multiplier_shift <=
-                {compare_multiplier_shift[67:0], 1'b0};
-            compare_bit_index <= compare_bit_index - 1'b1;
+            multiply_work <= multiply_work_next;
+            multiply_bit_index <= multiply_bit_index - 1'b1;
           end
         end
 
         STATE_RIGHT: begin
-          if (compare_bit_index == 0) begin
-            compare_accumulator <= compare_accumulator_next;
+          if (multiply_bit_index == 0) begin
+            multiply_work <= multiply_work_next;
             state <= STATE_COMPARE;
           end else begin
-            compare_accumulator <= compare_accumulator_next;
-            compare_multiplier_shift <=
-                {compare_multiplier_shift[67:0], 1'b0};
-            compare_bit_index <= compare_bit_index - 1'b1;
+            multiply_work <= multiply_work_next;
+            multiply_bit_index <= multiply_bit_index - 1'b1;
           end
         end
 
         STATE_COMPARE: begin
           // Strict greater-than deliberately retains the earliest tuple on an
-          // exact rational tie.  The product and comparison occupy separate
-          // cycles so only one wide carry structure is timed per cycle.
+          // exact rational tie.  The final product is registered before the
+          // comparison, so only one wide carry structure is timed per cycle.
           current_is_better <=
-              (left_cross_product > compare_accumulator);
+              (left_cross_product > multiply_work[145:0]);
           state <= STATE_DECIDE;
         end
 
@@ -400,7 +388,7 @@ module starlink_pss_exact_reducer (
               winner_request_id <= i_request_id;
               winner_center_index <= i_center_index;
               winner_center_timestamp <= i_center_timestamp;
-              winner_lag <= 7'sd0;
+              winner_lag <= {LAG_WIDTH{1'b0}};
               winner_timestamp <= 64'd0;
               winner_coefficient_generation <= i_coefficient_generation;
               winner_c_re <= 48'sd0;

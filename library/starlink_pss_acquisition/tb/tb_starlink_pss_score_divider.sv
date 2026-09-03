@@ -49,7 +49,13 @@ module tb_starlink_pss_score_divider;
 
   always #5 clk = ~clk;
 
+`ifdef STARLINK_SCORE_RADIX4
+  localparam integer EXPECTED_ITERATIONS = 4;
+  starlink_pss_score_divider_radix4 dut (
+`else
+  localparam integer EXPECTED_ITERATIONS = 8;
   starlink_pss_score_divider dut (
+`endif
     .clk                    (clk),
     .resetn                 (resetn),
     .flush                  (flush),
@@ -147,7 +153,7 @@ module tb_starlink_pss_score_divider;
     repeat (3) @(negedge clk);
     resetn = 1'b1;
 
-    // A flush in the middle of the fixed eight-iteration calculation drops
+    // A flush in the middle of the fixed-iteration calculation drops
     // the item without publishing a partial quotient.
     @(negedge clk);
     input_numerator = 69'd1234567;
@@ -216,8 +222,8 @@ module tb_starlink_pss_score_divider;
     if (!backpressure_observed)
       fail("test did not exercise input backpressure");
 
-    $display("SCORE_DIVIDER_PASS vectors=%0d iterations=8 exact_ties_even=1 backpressure=1 flush=1",
-             vector_count);
+    $display("SCORE_DIVIDER_PASS vectors=%0d iterations=%0d exact_ties_even=1 backpressure=1 flush=1",
+             vector_count, EXPECTED_ITERATIONS);
     $finish;
   end
 

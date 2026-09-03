@@ -8,15 +8,17 @@
 
 `timescale 1ns/1ps
 
-module starlink_pss_energy_join (
+module starlink_pss_energy_join #(
+  parameter integer DATA_WIDTH = 24
+) (
   input  wire                    clk,
   input  wire                    resetn,
   input  wire                    flush,
 
   input  wire                    input_valid,
   output wire                    input_ready,
-  input  wire signed [23:0]      input_correlation_i,
-  input  wire signed [23:0]      input_correlation_q,
+  input  wire signed [DATA_WIDTH-1:0] input_correlation_i,
+  input  wire signed [DATA_WIDTH-1:0] input_correlation_q,
   input  wire [4:0]              input_forward_exponent,
   input  wire [4:0]              input_inverse_exponent,
   input  wire [63:0]             input_start_index,
@@ -32,8 +34,8 @@ module starlink_pss_energy_join (
 
   output reg                     output_valid,
   input  wire                    output_ready,
-  output reg signed [23:0]       output_correlation_i,
-  output reg signed [23:0]       output_correlation_q,
+  output reg signed [DATA_WIDTH-1:0] output_correlation_i,
+  output reg signed [DATA_WIDTH-1:0] output_correlation_q,
   output reg [37:0]              output_sample_energy,
   output reg [4:0]               output_forward_exponent,
   output reg [4:0]               output_inverse_exponent,
@@ -48,8 +50,8 @@ module starlink_pss_energy_join (
 );
 
   reg metadata_valid;
-  reg signed [23:0] metadata_correlation_i;
-  reg signed [23:0] metadata_correlation_q;
+  reg signed [DATA_WIDTH-1:0] metadata_correlation_i;
+  reg signed [DATA_WIDTH-1:0] metadata_correlation_q;
   reg [4:0] metadata_forward_exponent;
   reg [4:0] metadata_inverse_exponent;
   reg [63:0] metadata_start_index;

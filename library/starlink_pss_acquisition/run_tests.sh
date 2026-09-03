@@ -5,6 +5,26 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$script_dir"
 mkdir -p build
 
+python3 tb/verify_x2_ddc_structure.py
+python3 tb/verify_shared_xfft_structure.py
+PYTHONPATH="$script_dir/../../.." uv run --no-project --with numpy python \
+  "$script_dir/../../../tools/generate_starlink_pss30_ddc_vectors.py" \
+  "$script_dir/build"
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_x2_ddc \
+  -o build/starlink_pss_x2_ddc_upper.vvp \
+  starlink_pss_x2_ddc.v \
+  tb/tb_starlink_pss_x2_ddc.sv
+vvp build/starlink_pss_x2_ddc_upper.vvp
+
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_x2_ddc \
+  -Ptb_starlink_pss_x2_ddc.EDGE_UPPER=0 \
+  -o build/starlink_pss_x2_ddc_lower.vvp \
+  starlink_pss_x2_ddc.v \
+  tb/tb_starlink_pss_x2_ddc.sv
+vvp build/starlink_pss_x2_ddc_lower.vvp
+
 iverilog -g2012 -Wall \
   -s tb_starlink_pss_acquisition_health \
   -o build/starlink_pss_acquisition_health.vvp \
@@ -67,6 +87,7 @@ iverilog -g2012 -Wall \
 vvp build/starlink_pss_spectrum_product.vvp
 
 python3 tb/verify_upper_edge_pss_kernel.py
+python3 tb/verify_upper_edge_pss_kernel_q17.py
 iverilog -g2012 -Wall \
   -s tb_starlink_pss_kernel_rom \
   -o build/starlink_pss_kernel_rom.vvp \
@@ -98,6 +119,14 @@ iverilog -g2012 -Wall \
   tb/tb_starlink_pss_score_divider.sv
 vvp build/starlink_pss_score_divider.vvp
 
+iverilog -g2012 -Wall \
+  -DSTARLINK_SCORE_RADIX4 \
+  -s tb_starlink_pss_score_divider \
+  -o build/starlink_pss_score_divider_radix4.vvp \
+  starlink_pss_score_divider_radix4.v \
+  tb/tb_starlink_pss_score_divider.sv
+vvp build/starlink_pss_score_divider_radix4.vvp
+
 python3 tb/generate_score_prepare_vectors.py \
   build/starlink_pss_score_prepare_vectors.txt
 iverilog -g2012 -Wall \
@@ -127,6 +156,13 @@ iverilog -g2012 -Wall \
   starlink_pss_xfft_block_adapter.v \
   tb/tb_starlink_pss_xfft_block_adapter.sv
 vvp build/starlink_pss_xfft_block_adapter.vvp
+
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_xfft_intermediate_buffer \
+  -o build/starlink_pss_xfft_intermediate_buffer.vvp \
+  starlink_pss_xfft_intermediate_buffer.v \
+  tb/tb_starlink_pss_xfft_intermediate_buffer.sv
+vvp build/starlink_pss_xfft_intermediate_buffer.vvp
 
 iverilog -g2012 -Wall \
   -s tb_starlink_pss_energy_join \

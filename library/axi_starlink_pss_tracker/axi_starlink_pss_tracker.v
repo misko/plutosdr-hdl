@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 //
-// AXI4-Lite boundary for the experimental Stage-15 exact TRACK_ONE pipeline.
-// Software loads one 66-tap CI16 coefficient bank, submits future candidate
+// AXI4-Lite boundary for the experimental rate-scalable exact TRACK_ONE pipeline.
+// Software loads one full-rate CI16 coefficient bank, submits future candidate
 // centers, and reads one atomic 26-word normalized-winner packet.  This block
 // is host-driven; it does not turn the older repeated-delay diagnostic into an
 // exact-match claim or attempt to capture already-past candidate windows.
@@ -11,7 +11,9 @@
 module axi_starlink_pss_tracker #(
   parameter integer RATE_MSPS = 15,
   parameter integer COMMAND_FIFO_ADDRESS_WIDTH = 3,
-  parameter [63:0] MINIMUM_LEAD_SAMPLES = 64'd64
+  parameter [63:0] MINIMUM_LEAD_SAMPLES =
+      64'd64 * (RATE_MSPS / 15),
+  parameter integer ENABLE_INJECTION = 1
 ) (
   input  wire                 sample_clk,
   input  wire                 sample_reset,
@@ -55,9 +57,25 @@ module axi_starlink_pss_tracker #(
 );
 
   localparam [31:0] IDENTIFICATION = 32'h5053_5354; // ASCII "PSST".
-  localparam [31:0] VERSION = 32'h0001_0002;
-  localparam [31:0] GEOMETRY = {8'd0, 8'd61, 8'd130, 8'd66};
-  localparam [31:0] CAPABILITIES = 32'h0000_003d;
+  localparam integer RATE_MULTIPLIER = RATE_MSPS / 15;
+  localparam integer COEFFICIENT_COUNT = 66 * RATE_MULTIPLIER;
+  localparam integer CAPTURE_COUNT = 130 * RATE_MULTIPLIER;
+  localparam integer QUALIFIED_LAG_COUNT = 60 * RATE_MULTIPLIER + 1;
+  localparam integer COEFFICIENT_COUNT_WIDTH =
+      $clog2(COEFFICIENT_COUNT + 1);
+  localparam integer STATUS_PADDING_WIDTH =
+      32 - (12 + COMMAND_FIFO_ADDRESS_WIDTH + COEFFICIENT_COUNT_WIDTH);
+  // ABI 1.2 and its byte-field geometry remain bit-for-bit stable at 15 MS/s.
+  // Higher-rate ABI 1.3 uses marker 1 followed by 8/10/9-bit lag/capture/tap
+  // fields, which represent all planned 30/60 MS/s geometries without loss.
+  localparam [31:0] VERSION = (RATE_MSPS == 15) ?
+      32'h0001_0002 : 32'h0001_0003;
+  localparam [31:0] GEOMETRY = (RATE_MSPS == 15) ?
+      {8'd0, 8'd61, 8'd130, 8'd66} :
+      {5'd1, QUALIFIED_LAG_COUNT[7:0], CAPTURE_COUNT[9:0],
+       COEFFICIENT_COUNT[8:0]};
+  localparam [31:0] CAPABILITIES = ENABLE_INJECTION ?
+      32'h0000_003d : 32'h0000_001d;
 
   localparam [5:0] REG_IDENTIFICATION = 6'h00; // 0x00
   localparam [5:0] REG_VERSION = 6'h01; // 0x04
@@ -138,18 +156,35 @@ module axi_starlink_pss_tracker #(
 
   function automatic [63:0] gray_to_binary_64;
     input [63:0] value;
-    integer bit_index;
+    reg [63:0] prefix;
     begin
-      gray_to_binary_64[63] = value[63];
-      for (bit_index = 62; bit_index >= 0; bit_index = bit_index - 1)
-        gray_to_binary_64[bit_index] =
-            gray_to_binary_64[bit_index+1] ^ value[bit_index];
+      // Parallel-prefix XOR avoids the long shared chain produced by a
+      // bit-at-a-time Gray decoder.  For a 64-bit word this has six explicit
+      // logic stages, independent of the requested output bit.
+      prefix = value;
+      prefix = prefix ^ (prefix >> 1);
+      prefix = prefix ^ (prefix >> 2);
+      prefix = prefix ^ (prefix >> 4);
+      prefix = prefix ^ (prefix >> 8);
+      prefix = prefix ^ (prefix >> 16);
+      prefix = prefix ^ (prefix >> 32);
+      gray_to_binary_64 = prefix;
     end
   endfunction
 
   generate
-    if (RATE_MSPS != 15) begin : g_invalid_rate
-      initial $fatal(1, "Stage-15 tracker requires RATE_MSPS=15");
+    if ((RATE_MSPS != 15) && (RATE_MSPS != 30) &&
+        (RATE_MSPS != 60)) begin : g_invalid_rate
+      initial $fatal(1, "tracker RATE_MSPS must be 15, 30, or 60");
+    end
+    if ((RATE_MSPS != 15) && (ENABLE_INJECTION != 0)) begin : g_invalid_injection_rate
+      initial $fatal(1, "fixture injection is qualified only at 15 MS/s");
+    end
+    if (STATUS_PADDING_WIDTH < 0) begin : g_invalid_status_width
+      initial $fatal(1, "tracker status fields exceed 32 bits");
+    end
+    if (ENABLE_INJECTION != 0 && ENABLE_INJECTION != 1) begin : g_invalid_injection
+      initial $fatal(1, "ENABLE_INJECTION must be 0 or 1");
     end
   endgenerate
 
@@ -234,40 +269,56 @@ module axi_starlink_pss_tracker #(
   wire [31:0] injection_status;
   wire [31:0] injection_last_completed_generation;
 
-  starlink_pss_injection_mux #(
-    .SAMPLE_COUNT             (130),
-    .MINIMUM_ARM_LEAD_SAMPLES (64'd64)
-  ) i_injection_mux (
-    .control_clk                       (s_axi_aclk),
-    .control_resetn                    (core_control_resetn),
-    .fixture_clear                     (injection_fixture_clear),
-    .fixture_write                     (injection_fixture_write),
-    .fixture_write_data                (injection_fixture_write_data),
-    .fixture_commit                    (injection_fixture_commit),
-    .fixture_generation_stage          (injection_generation_stage),
-    .arm                               (injection_arm),
-    .arm_start_stage                   (injection_start_stage),
-    .control_current_index             (current_sample_index),
-    .fixture_write_ready               (injection_fixture_write_ready),
-    .arm_ready                         (injection_arm_ready),
-    .status                            (injection_status),
-    .last_completed_generation         (injection_last_completed_generation),
-    .sample_clk                        (sample_clk),
-    .sample_resetn                     (core_sample_resetn),
-    .source_sample_i                   (sample_i),
-    .source_sample_q                   (sample_q),
-    .source_sample_strobe              (sample_strobe),
-    .source_sample_enable              (sample_enable),
-    .source_sample_index               (sample_index),
-    .source_sample_timestamp           (sample_timestamp),
-    .selected_sample_i                 (selected_sample_i),
-    .selected_sample_q                 (selected_sample_q),
-    .selected_sample_strobe            (selected_sample_strobe),
-    .selected_sample_enable            (selected_sample_enable),
-    .selected_sample_index             (selected_sample_index),
-    .selected_sample_timestamp         (selected_sample_timestamp),
-    .selected_sample_injected          (selected_sample_injected)
-  );
+  generate
+    if (ENABLE_INJECTION) begin : g_injection
+      starlink_pss_injection_mux #(
+        .SAMPLE_COUNT             (130),
+        .MINIMUM_ARM_LEAD_SAMPLES (64'd64)
+      ) i_injection_mux (
+        .control_clk                       (s_axi_aclk),
+        .control_resetn                    (core_control_resetn),
+        .fixture_clear                     (injection_fixture_clear),
+        .fixture_write                     (injection_fixture_write),
+        .fixture_write_data                (injection_fixture_write_data),
+        .fixture_commit                    (injection_fixture_commit),
+        .fixture_generation_stage          (injection_generation_stage),
+        .arm                               (injection_arm),
+        .arm_start_stage                   (injection_start_stage),
+        .control_current_index             (current_sample_index),
+        .fixture_write_ready               (injection_fixture_write_ready),
+        .arm_ready                         (injection_arm_ready),
+        .status                            (injection_status),
+        .last_completed_generation         (injection_last_completed_generation),
+        .sample_clk                        (sample_clk),
+        .sample_resetn                     (core_sample_resetn),
+        .source_sample_i                   (sample_i),
+        .source_sample_q                   (sample_q),
+        .source_sample_strobe              (sample_strobe),
+        .source_sample_enable              (sample_enable),
+        .source_sample_index               (sample_index),
+        .source_sample_timestamp           (sample_timestamp),
+        .selected_sample_i                 (selected_sample_i),
+        .selected_sample_q                 (selected_sample_q),
+        .selected_sample_strobe            (selected_sample_strobe),
+        .selected_sample_enable            (selected_sample_enable),
+        .selected_sample_index             (selected_sample_index),
+        .selected_sample_timestamp         (selected_sample_timestamp),
+        .selected_sample_injected          (selected_sample_injected)
+      );
+    end else begin : g_direct_sample_path
+      assign injection_fixture_write_ready = 1'b0;
+      assign injection_arm_ready = 1'b0;
+      assign injection_status = 32'd0;
+      assign injection_last_completed_generation = 32'd0;
+      assign selected_sample_i = sample_i;
+      assign selected_sample_q = sample_q;
+      assign selected_sample_strobe = sample_strobe;
+      assign selected_sample_enable = sample_enable;
+      assign selected_sample_index = sample_index;
+      assign selected_sample_timestamp = sample_timestamp;
+      assign selected_sample_injected = 1'b0;
+    end
+  endgenerate
 
   wire up_wreq;
   wire [5:0] up_waddr;
@@ -299,6 +350,7 @@ module axi_starlink_pss_tracker #(
   reg [4:0] result_word_index;
   reg result_word_read;
   reg result_read_pending;
+  reg telemetry_read_pending;
   reg register_read_pending;
   reg [2:0] register_read_bank_select;
   reg [31:0] register_read_bank_0;
@@ -323,7 +375,7 @@ module axi_starlink_pss_tracker #(
   wire active_coefficient_valid;
   wire [31:0] active_coefficient_generation;
   wire signed [47:0] active_coefficient_energy;
-  wire [6:0] shadow_coefficient_count;
+  wire [COEFFICIENT_COUNT_WIDTH-1:0] shadow_coefficient_count;
   wire configuration_idle;
   wire result_available;
   wire result_bank;
@@ -362,65 +414,103 @@ module axi_starlink_pss_tracker #(
   wire [31:0] result_overrun_count;
   wire [31:0] result_consumed_count;
 
-  // Atomic sample-domain telemetry mailbox.  A toggle request crosses into
-  // sample_clk, where all fourteen related counters are captured on one edge.
-  // The immutable 448-bit payload then traverses two destination flops before
-  // an acknowledgement plus two settling cycles publish it to AXI.  Software
-  // never observes live binary counters and therefore cannot read a torn
-  // multi-bit value.
+  // Atomic sample-domain telemetry mailbox.  A request first blocks new
+  // candidate submission and waits until the command FIFO and capture state
+  // are empty.  The fourteen counters are then stable while sample_clk writes
+  // them sequentially into a small true dual-clock RAM.  A toggle
+  // acknowledgement publishes the complete bank to AXI only after the final
+  // word is written.  This preserves the one-edge atomic meaning of the old
+  // wide mailbox without 1,344 payload and synchronizer flip-flops.
   localparam integer TELEMETRY_COUNTERS = 14;
-  localparam integer TELEMETRY_BITS = 32 * TELEMETRY_COUNTERS;
+  localparam [COMMAND_FIFO_ADDRESS_WIDTH-1:0] COMMAND_FIFO_CAPACITY =
+      {COMMAND_FIFO_ADDRESS_WIDTH{1'b1}};
   reg telemetry_request_toggle;
+  reg telemetry_request_issued;
   (* ASYNC_REG = "TRUE", SHREG_EXTRACT = "NO" *)
   reg [1:0] telemetry_request_sync;
   reg telemetry_request_seen;
   reg telemetry_ack_toggle;
-  reg [TELEMETRY_BITS-1:0] telemetry_sample_payload;
+  reg telemetry_capture_active;
+  reg [3:0] telemetry_write_index;
   (* ASYNC_REG = "TRUE", SHREG_EXTRACT = "NO" *)
   reg [1:0] telemetry_ack_sync;
-  (* ASYNC_REG = "TRUE", SHREG_EXTRACT = "NO" *)
-  reg [TELEMETRY_BITS-1:0] telemetry_payload_sync_1;
-  (* ASYNC_REG = "TRUE", SHREG_EXTRACT = "NO" *)
-  reg [TELEMETRY_BITS-1:0] telemetry_payload_sync_2;
-  reg [TELEMETRY_BITS-1:0] telemetry_snapshot;
   reg telemetry_ack_seen;
   reg telemetry_busy;
   reg telemetry_valid;
-  reg [1:0] telemetry_settle_count;
+  reg [2:0] telemetry_idle_count;
   reg [31:0] telemetry_generation;
+  wire [31:0] telemetry_memory_read_data;
 
   wire telemetry_request = up_wreq &&
       (up_waddr == REG_TELEMETRY_CONTROL) && up_wdata[0];
+  wire telemetry_pipeline_idle =
+      (candidate_queue_room == COMMAND_FIFO_CAPACITY) &&
+      !candidate_pending_sync[1] && !capture_active_sync[1];
+
+  reg [31:0] telemetry_write_data;
+  always @(*) begin
+    case (telemetry_write_index)
+      4'd0: telemetry_write_data = admitted_count;
+      4'd1: telemetry_write_data = completed_capture_count;
+      4'd2: telemetry_write_data = rejected_count;
+      4'd3: telemetry_write_data = late_count;
+      4'd4: telemetry_write_data = duplicate_count;
+      4'd5: telemetry_write_data = overlap_count;
+      4'd6: telemetry_write_data = aborted_count;
+      4'd7: telemetry_write_data = valid_gap_abort_count;
+      4'd8: telemetry_write_data = index_jump_abort_count;
+      4'd9: telemetry_write_data = timestamp_abort_count;
+      4'd10: telemetry_write_data = capture_published_count;
+      4'd11: telemetry_write_data = capture_abort_discard_count;
+      4'd12: telemetry_write_data = capture_buffer_overrun_count;
+      4'd13: telemetry_write_data = capture_protocol_error_count;
+      default: telemetry_write_data = 32'd0;
+    endcase
+  end
+
+  wire telemetry_word_addressed =
+      (up_raddr >= REG_ADMITTED) &&
+      (up_raddr <= REG_CAPTURE_PROTOCOL_ERROR);
+  wire telemetry_memory_read =
+      up_rreq && !register_read_pending && !result_read_pending &&
+      !telemetry_read_pending && telemetry_word_addressed;
+
+  ad_mem #(
+    .DATA_WIDTH    (32),
+    .ADDRESS_WIDTH (4)
+  ) i_telemetry_memory (
+    .clka  (sample_clk),
+    .wea   (telemetry_capture_active),
+    .addra (telemetry_write_index),
+    .dina  (telemetry_write_data),
+    .clkb  (s_axi_aclk),
+    .reb   (telemetry_memory_read),
+    .addrb (up_raddr[3:0] - REG_ADMITTED[3:0]),
+    .doutb (telemetry_memory_read_data)
+  );
 
   always @(posedge sample_clk) begin
     if (!core_sample_resetn) begin
       telemetry_request_sync <= 2'b00;
       telemetry_request_seen <= 1'b0;
       telemetry_ack_toggle <= 1'b0;
-      telemetry_sample_payload <= {TELEMETRY_BITS{1'b0}};
+      telemetry_capture_active <= 1'b0;
+      telemetry_write_index <= 4'd0;
     end else begin
       telemetry_request_sync <= {
         telemetry_request_sync[0], telemetry_request_toggle
       };
       if (telemetry_request_sync[1] != telemetry_request_seen) begin
-        telemetry_sample_payload <= {
-          capture_protocol_error_count,
-          capture_buffer_overrun_count,
-          capture_abort_discard_count,
-          capture_published_count,
-          timestamp_abort_count,
-          index_jump_abort_count,
-          valid_gap_abort_count,
-          aborted_count,
-          overlap_count,
-          duplicate_count,
-          late_count,
-          rejected_count,
-          completed_capture_count,
-          admitted_count
-        };
         telemetry_request_seen <= telemetry_request_sync[1];
-        telemetry_ack_toggle <= telemetry_request_sync[1];
+        telemetry_capture_active <= 1'b1;
+        telemetry_write_index <= 4'd0;
+      end else if (telemetry_capture_active) begin
+        if (telemetry_write_index == TELEMETRY_COUNTERS - 1) begin
+          telemetry_capture_active <= 1'b0;
+          telemetry_ack_toggle <= telemetry_request_seen;
+        end else begin
+          telemetry_write_index <= telemetry_write_index + 1'b1;
+        end
       end
     end
   end
@@ -428,50 +518,55 @@ module axi_starlink_pss_tracker #(
   always @(posedge s_axi_aclk) begin
     if (!core_control_resetn) begin
       telemetry_ack_sync <= 2'b00;
-      telemetry_payload_sync_1 <= {TELEMETRY_BITS{1'b0}};
-      telemetry_payload_sync_2 <= {TELEMETRY_BITS{1'b0}};
     end else begin
       telemetry_ack_sync <= {telemetry_ack_sync[0], telemetry_ack_toggle};
-      telemetry_payload_sync_1 <= telemetry_sample_payload;
-      telemetry_payload_sync_2 <= telemetry_payload_sync_1;
     end
   end
 
   always @(posedge s_axi_aclk) begin
     if (!core_control_resetn) begin
       telemetry_request_toggle <= 1'b0;
-      telemetry_snapshot <= {TELEMETRY_BITS{1'b0}};
+      telemetry_request_issued <= 1'b0;
       telemetry_ack_seen <= 1'b0;
       telemetry_busy <= 1'b0;
       telemetry_valid <= 1'b0;
-      telemetry_settle_count <= 2'd0;
+      telemetry_idle_count <= 3'd0;
       telemetry_generation <= 32'd0;
     end else begin
       if (telemetry_request && !telemetry_busy) begin
-        telemetry_request_toggle <= ~telemetry_request_toggle;
         telemetry_busy <= 1'b1;
         telemetry_valid <= 1'b0;
-        telemetry_settle_count <= 2'd0;
+        telemetry_request_issued <= 1'b0;
+        telemetry_idle_count <= 3'd0;
       end
-      if (telemetry_busy &&
+      if (telemetry_busy && !telemetry_request_issued) begin
+        if (!telemetry_pipeline_idle) begin
+          telemetry_idle_count <= 3'd0;
+        end else if (telemetry_idle_count == 3'd3) begin
+          // Four consecutive control-clock observations cover the independent
+          // two-stage FIFO-pointer and scheduler-status CDC latencies.
+          telemetry_request_toggle <= ~telemetry_request_toggle;
+          telemetry_request_issued <= 1'b1;
+          telemetry_idle_count <= 3'd0;
+        end else begin
+          telemetry_idle_count <= telemetry_idle_count + 1'b1;
+        end
+      end
+      if (telemetry_busy && telemetry_request_issued &&
           (telemetry_ack_sync[1] != telemetry_ack_seen)) begin
         telemetry_ack_seen <= telemetry_ack_sync[1];
-        telemetry_settle_count <= 2'd2;
-      end else if (telemetry_settle_count != 0) begin
-        telemetry_settle_count <= telemetry_settle_count - 1'b1;
-        if (telemetry_settle_count == 1) begin
-          telemetry_snapshot <= telemetry_payload_sync_2;
-          telemetry_busy <= 1'b0;
-          telemetry_valid <= 1'b1;
-          telemetry_generation <= increment_saturating_32(
-              telemetry_generation);
-        end
+        telemetry_request_issued <= 1'b0;
+        telemetry_busy <= 1'b0;
+        telemetry_valid <= 1'b1;
+        telemetry_idle_count <= 3'd0;
+        telemetry_generation <= increment_saturating_32(
+            telemetry_generation);
       end
     end
   end
 
   wire candidate_command_handshake =
-      candidate_command_pending && candidate_submit_ready;
+      candidate_command_pending && candidate_submit_ready && !telemetry_busy;
   wire coefficient_push_handshake =
       coefficient_push_pending && !coefficient_clear_pending &&
       coefficient_ready;
@@ -498,7 +593,7 @@ module axi_starlink_pss_tracker #(
   end
 
   wire [31:0] status_word = {
-    10'd0,
+    {STATUS_PADDING_WIDTH{1'b0}},
     candidate_pending_sync[1],
     capture_active_sync[1],
     candidate_queue_room,
@@ -592,13 +687,7 @@ module axi_starlink_pss_tracker #(
     begin
       case (slot)
         3'd0: read_bank_4_value = queue_overrun_count;
-        3'd1: read_bank_4_value = telemetry_snapshot[31:0];
-        3'd2: read_bank_4_value = telemetry_snapshot[63:32];
-        3'd3: read_bank_4_value = telemetry_snapshot[95:64];
-        3'd4: read_bank_4_value = telemetry_snapshot[127:96];
-        3'd5: read_bank_4_value = telemetry_snapshot[159:128];
-        3'd6: read_bank_4_value = telemetry_snapshot[191:160];
-        3'd7: read_bank_4_value = telemetry_snapshot[223:192];
+        default: read_bank_4_value = 32'd0;
       endcase
     end
   endfunction
@@ -607,13 +696,13 @@ module axi_starlink_pss_tracker #(
     input [2:0] slot;
     begin
       case (slot)
-        3'd0: read_bank_5_value = telemetry_snapshot[255:224];
-        3'd1: read_bank_5_value = telemetry_snapshot[287:256];
-        3'd2: read_bank_5_value = telemetry_snapshot[319:288];
-        3'd3: read_bank_5_value = telemetry_snapshot[351:320];
-        3'd4: read_bank_5_value = telemetry_snapshot[383:352];
-        3'd5: read_bank_5_value = telemetry_snapshot[415:384];
-        3'd6: read_bank_5_value = telemetry_snapshot[447:416];
+        3'd0: read_bank_5_value = 32'd0;
+        3'd1: read_bank_5_value = 32'd0;
+        3'd2: read_bank_5_value = 32'd0;
+        3'd3: read_bank_5_value = 32'd0;
+        3'd4: read_bank_5_value = 32'd0;
+        3'd5: read_bank_5_value = 32'd0;
+        3'd6: read_bank_5_value = 32'd0;
         3'd7: read_bank_5_value = engine_consumed_count;
       endcase
     end
@@ -642,9 +731,12 @@ module axi_starlink_pss_tracker #(
         3'd0: read_bank_7_value = result_consumed_count;
         3'd1: read_bank_7_value = 32'd0;
         3'd2: read_bank_7_value = 32'd0;
-        3'd3: read_bank_7_value = injection_start_stage[31:0];
-        3'd4: read_bank_7_value = injection_start_stage[63:32];
-        3'd5: read_bank_7_value = injection_generation_stage;
+        3'd3: read_bank_7_value = ENABLE_INJECTION ?
+            injection_start_stage[31:0] : 32'd0;
+        3'd4: read_bank_7_value = ENABLE_INJECTION ?
+            injection_start_stage[63:32] : 32'd0;
+        3'd5: read_bank_7_value = ENABLE_INJECTION ?
+            injection_generation_stage : 32'd0;
         3'd6: read_bank_7_value = injection_status;
         3'd7: read_bank_7_value = injection_last_completed_generation;
       endcase
@@ -680,6 +772,7 @@ module axi_starlink_pss_tracker #(
       result_word_index <= 5'd0;
       result_word_read <= 1'b0;
       result_read_pending <= 1'b0;
+      telemetry_read_pending <= 1'b0;
       register_read_pending <= 1'b0;
       register_read_bank_select <= 3'd0;
       register_read_bank_0 <= 32'd0;
@@ -778,20 +871,30 @@ module axi_starlink_pss_tracker #(
               result_release <= 1'b1;
           end
           REG_INJECTION_DATA: begin
-            injection_fixture_write_data <= up_wdata;
-            injection_fixture_write <= 1'b1;
+            if (ENABLE_INJECTION) begin
+              injection_fixture_write_data <= up_wdata;
+              injection_fixture_write <= 1'b1;
+            end
           end
           REG_INJECTION_CONTROL: begin
-            injection_fixture_clear <= up_wdata[0];
-            injection_fixture_commit <= up_wdata[1];
-            injection_arm <= up_wdata[2];
+            if (ENABLE_INJECTION) begin
+              injection_fixture_clear <= up_wdata[0];
+              injection_fixture_commit <= up_wdata[1];
+              injection_arm <= up_wdata[2];
+            end
           end
-          REG_INJECTION_START_LO:
-            injection_start_stage[31:0] <= up_wdata;
-          REG_INJECTION_START_HI:
-            injection_start_stage[63:32] <= up_wdata;
-          REG_INJECTION_GENERATION:
-            injection_generation_stage <= up_wdata;
+          REG_INJECTION_START_LO: begin
+            if (ENABLE_INJECTION)
+              injection_start_stage[31:0] <= up_wdata;
+          end
+          REG_INJECTION_START_HI: begin
+            if (ENABLE_INJECTION)
+              injection_start_stage[63:32] <= up_wdata;
+          end
+          REG_INJECTION_GENERATION: begin
+            if (ENABLE_INJECTION)
+              injection_generation_stage <= up_wdata;
+          end
           default: begin
           end
         endcase
@@ -812,10 +915,19 @@ module axi_starlink_pss_tracker #(
         register_read_pending <= 1'b0;
       end
 
-      if (up_rreq && !register_read_pending && !result_read_pending) begin
+      if (telemetry_read_pending) begin
+        up_rdata <= telemetry_valid ? telemetry_memory_read_data : 32'd0;
+        up_rack <= 1'b1;
+        telemetry_read_pending <= 1'b0;
+      end
+
+      if (up_rreq && !register_read_pending && !result_read_pending &&
+          !telemetry_read_pending) begin
         if (up_raddr == REG_RESULT_WORD_DATA) begin
           result_word_read <= 1'b1;
           result_read_pending <= 1'b1;
+        end else if (telemetry_word_addressed) begin
+          telemetry_read_pending <= 1'b1;
         end else begin
           register_read_bank_select <= up_raddr[5:3];
           register_read_bank_0 <= read_bank_0_value(up_raddr[2:0]);
@@ -841,6 +953,7 @@ module axi_starlink_pss_tracker #(
   end
 
   starlink_pss_reduced_tracking_core #(
+    .RATE_MULTIPLIER           (RATE_MULTIPLIER),
     .COMMAND_FIFO_ADDRESS_WIDTH (COMMAND_FIFO_ADDRESS_WIDTH),
     .MINIMUM_LEAD_SAMPLES       (MINIMUM_LEAD_SAMPLES)
   ) i_core (
@@ -850,7 +963,8 @@ module axi_starlink_pss_tracker #(
     .i_control_resetn                  (core_control_resetn),
     .i_sample_resetn                   (core_sample_resetn),
     .i_engine_resetn                   (core_engine_resetn),
-    .i_candidate_submit                (candidate_command_pending),
+    .i_candidate_submit                (candidate_command_pending &&
+                                        !telemetry_busy),
     .i_candidate_request_id            (candidate_pending_request),
     .i_candidate_center_index          (candidate_pending_center),
     .i_candidate_center_timestamp      (candidate_pending_timestamp),

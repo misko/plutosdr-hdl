@@ -10,7 +10,9 @@
 
 `timescale 1ns/1ps
 
-module starlink_pss_result_store (
+module starlink_pss_result_store #(
+  parameter integer LAG_WIDTH = 7
+) (
   input  wire                i_engine_clk,
   input  wire                i_engine_resetn,
 
@@ -21,7 +23,7 @@ module starlink_pss_result_store (
   input  wire         [31:0] i_result_request_id,
   input  wire         [63:0] i_result_center_index,
   input  wire         [63:0] i_result_center_timestamp,
-  input  wire signed   [6:0] i_result_lag,
+  input  wire signed [LAG_WIDTH-1:0] i_result_lag,
   input  wire         [63:0] i_result_timestamp,
   input  wire         [31:0] i_result_coefficient_generation,
   input  wire signed  [47:0] i_result_c_re,
@@ -51,6 +53,12 @@ module starlink_pss_result_store (
   localparam [4:0] PACKET_WORDS = 5'd26;
   localparam [4:0] LAST_PACKET_WORD = PACKET_WORDS - 1'b1;
   localparam [31:0] PACKET_MAGIC = 32'h3153_5350; // "PSS1" in LE bytes.
+
+  generate
+    if ((LAG_WIDTH < 2) || (LAG_WIDTH > 32)) begin : g_invalid_lag_width
+      initial $fatal(1, "LAG_WIDTH must be between 2 and 32");
+    end
+  endgenerate
 
   function automatic [31:0] increment_saturating_32;
     input [31:0] value;
@@ -99,7 +107,9 @@ module starlink_pss_result_store (
       5'd4:  packet_word_data = i_result_center_index[63:32];
       5'd5:  packet_word_data = i_result_center_timestamp[31:0];
       5'd6:  packet_word_data = i_result_center_timestamp[63:32];
-      5'd7:  packet_word_data = {{25{i_result_lag[6]}}, i_result_lag};
+      5'd7:  packet_word_data = {
+        {(32-LAG_WIDTH){i_result_lag[LAG_WIDTH-1]}}, i_result_lag
+      };
       5'd8:  packet_word_data = i_result_timestamp[31:0];
       5'd9:  packet_word_data = i_result_timestamp[63:32];
       5'd10: packet_word_data = i_result_coefficient_generation;

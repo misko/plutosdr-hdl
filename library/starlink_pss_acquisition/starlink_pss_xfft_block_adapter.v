@@ -10,7 +10,8 @@
 `timescale 1ns/1ps
 
 module starlink_pss_xfft_block_adapter #(
-  parameter integer FORWARD_TRANSFORM = 1
+  parameter integer FORWARD_TRANSFORM = 1,
+  parameter integer DATA_WIDTH = 24
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -18,16 +19,16 @@ module starlink_pss_xfft_block_adapter #(
 
   input  wire                    input_valid,
   output wire                    input_ready,
-  input  wire signed [23:0]      input_i,
-  input  wire signed [23:0]      input_q,
+  input  wire signed [DATA_WIDTH-1:0] input_i,
+  input  wire signed [DATA_WIDTH-1:0] input_q,
   input  wire [8:0]              input_position,
   input  wire [63:0]             input_block_start_index,
   input  wire                    input_last,
 
   output wire                    output_valid,
   input  wire                    output_ready,
-  output wire signed [23:0]      output_i,
-  output wire signed [23:0]      output_q,
+  output wire signed [DATA_WIDTH-1:0] output_i,
+  output wire signed [DATA_WIDTH-1:0] output_q,
   output wire [8:0]              output_position,
   output wire [4:0]              output_block_exponent,
   output wire [63:0]             output_block_start_index,
@@ -104,6 +105,8 @@ module starlink_pss_xfft_block_adapter #(
   initial begin
     if (FORWARD_TRANSFORM != 0 && FORWARD_TRANSFORM != 1)
       $fatal(1, "FORWARD_TRANSFORM must be zero or one");
+    if (DATA_WIDTH < 17 || DATA_WIDTH > 24)
+      $fatal(1, "DATA_WIDTH must use the XFFT 24-bit AXI component slot");
   end
 
   assign adapter_released = resetn && !flush &&
@@ -129,7 +132,13 @@ module starlink_pss_xfft_block_adapter #(
                               !block_inflight;
   assign input_framing_error_now = input_accept && !input_metadata_valid;
 
-  assign core_input_tdata = {input_q, input_i};
+  // XFFT pads each 17..24-bit fixed-point component into a 24-bit AXI slot.
+  // The upper padding bits are ignored by the core and are driven to zero so
+  // simulation, synthesis, and interface assertions see one canonical word.
+  assign core_input_tdata = {
+    {(24-DATA_WIDTH){1'b0}}, input_q,
+    {(24-DATA_WIDTH){1'b0}}, input_i
+  };
   assign core_input_tvalid = input_valid && input_ready &&
                              input_metadata_valid;
   assign core_input_tlast = input_last;
@@ -185,8 +194,8 @@ module starlink_pss_xfft_block_adapter #(
      (effective_status_seen ? output_ready : 1'b0));
   assign core_output_accept = core_output_tvalid && core_output_tready;
 
-  assign output_i = core_output_tdata[23:0];
-  assign output_q = core_output_tdata[47:24];
+  assign output_i = core_output_tdata[DATA_WIDTH-1:0];
+  assign output_q = core_output_tdata[24 +: DATA_WIDTH];
   assign output_position = core_output_tuser[8:0];
   assign output_block_exponent = core_output_tuser[20:16];
   assign output_block_start_index = active_block_start_index;

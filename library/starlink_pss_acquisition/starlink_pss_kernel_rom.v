@@ -1,7 +1,7 @@
 // Hash-locked upper-edge Starlink PSS frequency-domain kernel.
 //
-// The 512 complex coefficients are signed Q1.23.  Each memory word is packed
-// as {Q[23:0], I[23:0]}.  A one-entry elastic output register preserves one
+// The 512 complex coefficients use signed Q1.(DATA_WIDTH-1). Each memory word
+// is packed as {Q, I}. A one-entry elastic output register preserves one
 // accepted lookup per clock while allowing downstream backpressure.  Complete
 // FFT bin order, TLAST, block exponent, and absolute block identity are checked
 // before any coefficient can be published.  A malformed beat latches a
@@ -10,7 +10,8 @@
 `timescale 1ns/1ps
 
 module starlink_pss_kernel_rom #(
-  parameter ROM_FILE = "upper_edge_pss_kernel_q23.mem"
+  parameter ROM_FILE = "upper_edge_pss_kernel_q23.mem",
+  parameter integer DATA_WIDTH = 24
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -25,8 +26,8 @@ module starlink_pss_kernel_rom #(
 
   output reg                     output_valid,
   input  wire                    output_ready,
-  output wire signed [23:0]      output_kernel_i,
-  output wire signed [23:0]      output_kernel_q,
+  output wire signed [DATA_WIDTH-1:0] output_kernel_i,
+  output wire signed [DATA_WIDTH-1:0] output_kernel_q,
   output reg [8:0]               output_bin_index,
   output reg [4:0]               output_block_exponent,
   output reg                     output_last,
@@ -42,8 +43,8 @@ module starlink_pss_kernel_rom #(
 
   localparam integer VALID_RESULTS_PER_BLOCK = 447;
 
-  (* rom_style = "block" *) reg [47:0] kernel_memory [0:511];
-  reg [47:0] output_kernel_word;
+  (* rom_style = "block" *) reg [2*DATA_WIDTH-1:0] kernel_memory [0:511];
+  reg [2*DATA_WIDTH-1:0] output_kernel_word;
 
   reg [8:0] expected_bin_index;
   reg [4:0] block_exponent;
@@ -59,6 +60,8 @@ module starlink_pss_kernel_rom #(
   wire protocol_error_now;
 
   initial begin
+    if (DATA_WIDTH < 2 || DATA_WIDTH > 24)
+      $fatal(1, "kernel DATA_WIDTH must lie in [2,24]");
     $readmemh(ROM_FILE, kernel_memory, 0, 511);
   end
 
@@ -66,8 +69,8 @@ module starlink_pss_kernel_rom #(
   assign input_ready = resetn && !flush && !protocol_fault &&
                        output_stage_ready;
   assign input_accept = input_valid && input_ready;
-  assign output_kernel_i = output_kernel_word[23:0];
-  assign output_kernel_q = output_kernel_word[47:24];
+  assign output_kernel_i = output_kernel_word[DATA_WIDTH-1:0];
+  assign output_kernel_q = output_kernel_word[DATA_WIDTH +: DATA_WIDTH];
   assign at_block_start = expected_bin_index == 0;
   assign sequence_error_now =
     input_bin_index != expected_bin_index ||

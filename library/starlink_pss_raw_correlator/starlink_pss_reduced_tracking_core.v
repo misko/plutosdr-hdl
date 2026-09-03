@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0
 //
-// Complete Stage-15 TRACK_ONE composition.  The existing tracking core remains
-// the raw 65-tuple trace implementation and independent arithmetic evidence.
+// Complete rate-scalable TRACK_ONE composition.  The tracking core retains a
+// small raw guard aperture around the independently qualified winner range.
 // This wrapper applies the exact normalized winner reducer over the frozen
 // oracle aperture (-30..+30) and publishes one versioned result packet through
 // the atomic dual-clock result store.  The raw trace retains its historical
@@ -11,8 +11,9 @@
 `timescale 1ns/1ps
 
 module starlink_pss_reduced_tracking_core #(
+  parameter integer RATE_MULTIPLIER = 1,
   parameter integer COMMAND_FIFO_ADDRESS_WIDTH = 3,
-  parameter [63:0] MINIMUM_LEAD_SAMPLES = 64'd64
+  parameter [63:0] MINIMUM_LEAD_SAMPLES = 64'd64 * RATE_MULTIPLIER
 ) (
   input  wire                i_control_clk,
   input  wire                i_sample_clk,
@@ -50,7 +51,8 @@ module starlink_pss_reduced_tracking_core #(
   output wire                o_active_coefficient_valid,
   output wire         [31:0] o_active_coefficient_generation,
   output wire signed  [47:0] o_active_coefficient_energy,
-  output wire          [6:0] o_shadow_coefficient_count,
+  output wire [$clog2(66 * RATE_MULTIPLIER + 1)-1:0]
+                              o_shadow_coefficient_count,
   output wire                o_configuration_idle,
 
   output wire                o_result_available,
@@ -98,7 +100,13 @@ module starlink_pss_reduced_tracking_core #(
   wire [31:0] raw_result_request_id;
   wire [63:0] raw_result_center_index;
   wire [63:0] raw_result_center_timestamp;
-  wire signed [6:0] raw_result_lag;
+  localparam integer LAG_WIDTH = $clog2(64 * RATE_MULTIPLIER + 1);
+  localparam signed [LAG_WIDTH-1:0] TRACK_FIRST_LAG =
+      -30 * RATE_MULTIPLIER;
+  localparam signed [LAG_WIDTH-1:0] TRACK_LAST_LAG =
+      30 * RATE_MULTIPLIER;
+
+  wire signed [LAG_WIDTH-1:0] raw_result_lag;
   wire [63:0] raw_result_timestamp;
   wire [31:0] raw_result_coefficient_generation;
   wire signed [47:0] raw_result_c_re;
@@ -106,8 +114,6 @@ module starlink_pss_reduced_tracking_core #(
   wire signed [47:0] raw_result_ex;
   wire signed [47:0] raw_result_eh;
   wire [8:0] raw_result_saturation_events;
-  localparam signed [6:0] TRACK_FIRST_LAG = -7'sd30;
-  localparam signed [6:0] TRACK_LAST_LAG = 7'sd30;
   wire raw_result_in_track_aperture =
       (raw_result_lag >= TRACK_FIRST_LAG) &&
       (raw_result_lag <= TRACK_LAST_LAG);
@@ -119,6 +125,7 @@ module starlink_pss_reduced_tracking_core #(
       !raw_result_in_track_aperture || reducer_tuple_ready;
 
   starlink_pss_tracking_core #(
+    .RATE_MULTIPLIER           (RATE_MULTIPLIER),
     .COMMAND_FIFO_ADDRESS_WIDTH (COMMAND_FIFO_ADDRESS_WIDTH),
     .MINIMUM_LEAD_SAMPLES       (MINIMUM_LEAD_SAMPLES)
   ) i_raw_tracking_core (
@@ -198,7 +205,7 @@ module starlink_pss_reduced_tracking_core #(
   wire [31:0] reduced_result_request_id;
   wire [63:0] reduced_result_center_index;
   wire [63:0] reduced_result_center_timestamp;
-  wire signed [6:0] reduced_result_lag;
+  wire signed [LAG_WIDTH-1:0] reduced_result_lag;
   wire [63:0] reduced_result_timestamp;
   wire [31:0] reduced_result_coefficient_generation;
   wire signed [47:0] reduced_result_c_re;
@@ -209,7 +216,9 @@ module starlink_pss_reduced_tracking_core #(
   wire [76:0] reduced_result_score_numerator;
   wire [68:0] reduced_result_score_denominator;
 
-  starlink_pss_exact_reducer i_exact_reducer (
+  starlink_pss_exact_reducer #(
+    .RATE_MULTIPLIER (RATE_MULTIPLIER)
+  ) i_exact_reducer (
     .i_clk                            (i_engine_clk),
     .i_reset                          (!i_engine_resetn),
     .i_tuple_valid                    (raw_result_valid &&
@@ -253,7 +262,9 @@ module starlink_pss_reduced_tracking_core #(
     .o_protocol_error_count           (o_reducer_protocol_error_count)
   );
 
-  starlink_pss_result_store i_result_store (
+  starlink_pss_result_store #(
+    .LAG_WIDTH (LAG_WIDTH)
+  ) i_result_store (
     .i_engine_clk                       (i_engine_clk),
     .i_engine_resetn                    (i_engine_resetn),
     .i_result_valid                     (reduced_result_valid),

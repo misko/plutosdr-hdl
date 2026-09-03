@@ -1,7 +1,7 @@
 // Exact exponent-aware ratio preparation for normalized PSS power.
 //
-// The signed Q1.23 IFFT correlation is returned to the CI16/Q1.15 power
-// scale by 2**(2 * (1 + Ef + Ei)).  The denominator is the exact 38-bit
+// The signed Q1.(DATA_WIDTH-1) IFFT correlation is returned to the CI16/Q1.15
+// power scale by 2**(2 * (25 - DATA_WIDTH + Ef + Ei)). The denominator is the exact 38-bit
 // sample energy times the frozen 31-bit coefficient energy.  A mathematical
 // numerator wider than 69 bits saturates to all ones, which is exactly
 // equivalent to numerator >= denominator for every representable denominator.
@@ -10,7 +10,8 @@
 
 module starlink_pss_score_prepare #(
   parameter [30:0] COEFFICIENT_ENERGY = 31'd1073742825,
-  parameter integer RATIO_BITS = 69
+  parameter integer RATIO_BITS = 69,
+  parameter integer DATA_WIDTH = 24
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -18,8 +19,8 @@ module starlink_pss_score_prepare #(
 
   input  wire                    input_valid,
   output wire                    input_ready,
-  input  wire signed [23:0]      input_correlation_i,
-  input  wire signed [23:0]      input_correlation_q,
+  input  wire signed [DATA_WIDTH-1:0] input_correlation_i,
+  input  wire signed [DATA_WIDTH-1:0] input_correlation_q,
   input  wire [37:0]             input_sample_energy,
   input  wire [4:0]              input_forward_exponent,
   input  wire [4:0]              input_inverse_exponent,
@@ -40,13 +41,16 @@ module starlink_pss_score_prepare #(
   output reg                     denominator_zero_pulse
 );
 
-  localparam integer CORRELATION_POWER_BITS = 48;
+  localparam integer CORRELATION_POWER_BITS = 2 * DATA_WIDTH;
   localparam integer POWER_EXTENSION_BITS =
     RATIO_BITS - CORRELATION_POWER_BITS;
+  localparam integer BASE_CORRELATION_SHIFT = 25 - DATA_WIDTH;
 
   reg product_valid;
-  (* use_dsp = "yes" *) reg [47:0] product_square_i;
-  (* use_dsp = "yes" *) reg [47:0] product_square_q;
+  (* use_dsp = "yes" *)
+  reg [CORRELATION_POWER_BITS-1:0] product_square_i;
+  (* use_dsp = "yes" *)
+  reg [CORRELATION_POWER_BITS-1:0] product_square_q;
   (* use_dsp = "no" *) reg [RATIO_BITS-1:0] product_denominator;
   reg [4:0] product_forward_exponent;
   reg [4:0] product_inverse_exponent;
@@ -68,7 +72,11 @@ module starlink_pss_score_prepare #(
   wire numerator_overflow;
   wire [RATIO_BITS-1:0] shifted_correlation_power;
 
-  assign output_stage_ready = !output_valid || output_ready;
+  // Deliberately do not reload the output register on the same edge that its
+  // prior item is consumed.  The upstream 512-entry result FIFO absorbs this
+  // harmless bubble, while the registered valid bit cuts the divider's ready
+  // logic out of the wide shift/saturation register-enable cone.
+  assign output_stage_ready = !output_valid;
   assign sum_stage_ready = !sum_valid || output_stage_ready;
   assign product_stage_ready = !product_valid || sum_stage_ready;
   assign input_ready = resetn && !flush && product_stage_ready;
@@ -90,6 +98,8 @@ module starlink_pss_score_prepare #(
       $error("RATIO_BITS must retain the unshifted correlation power");
     if (COEFFICIENT_ENERGY == 0)
       $error("COEFFICIENT_ENERGY must be nonzero");
+    if (DATA_WIDTH < 17 || DATA_WIDTH > 24)
+      $error("DATA_WIDTH must lie in [17,24]");
   end
 
   always @(posedge clk) begin
@@ -123,6 +133,9 @@ module starlink_pss_score_prepare #(
       numerator_saturation_pulse <= 1'b0;
       denominator_zero_pulse <= 1'b0;
 
+      if (output_valid && output_ready)
+        output_valid <= 1'b0;
+
       if (output_stage_ready) begin
         output_valid <= sum_valid;
         if (sum_valid) begin
@@ -147,7 +160,8 @@ module starlink_pss_score_prepare #(
           sum_denominator <= product_denominator;
           sum_power_shift <=
             ({2'b00, product_forward_exponent} +
-             {2'b00, product_inverse_exponent} + 7'd1) << 1;
+             {2'b00, product_inverse_exponent} +
+             BASE_CORRELATION_SHIFT) << 1;
           sum_start_index <= product_start_index;
         end
       end

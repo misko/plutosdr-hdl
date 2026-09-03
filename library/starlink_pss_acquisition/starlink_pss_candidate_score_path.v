@@ -2,8 +2,8 @@
 //
 // This source-only top qualifies overlap-save IFFT output, absorbs one dense
 // 447-result burst, joins every result to its absolute-indexed energy, forms
-// the exact exponent-aware ratio, and drains it through two ordered divider
-// lanes.  The sample-energy cache and XFFT cores remain external.  Any framing,
+// the exact exponent-aware ratio, and drains it through one exact radix-4
+// divider.  The sample-energy cache and XFFT cores remain external. Any framing,
 // FIFO-capacity, or cache-identity error immediately quarantines the interfaces
 // and latches path_fault. The external controller's explicit flush then clears
 // every stage synchronously, retaining fault evidence until recovery begins.
@@ -11,7 +11,8 @@
 `timescale 1ns/1ps
 
 module starlink_pss_candidate_score_path #(
-  parameter [30:0] COEFFICIENT_ENERGY = 31'd1073742825
+  parameter [30:0] COEFFICIENT_ENERGY = 31'd1073742825,
+  parameter integer DATA_WIDTH = 24
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -19,8 +20,8 @@ module starlink_pss_candidate_score_path #(
 
   input  wire                    ifft_valid,
   output wire                    ifft_ready,
-  input  wire signed [23:0]      ifft_correlation_i,
-  input  wire signed [23:0]      ifft_correlation_q,
+  input  wire signed [DATA_WIDTH-1:0] ifft_correlation_i,
+  input  wire signed [DATA_WIDTH-1:0] ifft_correlation_q,
   input  wire [8:0]              ifft_index,
   input  wire [4:0]              forward_exponent,
   input  wire [4:0]              inverse_exponent,
@@ -51,10 +52,10 @@ module starlink_pss_candidate_score_path #(
 );
 
   wire qualifier_valid;
-  wire qualifier_ready;
   wire qualifier_input_ready;
-  wire signed [23:0] qualifier_correlation_i;
-  wire signed [23:0] qualifier_correlation_q;
+  wire fifo_input_ready;
+  wire signed [DATA_WIDTH-1:0] qualifier_correlation_i;
+  wire signed [DATA_WIDTH-1:0] qualifier_correlation_q;
   wire [4:0] qualifier_forward_exponent;
   wire [4:0] qualifier_inverse_exponent;
   wire [63:0] qualifier_start_index;
@@ -63,8 +64,8 @@ module starlink_pss_candidate_score_path #(
 
   wire fifo_valid;
   wire fifo_ready;
-  wire signed [23:0] fifo_correlation_i;
-  wire signed [23:0] fifo_correlation_q;
+  wire signed [DATA_WIDTH-1:0] fifo_correlation_i;
+  wire signed [DATA_WIDTH-1:0] fifo_correlation_q;
   wire [4:0] fifo_forward_exponent;
   wire [4:0] fifo_inverse_exponent;
   wire [63:0] fifo_start_index;
@@ -72,8 +73,8 @@ module starlink_pss_candidate_score_path #(
 
   wire joined_valid;
   wire joined_ready;
-  wire signed [23:0] joined_correlation_i;
-  wire signed [23:0] joined_correlation_q;
+  wire signed [DATA_WIDTH-1:0] joined_correlation_i;
+  wire signed [DATA_WIDTH-1:0] joined_correlation_q;
   wire [37:0] joined_sample_energy;
   wire [4:0] joined_forward_exponent;
   wire [4:0] joined_inverse_exponent;
@@ -92,7 +93,14 @@ module starlink_pss_candidate_score_path #(
   assign ifft_ready = qualifier_input_ready && !path_fault && !fault_event;
   assign score_valid = lane_score_valid && !path_fault && !fault_event;
 
-  starlink_pss_ifft_qualifier qualifier (
+  // The raw-result FIFO is dimensioned to absorb all 447 valid overlap-save
+  // results.  Do not propagate its drain-side ready chain back into the dense
+  // XFFT burst; consume one qualified result per clock and fail closed through
+  // the FIFO's overflow pulse if the bounded-capacity contract is ever broken.
+
+  starlink_pss_ifft_qualifier #(
+    .DATA_WIDTH(DATA_WIDTH)
+  ) qualifier (
     .clk                     (clk),
     .resetn                  (resetn),
     .flush                   (flush),
@@ -106,7 +114,7 @@ module starlink_pss_candidate_score_path #(
     .input_block_start_index (block_start_index),
     .input_last              (ifft_last),
     .output_valid            (qualifier_valid),
-    .output_ready            (qualifier_ready),
+    .output_ready            (1'b1),
     .output_correlation_i    (qualifier_correlation_i),
     .output_correlation_q    (qualifier_correlation_q),
     .output_forward_exponent (qualifier_forward_exponent),
@@ -121,12 +129,14 @@ module starlink_pss_candidate_score_path #(
     .protocol_fault          (qualifier_fault)
   );
 
-  starlink_pss_raw_result_fifo result_fifo (
+  starlink_pss_raw_result_fifo #(
+    .DATA_WIDTH(DATA_WIDTH)
+  ) result_fifo (
     .clk                     (clk),
     .resetn                  (resetn),
     .flush                   (flush),
     .input_valid             (qualifier_valid),
-    .input_ready             (qualifier_ready),
+    .input_ready             (fifo_input_ready),
     .input_correlation_i     (qualifier_correlation_i),
     .input_correlation_q     (qualifier_correlation_q),
     .input_forward_exponent  (qualifier_forward_exponent),
@@ -148,7 +158,9 @@ module starlink_pss_candidate_score_path #(
     .overflow_pulse          (fifo_overflow_pulse)
   );
 
-  starlink_pss_energy_join energy_join (
+  starlink_pss_energy_join #(
+    .DATA_WIDTH(DATA_WIDTH)
+  ) energy_join (
     .clk                      (clk),
     .resetn                   (resetn),
     .flush                    (flush),
@@ -184,7 +196,8 @@ module starlink_pss_candidate_score_path #(
   );
 
   starlink_pss_score_prepare #(
-    .COEFFICIENT_ENERGY (COEFFICIENT_ENERGY)
+    .COEFFICIENT_ENERGY (COEFFICIENT_ENERGY),
+    .DATA_WIDTH         (DATA_WIDTH)
   ) score_prepare (
     .clk                        (clk),
     .resetn                     (resetn),
@@ -211,6 +224,8 @@ module starlink_pss_candidate_score_path #(
     .denominator_zero_pulse     ()
   );
 
+  // Two interleaved exact radix-2 lanes preserve the required burst rate
+  // without placing two 77-bit subtract/compare chains in one 100 MHz cycle.
   starlink_pss_score_lanes score_lanes (
     .clk                     (clk),
     .resetn                  (resetn),

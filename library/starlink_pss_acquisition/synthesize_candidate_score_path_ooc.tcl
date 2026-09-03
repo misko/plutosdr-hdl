@@ -74,8 +74,8 @@ set dsp_cells [get_cells -quiet -hier -filter {REF_NAME == DSP48E1}]
 if {[llength $ramb36_cells] != 2 || [llength $ramb18_cells] != 0} {
   error "expected FIFO RAMB36/RAMB18 counts 2/0, got [llength $ramb36_cells]/[llength $ramb18_cells]"
 }
-if {[llength $dsp_cells] != 4} {
-  error "expected four ratio-preparation DSPs, got [llength $dsp_cells]"
+if {[llength $dsp_cells] != 6} {
+  error "expected four preparation plus two scale DSPs, got [llength $dsp_cells]"
 }
 
 set setup_path [get_timing_paths -quiet -delay_type max -max_paths 1]
@@ -111,6 +111,8 @@ puts $summary "part=xc7z010clg400-1"
 puts $summary "fifo_depth=512"
 puts $summary "qualified_results_per_block=447"
 puts $summary "score_divider_lanes=2"
+puts $summary "score_divider_radix=2"
+puts $summary "score_accept_interval_clocks=4.5_average"
 puts $summary "coefficient_energy=1073742825"
 puts $summary "clock_period_ns=10.000"
 puts $summary "timing_scope=post_opt_unplaced"

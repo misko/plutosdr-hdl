@@ -8,7 +8,8 @@
 `timescale 1ns/1ps
 
 module starlink_pss_iq_to_phase_map #(
-  parameter KERNEL_ROM_FILE = "upper_edge_pss_kernel_q23.mem",
+  parameter KERNEL_ROM_FILE = "upper_edge_pss_kernel_q17.mem",
+  parameter [30:0] COEFFICIENT_ENERGY = 31'd1073742825,
   parameter integer PHASE_BINS = 20000,
   parameter integer PHASE_INDEX_WIDTH = 15,
   parameter integer TILE_FRAMES = 64,
@@ -102,7 +103,8 @@ module starlink_pss_iq_to_phase_map #(
       detector_fault;
 
   starlink_pss_iq_to_score #(
-    .KERNEL_ROM_FILE(KERNEL_ROM_FILE)
+    .KERNEL_ROM_FILE   (KERNEL_ROM_FILE),
+    .COEFFICIENT_ENERGY(COEFFICIENT_ENERGY)
   ) iq_to_score (
     .clk                                 (clk),
     .resetn                              (resetn),

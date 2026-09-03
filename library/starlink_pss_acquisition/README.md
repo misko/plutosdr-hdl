@@ -35,11 +35,11 @@ the canonical 15 MS/s acquisition rate.  It keeps all 20,000 one-sample phase
 hypotheses, sums exactly 64 complete frames into a 16-bit map, and uses two
 banks so the ARM can read one immutable map while the next is filled.
 
-This slice deliberately does not claim an implemented FFT or a PSS detector.
-The future score front end must provide consecutive absolute start indexes and
-phases, pass fixed-point replay, and remain a read-only tap beside the unchanged
-RX DMA path.  A discontinuity or phase/index mismatch invalidates and clears
-the partial map; incomplete maps are never published.
+The phase-map slice is independently testable and does not itself contain the
+FFT score front end. In the complete composition, that front end provides
+consecutive absolute start indexes and phases and remains a read-only tap
+beside the unchanged RX DMA path. A discontinuity or phase/index mismatch
+invalidates and clears the partial map; incomplete maps are never published.
 
 `starlink_pss_overlap_scheduler.v` is the next IP-independent slice.  It turns
 the continuous, gap-tagged CI16 stream into 512-sample FFT input blocks with 65
@@ -94,6 +94,13 @@ cases intentionally take the same eight cycles as ordinary ratios, making a
 later two-lane dispatcher deterministic.  This slice does not calculate the
 wide numerator/denominator or join them to the energy cache.
 
+`starlink_pss_score_divider_radix4.v` preserves that exact score and metadata
+contract while resolving two quotient bits per calculation clock. Its single
+four-iteration lane uses one registered rounding cycle and accepts one ratio
+every six clocks, or 16.67 million starts/s at 100 MHz. That exceeds the
+15 MS/s candidate rate, while removing the second wide divider from the
+complete Stage-15 acquisition design.
+
 `starlink_pss_score_prepare.v` is the exact wide-arithmetic stage immediately
 before those divider lanes.  It squares signed Q1.23 IFFT components, restores
 correlation power by `2^(2*(1 + Ef + Ei))`, and multiplies the indexed 38-bit
@@ -142,17 +149,19 @@ handshake.  This preserves FIFO order through arbitrary downstream stalls and
 provides 22.22 million score starts/s at a 100 MHz clock.
 
 `starlink_pss_candidate_score_path.v` composes the qualifier, raw FIFO, energy
-join, ratio preparation, and two ordered divider lanes.  It exposes the energy
+join, ratio preparation, and the exact radix-4 divider. It exposes the energy
 cache transaction port and normalized score stream.  Any component fault is
 latched and immediately gates input and output; the external acquisition
 controller must then apply the same explicit flush to this path and its energy
-cache.  XFFT cores, coefficient ROM, scheduler wiring, phase-map wiring, and
+cache.  The shared XFFT core, coefficient ROM, scheduler wiring, phase-map wiring, and
 the real RX shell remain outside this source-only top.
 
-`starlink_pss_iq_to_score.v` closes the source-only 15 MS/s datapath from a
+`starlink_pss_iq_to_score.v` closes the canonical 15 MS/s detector datapath from a
 continuous CI16 accepted-sample stream through the overlap scheduler, exact
-energy cache, two regenerated XFFT v9.1 instances, hash-locked kernel join,
-complex product, inverse-result qualification, and normalized score tail.  It
+energy cache, one regenerated 18-bit XFFT v9.1 instance shared serially between
+forward and inverse transforms, a 512-by-36-bit atomic intermediate BRAM,
+hash-locked kernel join, complex product, inverse-result qualification, and
+normalized score tail. It
 publishes 447 exact timing scores per complete 512-sample overlap-save block
 and quarantines the detector on any constituent protocol or arithmetic fault.
 Registered lifecycle control keeps external reset/flush/fault inputs out of
@@ -359,7 +368,7 @@ The candidate-score-path OOC gate covers the complete composed tail named
 above.  It requires exactly two RAMB36E1 blocks, four DSP48E1 cells, bounded
 logic, clean methodology/check-timing reports, and nonnegative 100 MHz
 post-opt unplaced setup/hold slack.  It does not include the energy cache,
-either XFFT core, coefficient ROM, scheduler, phase map, AXI/CDC shell, or
+the shared XFFT core, coefficient ROM, scheduler, phase map, AXI/CDC shell, or
 complete placement and routing.
 
 The XFFT-boundary-adapter OOC gate requires no BRAM or DSPs, bounded control
@@ -375,7 +384,7 @@ nonnegative 100 MHz post-opt unplaced setup/hold slack.  It proves the
 coefficient lookup and its streaming protocol guard, not the forward XFFT
 values or complex-product composition.
 
-The full IQ-to-score OOC gate regenerates the exact two-core 24-bit,
+The full IQ-to-score OOC gate regenerates the exact one-core 18-bit,
 block-floating, radix-4-burst XFFT definition used by replay and synthesizes it
 with the complete source-only score path for `xc7z010clg400-1`.  It rejects a
 resource overflow, methodology/check-timing error, or negative 100 MHz

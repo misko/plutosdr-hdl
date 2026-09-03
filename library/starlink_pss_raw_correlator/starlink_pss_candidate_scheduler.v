@@ -3,14 +3,15 @@
 // Queued-center and accepted-sample capture contract for the experimental
 // Starlink RX-only branch.  This module does not score samples.  It crosses
 // host/MMIO candidate commands into the accepted-sample clock domain, admits
-// them deterministically, and emits the exact 130 tagged samples consumed by
-// the Stage-15 correlator.
+// them deterministically, and emits the exact rate-scaled tagged window
+// consumed by the sparse full-rate correlator.
 
 `timescale 1ns/1ps
 
 module starlink_pss_candidate_scheduler #(
+  parameter integer RATE_MULTIPLIER = 1,
   parameter integer COMMAND_FIFO_ADDRESS_WIDTH = 3,
-  parameter [63:0] MINIMUM_LEAD_SAMPLES = 64'd64
+  parameter [63:0] MINIMUM_LEAD_SAMPLES = 64'd64 * RATE_MULTIPLIER
 ) (
   input  wire                i_control_clk,
   input  wire                i_control_resetn,
@@ -37,12 +38,12 @@ module starlink_pss_candidate_scheduler #(
   input  wire signed  [15:0] i_sample_q,
 
   // No backpressure is allowed at this boundary.  The later capture-buffer
-  // writer either commits all 130 beats or discards the job on o_capture_abort.
+  // writer either commits the complete window or discards the job on abort.
   output reg                 o_capture_valid,
   output reg                 o_capture_start,
   output reg                 o_capture_done,
   output reg                 o_capture_abort,
-  output reg           [7:0] o_capture_slot,
+  output reg  [$clog2(130 * RATE_MULTIPLIER)-1:0] o_capture_slot,
   output wire         [31:0] o_capture_request_id,
   output wire         [63:0] o_capture_center_index,
   output wire         [63:0] o_capture_center_timestamp,
@@ -66,9 +67,20 @@ module starlink_pss_candidate_scheduler #(
 );
 
   localparam integer COMMAND_WIDTH = 160;
-  localparam [63:0] CAPTURE_BEFORE_CENTER = 64'd32;
-  localparam [63:0] CAPTURE_AFTER_CENTER = 64'd97;
-  localparam [7:0] CAPTURE_LAST_SLOT = 8'd129;
+  localparam integer CAPTURE_COUNT = 130 * RATE_MULTIPLIER;
+  localparam integer CAPTURE_SLOT_WIDTH = $clog2(CAPTURE_COUNT);
+  localparam [63:0] CAPTURE_BEFORE_CENTER = 64'd32 * RATE_MULTIPLIER;
+  localparam [63:0] CAPTURE_AFTER_CENTER =
+      64'd98 * RATE_MULTIPLIER - 1'b1;
+  localparam [CAPTURE_SLOT_WIDTH-1:0] CAPTURE_LAST_SLOT =
+      CAPTURE_COUNT - 1;
+
+  generate
+    if ((RATE_MULTIPLIER != 1) && (RATE_MULTIPLIER != 2) &&
+        (RATE_MULTIPLIER != 4)) begin : g_invalid_rate_multiplier
+      initial $fatal(1, "RATE_MULTIPLIER must be 1, 2, or 4");
+    end
+  endgenerate
 
   function automatic [31:0] increment_saturating_32;
     input [31:0] value;
@@ -132,7 +144,7 @@ module starlink_pss_candidate_scheduler #(
   reg [63:0] next_expected_index;
   reg candidate_pending;
   reg capture_active;
-  reg [7:0] current_capture_slot;
+  reg [CAPTURE_SLOT_WIDTH-1:0] current_capture_slot;
 
   reg last_admitted_valid;
   reg [63:0] last_admitted_center_index;
@@ -164,12 +176,12 @@ module starlink_pss_candidate_scheduler #(
   wire command_overlap =
       last_admitted_valid && !command_duplicate &&
       (command_center_distance[63] ||
-       (command_center_distance <= 64'd129));
+      (command_center_distance <= CAPTURE_COUNT - 1));
   wire [63:0] current_start_pass_distance =
       i_sample_index - command_start_index;
 
   task automatic publish_capture_beat;
-    input [7:0] slot;
+    input [CAPTURE_SLOT_WIDTH-1:0] slot;
     begin
       o_capture_valid <= 1'b1;
       o_capture_slot <= slot;
@@ -186,14 +198,14 @@ module starlink_pss_candidate_scheduler #(
       next_expected_index <= 64'd0;
       candidate_pending <= 1'b0;
       capture_active <= 1'b0;
-      current_capture_slot <= 8'd0;
+      current_capture_slot <= {CAPTURE_SLOT_WIDTH{1'b0}};
       last_admitted_valid <= 1'b0;
       last_admitted_center_index <= 64'd0;
       o_capture_valid <= 1'b0;
       o_capture_start <= 1'b0;
       o_capture_done <= 1'b0;
       o_capture_abort <= 1'b0;
-      o_capture_slot <= 8'd0;
+      o_capture_slot <= {CAPTURE_SLOT_WIDTH{1'b0}};
       o_capture_sample_index <= 64'd0;
       o_capture_sample_timestamp <= 64'd0;
       o_capture_sample_i <= 16'sd0;
@@ -269,7 +281,7 @@ module starlink_pss_candidate_scheduler #(
             o_late_count <= increment_saturating_32(o_late_count);
           end else begin
             candidate_pending <= 1'b1;
-            current_capture_slot <= 8'd0;
+            current_capture_slot <= {CAPTURE_SLOT_WIDTH{1'b0}};
             last_admitted_valid <= 1'b1;
             last_admitted_center_index <= command_center_index;
             o_admitted_count <= increment_saturating_32(o_admitted_count);
@@ -278,8 +290,8 @@ module starlink_pss_candidate_scheduler #(
           if (i_sample_index == command_start_index) begin
             candidate_pending <= 1'b0;
             capture_active <= 1'b1;
-            current_capture_slot <= 8'd0;
-            publish_capture_beat(8'd0);
+            current_capture_slot <= {CAPTURE_SLOT_WIDTH{1'b0}};
+            publish_capture_beat({CAPTURE_SLOT_WIDTH{1'b0}});
             o_capture_start <= 1'b1;
           end else if (current_start_pass_distance[63] == 1'b0) begin
             // Consecutive input passed the start without observing it.  This

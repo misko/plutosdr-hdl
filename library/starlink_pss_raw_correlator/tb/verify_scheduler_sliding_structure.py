@@ -43,15 +43,18 @@ def main() -> None:
         scheduler,
         (
             "COMMAND_WIDTH = 160",
-            "CAPTURE_BEFORE_CENTER = 64'd32",
-            "CAPTURE_AFTER_CENTER = 64'd97",
-            "CAPTURE_LAST_SLOT = 8'd129",
+            "CAPTURE_COUNT = 130 * RATE_MULTIPLIER",
+            "CAPTURE_SLOT_WIDTH = $clog2(CAPTURE_COUNT)",
+            "CAPTURE_BEFORE_CENTER = 64'd32 * RATE_MULTIPLIER",
+            "64'd98 * RATE_MULTIPLIER - 1'b1",
+            "CAPTURE_LAST_SLOT =",
+            "RATE_MULTIPLIER must be 1, 2, or 4",
             ".ADDRESS_WIDTH (COMMAND_FIFO_ADDRESS_WIDTH)",
             "command_lead[63]",
             "command_lead < MINIMUM_LEAD_SAMPLES",
             "command_center_index == last_admitted_center_index",
             "command_center_index - last_admitted_center_index",
-            "command_center_distance <= 64'd129",
+            "command_center_distance <= CAPTURE_COUNT - 1",
             "i_sample_index != next_expected_index",
             "i_sample_timestamp != command_center_timestamp",
             "o_capture_request_id = command_request_id",
@@ -96,6 +99,9 @@ def main() -> None:
         "",
         sliding,
     )
+    remaining = re.sub(
+        r"\b(?:32|64|66|130)\s*\*\s*RATE_MULTIPLIER\b", "", remaining
+    )
     if "*" in remaining or re.search(r"\s/\s", remaining):
         raise RuntimeError("sliding engine gained undeclared multiply/divide arithmetic")
     if sliding_source.count('use_dsp = "yes"') != 3:
@@ -122,10 +128,12 @@ def main() -> None:
         bridge,
         (
             "DESCRIPTOR_WIDTH = 161",
-            "CAPTURE_LAST_SLOT = 8'd129",
+            "CAPTURE_COUNT = 130 * RATE_MULTIPLIER",
+            "CAPTURE_MEMORY_ADDRESS_WIDTH = CAPTURE_SLOT_WIDTH + 1",
+            "CAPTURE_LAST_SLOT =",
             ".ADDRESS_WIDTH (2)",
             ".DATA_WIDTH    (96)",
-            ".ADDRESS_WIDTH (9)",
+            ".ADDRESS_WIDTH (CAPTURE_MEMORY_ADDRESS_WIDTH)",
             "capture_memory_write = capture_first_write || capture_active_write",
             "if (i_capture_abort)",
             "engine_release_toggle[engine_bank]",
@@ -143,17 +151,26 @@ def main() -> None:
     require(
         sliding,
         (
-            "COEFFICIENT_COUNT = 66",
-            "CAPTURE_COUNT = 130",
-            "RESULT_COUNT = 65",
-            "shadow_coefficient_i_memory",
-            "active_coefficient_i_memory",
-            "sample_energy_memory",
+            "COEFFICIENT_COUNT = 66 * RATE_MULTIPLIER",
+            "CAPTURE_COUNT = 130 * RATE_MULTIPLIER",
+            "RESULT_COUNT = 64 * RATE_MULTIPLIER + 1",
+            "COEFFICIENT_ADDRESS_WIDTH = $clog2(COEFFICIENT_COUNT)",
+            "SAMPLE_ADDRESS_WIDTH = $clog2(CAPTURE_COUNT)",
+            "LAG_WIDTH = $clog2(RESULT_COUNT)",
+            "shadow_coefficient_memory",
+            "active_coefficient_memory",
+            "sample_complex_memory",
+            "sample_energy_remove_memory",
+            "sample_energy_add_memory",
+            "memory_read_valid <= multiplier_issue",
+            "coefficient_copy_read_valid",
+            "STATE_COEFFICIENT_COPY_FINISH",
             "coefficient_energy_accumulator > 48'sh0000_7fff_ffff",
-            "sample_energy_memory[phase_consume_count] <= tap_energy_addend[31:0]",
-            "sample_energy_memory[lag_index]",
-            "sample_energy_memory[sliding_add_address]",
-            "sample_timestamp_memory[lag_index]",
+            "sample_energy_remove_memory[phase_consume_count]",
+            "sample_energy_add_memory[phase_consume_count]",
+            "sample_energy_remove_read_data",
+            "sample_energy_add_read_data",
+            "sample_timestamp_read_data",
             "o_result_coefficient_generation",
             "o_bound_error_count",
             "sliding_energy_bound_error_pending",
@@ -161,9 +178,13 @@ def main() -> None:
             "i_sample_saturator",
             "i_correlation_real_saturator",
             "i_correlation_imag_saturator",
+            "add_saturating_9",
+            "total_saturation_events",
         ),
         label="sliding correlator",
     )
+    if sliding_source.count('ram_style = "block"') != 6:
+        raise RuntimeError("sliding correlator must retain six explicit block-RAM banks")
     if "saturator_0_accumulator" in sliding:
         raise RuntimeError("sliding correlator reintroduced the phase-shared carry mux")
 
@@ -185,34 +206,54 @@ def main() -> None:
     require(
         reducer,
         (
-            "FIRST_LAG = -7'sd30",
-            "LAST_LAG = 7'sd30",
+            "FIRST_LAG =",
+            "-30 * RATE_MULTIPLIER",
+            "LAST_LAG =",
+            "30 * RATE_MULTIPLIER",
             "reg [76:0] current_magnitude_squared",
             "reg [68:0] current_denominator",
             "reg [145:0] left_cross_product",
-            "reg [76:0] compare_multiplicand",
-            "compare_multiplicand <= current_magnitude_squared",
-            "compare_multiplicand <= winner_magnitude_squared",
+            "reg [146:0] multiply_work",
+            "reg [76:0] multiply_multiplicand",
+            "reg [6:0] multiply_bit_index",
+            "multiply_multiplicand <= current_magnitude_squared",
+            "multiply_multiplicand <= winner_magnitude_squared",
             "correlation_bound_legal",
             "energy_bound_legal",
-            "left_cross_product > compare_accumulator",
-            "square_multiplier_shift[37]",
-            "denominator_multiplier_shift[30]",
-            "compare_multiplier_shift[68]",
+            "left_cross_product > multiply_work[145:0]",
+            "multiply_work[0]",
+            "multiply_bit_index <= 7'd68",
             "o_result_score_numerator = winner_magnitude_squared",
             "o_result_score_denominator = winner_denominator",
         ),
         label="exact rational reducer",
     )
-    if "*" in reducer or re.search(r"\s/\s", reducer):
+    for retired_workspace in (
+        "square_multiplier_shift",
+        "denominator_multiplier_shift",
+        "compare_multiplier_shift",
+        "compare_accumulator",
+        "square_accumulator",
+        "denominator_accumulator",
+        "compare_multiplicand",
+    ):
+        if retired_workspace in reducer:
+            raise RuntimeError(
+                "exact reducer reintroduced retired parallel serial workspace: "
+                f"{retired_workspace}"
+            )
+    reducer_runtime = re.sub(
+        r"\b(?:30|64)\s*\*\s*RATE_MULTIPLIER\b", "", reducer
+    )
+    if "*" in reducer_runtime or re.search(r"\s/\s", reducer_runtime):
         raise RuntimeError("exact reducer gained a multiply/divide operator")
 
     print(
         "SCHEDULER_SLIDING_STRUCTURE_PASS queue_payload_bits=160 "
         "small_async_fifo=1 command_memory=block descriptor_memory=distributed "
         "descriptor_payload_bits=161 capture_banks=2 "
-        "capture_samples=130 multipliers=3 cached_eh=1 "
-        "sliding_ex=1 exact_reducer=1 reducer_multipliers=0"
+        "capture_samples=rate_scaled multipliers=3 cached_eh=1 "
+        "sliding_ex=1 exact_reducer=1 reducer_multipliers=0 shared_serial=1"
     )
 
 

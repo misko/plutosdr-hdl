@@ -148,7 +148,9 @@ module starlink_pss_sample_cdc #(
   reg [POINTER_WIDTH-1:0] acquisition_pointer_binary;
   reg [POINTER_WIDTH-1:0] acquisition_pointer_gray;
   reg                     acquisition_empty;
+  reg [PAYLOAD_WIDTH-1:0] acquisition_memory_payload;
   reg [PAYLOAD_WIDTH-1:0] acquisition_payload;
+  reg                     acquisition_memory_valid;
 
   (* ASYNC_REG = "TRUE" *) reg [POINTER_WIDTH-1:0]
     read_pointer_gray_sync_1;
@@ -232,17 +234,24 @@ module starlink_pss_sample_cdc #(
 
   // Keep the entire payload behind one registered read port so synthesis can
   // infer a true dual-clock block RAM instead of 97 independent LUTRAM paths.
+  // The second stage deliberately matches the RAMB18E1/RAMB36E1 output-register
+  // inference template.  It removes the BRAM clock-to-output delay from the
+  // acquisition datapath without spending 97 scarce slice registers.
   always @(posedge acquisition_clk) begin
     if (acquisition_read)
-      acquisition_payload <= fifo_memory[
+      acquisition_memory_payload <= fifo_memory[
         acquisition_pointer_binary[FIFO_ADDRESS_WIDTH-1:0]];
+    acquisition_payload <= acquisition_memory_payload;
   end
 
   always @(posedge acquisition_clk) begin
-    if (!acquisition_domain_resetn)
+    if (!acquisition_domain_resetn) begin
+      acquisition_memory_valid <= 1'b0;
       acquisition_sample_valid <= 1'b0;
-    else
-      acquisition_sample_valid <= acquisition_read;
+    end else begin
+      acquisition_memory_valid <= acquisition_read;
+      acquisition_sample_valid <= acquisition_memory_valid;
+    end
   end
 
   always @(posedge source_clk) begin

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0
 //
-// Host-commanded Stage-15 tracking slice.  This composition keeps the three
+// Host-commanded, rate-scalable sparse tracking slice.  This composition keeps the three
 // clocks explicit while enforcing one shared reset epoch, and connects the
 // queued candidate scheduler through an abort-atomic double capture buffer to
 // the cached-Eh/sliding-Ex correlator.
@@ -8,8 +8,9 @@
 `timescale 1ns/1ps
 
 module starlink_pss_tracking_core #(
+  parameter integer RATE_MULTIPLIER = 1,
   parameter integer COMMAND_FIFO_ADDRESS_WIDTH = 3,
-  parameter [63:0] MINIMUM_LEAD_SAMPLES = 64'd64
+  parameter [63:0] MINIMUM_LEAD_SAMPLES = 64'd64 * RATE_MULTIPLIER
 ) (
   input  wire                i_control_clk,
   input  wire                i_sample_clk,
@@ -47,7 +48,8 @@ module starlink_pss_tracking_core #(
   output wire                o_active_coefficient_valid,
   output wire         [31:0] o_active_coefficient_generation,
   output wire signed  [47:0] o_active_coefficient_energy,
-  output wire          [6:0] o_shadow_coefficient_count,
+  output wire [$clog2(66 * RATE_MULTIPLIER + 1)-1:0]
+                              o_shadow_coefficient_count,
   output wire                o_configuration_idle,
 
   output wire                o_result_valid,
@@ -55,7 +57,8 @@ module starlink_pss_tracking_core #(
   output wire         [31:0] o_result_request_id,
   output wire         [63:0] o_result_center_index,
   output wire         [63:0] o_result_center_timestamp,
-  output wire signed   [6:0] o_result_lag,
+  output wire signed [$clog2(64 * RATE_MULTIPLIER + 1)-1:0]
+                              o_result_lag,
   output wire         [63:0] o_result_timestamp,
   output wire         [31:0] o_result_coefficient_generation,
   output wire signed  [47:0] o_result_c_re,
@@ -89,7 +92,12 @@ module starlink_pss_tracking_core #(
   wire scheduler_capture_start;
   wire scheduler_capture_done;
   wire scheduler_capture_abort;
-  wire [7:0] scheduler_capture_slot;
+  localparam integer CAPTURE_SLOT_WIDTH =
+      $clog2(130 * RATE_MULTIPLIER);
+  localparam integer SAMPLE_COUNT_WIDTH =
+      $clog2(130 * RATE_MULTIPLIER + 1);
+
+  wire [CAPTURE_SLOT_WIDTH-1:0] scheduler_capture_slot;
   wire [31:0] scheduler_capture_request_id;
   wire [63:0] scheduler_capture_center_index;
   wire [63:0] scheduler_capture_center_timestamp;
@@ -99,6 +107,7 @@ module starlink_pss_tracking_core #(
   wire signed [15:0] scheduler_capture_sample_q;
 
   starlink_pss_candidate_scheduler #(
+    .RATE_MULTIPLIER           (RATE_MULTIPLIER),
     .COMMAND_FIFO_ADDRESS_WIDTH (COMMAND_FIFO_ADDRESS_WIDTH),
     .MINIMUM_LEAD_SAMPLES       (MINIMUM_LEAD_SAMPLES)
   ) i_candidate_scheduler (
@@ -154,13 +163,15 @@ module starlink_pss_tracking_core #(
   wire [63:0] bridge_engine_center_timestamp;
   wire bridge_engine_sample_valid;
   wire bridge_engine_sample_ready;
-  wire [7:0] bridge_engine_sample_slot_unused;
+  wire [CAPTURE_SLOT_WIDTH-1:0] bridge_engine_sample_slot_unused;
   wire [63:0] bridge_engine_sample_timestamp;
   wire signed [15:0] bridge_engine_sample_i;
   wire signed [15:0] bridge_engine_sample_q;
   wire bridge_engine_job_ready;
 
-  starlink_pss_capture_bridge i_capture_bridge (
+  starlink_pss_capture_bridge #(
+    .RATE_MULTIPLIER (RATE_MULTIPLIER)
+  ) i_capture_bridge (
     .i_sample_clk                    (i_sample_clk),
     .i_sample_resetn                 (i_sample_resetn),
     .i_capture_valid                 (scheduler_capture_valid),
@@ -197,16 +208,19 @@ module starlink_pss_tracking_core #(
     .o_engine_consumed_count         (o_engine_consumed_count)
   );
 
-  wire [7:0] correlator_sample_count;
+  wire [SAMPLE_COUNT_WIDTH-1:0] correlator_sample_count;
   wire correlator_start_ready;
   wire correlator_busy;
   wire correlator_done_unused;
   wire correlator_start = bridge_engine_job_done && correlator_start_ready;
 
   assign bridge_engine_job_ready =
-      bridge_engine_sample_ready && (correlator_sample_count == 8'd0);
+      bridge_engine_sample_ready &&
+      (correlator_sample_count == {SAMPLE_COUNT_WIDTH{1'b0}});
 
-  starlink_pss_sliding_correlator i_sliding_correlator (
+  starlink_pss_sliding_correlator #(
+    .RATE_MULTIPLIER (RATE_MULTIPLIER)
+  ) i_sliding_correlator (
     .i_clk                            (i_engine_clk),
     .i_reset                          (!i_engine_resetn),
     .i_coefficient_clear              (i_coefficient_clear),

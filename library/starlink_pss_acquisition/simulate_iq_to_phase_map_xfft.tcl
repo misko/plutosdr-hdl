@@ -1,4 +1,4 @@
-# Vivado 2022.2 behavioral gate for the real XFFT pair through the phase map.
+# Vivado 2022.2 behavioral gate for the shared real XFFT through the phase map.
 # Usage: vivado -mode batch -source simulate_iq_to_phase_map_xfft.tcl \
 #        -tclargs OUTPUT VECTOR_DIRECTORY
 
@@ -18,9 +18,9 @@ file mkdir $output_dir
 
 foreach required_file {
   samples_ci16.mem
-  forward_q23.mem
-  product_q23.mem
-  inverse_q23.mem
+  forward_q17.mem
+  product_q17.mem
+  inverse_q17.mem
   forward_exponents.mem
   inverse_exponents.mem
   scores_u8.mem
@@ -35,7 +35,7 @@ set_property target_language Verilog [current_project]
 set_property simulator_language Mixed [current_project]
 
 create_ip -name xfft -vendor xilinx.com -library ip -version 9.1 \
-  -module_name starlink_pss_fft512_bfp24
+  -module_name starlink_pss_fft512_bfp18
 set_property -dict [list \
   CONFIG.channels {1} \
   CONFIG.transform_length {512} \
@@ -44,7 +44,7 @@ set_property -dict [list \
   CONFIG.target_data_throughput {20} \
   CONFIG.run_time_configurable_transform_length {false} \
   CONFIG.data_format {fixed_point} \
-  CONFIG.input_width {24} \
+  CONFIG.input_width {18} \
   CONFIG.phase_factor_width {16} \
   CONFIG.scaling_options {block_floating_point} \
   CONFIG.rounding_modes {convergent_rounding} \
@@ -57,13 +57,13 @@ set_property -dict [list \
   CONFIG.memory_options_phase_factors {block_ram} \
   CONFIG.memory_options_reorder {block_ram} \
   CONFIG.complex_mult_type {use_mults_resources} \
-  CONFIG.butterfly_type {use_luts} \
-] [get_ips starlink_pss_fft512_bfp24]
-generate_target all [get_ips starlink_pss_fft512_bfp24]
+  CONFIG.butterfly_type {use_xtremedsp_slices} \
+] [get_ips starlink_pss_fft512_bfp18]
+generate_target all [get_ips starlink_pss_fft512_bfp18]
 
 set wrappers [glob -nocomplain \
   [file join $project_dir ${project_name}.gen sources_1 ip \
-    starlink_pss_fft512_bfp24 synth starlink_pss_fft512_bfp24.vhd]]
+    starlink_pss_fft512_bfp18 synth starlink_pss_fft512_bfp18.vhd]]
 if {[llength $wrappers] != 1} {
   error "could not locate generated XFFT synthesis wrapper"
 }
@@ -78,6 +78,7 @@ set rtl_sources [list \
   starlink_pss_overlap_scheduler.v \
   starlink_pss_energy_cache.v \
   starlink_pss_xfft_block_adapter.v \
+  starlink_pss_xfft_intermediate_buffer.v \
   starlink_pss_kernel_rom.v \
   starlink_pss_forward_kernel_join.v \
   starlink_pss_spectrum_product.v \
@@ -86,6 +87,7 @@ set rtl_sources [list \
   starlink_pss_energy_join.v \
   starlink_pss_score_prepare.v \
   starlink_pss_score_divider.v \
+  starlink_pss_score_divider_radix4.v \
   starlink_pss_score_lanes.v \
   starlink_pss_candidate_score_path.v \
   starlink_pss_iq_to_score.v \
@@ -102,7 +104,7 @@ foreach source_name $rtl_sources {
 add_files -fileset sim_1 -norecurse \
   [file join $script_dir tb tb_starlink_pss_iq_to_phase_map_xfft.sv]
 add_files -fileset sim_1 -norecurse \
-  [file join $script_dir tb upper_edge_pss_kernel_q23.mem]
+  [file join $script_dir tb upper_edge_pss_kernel_q17.mem]
 foreach vector_file [glob [file join $vector_dir *.mem]] {
   add_files -fileset sim_1 -norecurse $vector_file
 }

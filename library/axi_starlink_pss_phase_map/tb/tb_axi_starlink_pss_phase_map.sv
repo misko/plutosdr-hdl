@@ -129,7 +129,11 @@ module tb_axi_starlink_pss_phase_map #(
     .map_release_error_count      (map_release_error_count)
   );
 
+`ifdef STARLINK_PHASE_MAP_SYNC
+  axi_starlink_pss_phase_map_sync #(
+`else
   axi_starlink_pss_phase_map #(
+`endif
     .PHASE_BINS      (PHASE_BINS),
     .PHASE_INDEX_WIDTH(PHASE_INDEX_WIDTH),
     .TILE_FRAMES     (TILE_FRAMES),
@@ -231,8 +235,11 @@ module tb_axi_starlink_pss_phase_map #(
         @(posedge s_axi_aclk);
         timeout = timeout + 1;
       end
-      if (timeout == 100 || s_axi_rresp != 2'b00)
+      if (timeout == 100 || s_axi_rresp != 2'b00) begin
+        $display("AXI_PHASE_MAP_READ_TIMEOUT address=0x%02x timeout=%0d rvalid=%0b rresp=%0b",
+                 address, timeout, s_axi_rvalid, s_axi_rresp);
         fail("AXI read response timeout/error");
+      end
       data = s_axi_rdata;
       if (address == 8'h24) begin
         map_read_latency_cycles = axi_cycle_count - map_read_start_cycle;

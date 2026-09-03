@@ -13,7 +13,7 @@ set script_dir [file dirname [file normalize [info script]]]
 set output_dir [file normalize [lindex $argv 0]]
 set project_dir [file join $output_dir project]
 set project_name starlink_pss_iq_to_score_xfft_ooc
-set memory_file [file join $script_dir tb upper_edge_pss_kernel_q23.mem]
+set memory_file [file join $script_dir tb upper_edge_pss_kernel_q17.mem]
 file mkdir $output_dir
 if {![file isfile $memory_file]} {
   error "kernel memory artifact is missing: $memory_file"
@@ -22,7 +22,7 @@ if {![file isfile $memory_file]} {
 create_project -force $project_name $project_dir -part xc7z010clg400-1
 set_property target_language Verilog [current_project]
 create_ip -name xfft -vendor xilinx.com -library ip -version 9.1 \
-  -module_name starlink_pss_fft512_bfp24
+  -module_name starlink_pss_fft512_bfp18
 set_property -dict [list \
   CONFIG.channels {1} \
   CONFIG.transform_length {512} \
@@ -31,7 +31,7 @@ set_property -dict [list \
   CONFIG.target_data_throughput {20} \
   CONFIG.run_time_configurable_transform_length {false} \
   CONFIG.data_format {fixed_point} \
-  CONFIG.input_width {24} \
+  CONFIG.input_width {18} \
   CONFIG.phase_factor_width {16} \
   CONFIG.scaling_options {block_floating_point} \
   CONFIG.rounding_modes {convergent_rounding} \
@@ -44,13 +44,13 @@ set_property -dict [list \
   CONFIG.memory_options_phase_factors {block_ram} \
   CONFIG.memory_options_reorder {block_ram} \
   CONFIG.complex_mult_type {use_mults_resources} \
-  CONFIG.butterfly_type {use_luts} \
-] [get_ips starlink_pss_fft512_bfp24]
-generate_target all [get_ips starlink_pss_fft512_bfp24]
+  CONFIG.butterfly_type {use_xtremedsp_slices} \
+] [get_ips starlink_pss_fft512_bfp18]
+generate_target all [get_ips starlink_pss_fft512_bfp18]
 
 set wrappers [glob -nocomplain \
   [file join $project_dir ${project_name}.gen sources_1 ip \
-    starlink_pss_fft512_bfp24 synth starlink_pss_fft512_bfp24.vhd]]
+    starlink_pss_fft512_bfp18 synth starlink_pss_fft512_bfp18.vhd]]
 if {[llength $wrappers] != 1} {
   error "could not locate generated XFFT synthesis wrapper"
 }
@@ -65,6 +65,7 @@ foreach source_name {
   starlink_pss_overlap_scheduler.v
   starlink_pss_energy_cache.v
   starlink_pss_xfft_block_adapter.v
+  starlink_pss_xfft_intermediate_buffer.v
   starlink_pss_kernel_rom.v
   starlink_pss_forward_kernel_join.v
   starlink_pss_spectrum_product.v
@@ -73,6 +74,7 @@ foreach source_name {
   starlink_pss_energy_join.v
   starlink_pss_score_prepare.v
   starlink_pss_score_divider.v
+  starlink_pss_score_divider_radix4.v
   starlink_pss_score_lanes.v
   starlink_pss_candidate_score_path.v
   starlink_pss_iq_to_score.v
@@ -89,10 +91,10 @@ set_property -dict [list \
   {STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS} {-mode out_of_context} \
 ] [get_runs synth_1]
 
-create_ip_run [get_ips starlink_pss_fft512_bfp24]
-launch_runs starlink_pss_fft512_bfp24_synth_1 -jobs 4
-wait_on_run starlink_pss_fft512_bfp24_synth_1
-if {[get_property STATUS [get_runs starlink_pss_fft512_bfp24_synth_1]] \
+create_ip_run [get_ips starlink_pss_fft512_bfp18]
+launch_runs starlink_pss_fft512_bfp18_synth_1 -jobs 4
+wait_on_run starlink_pss_fft512_bfp18_synth_1
+if {[get_property STATUS [get_runs starlink_pss_fft512_bfp18_synth_1]] \
     ne "synth_design Complete!"} {
   error "XFFT synthesis did not complete"
 }
@@ -172,7 +174,8 @@ set summary [open \
 puts $summary "vivado_version=[version -short]"
 puts $summary "xfft_version=9.1"
 puts $summary "part=xc7z010clg400-1"
-puts $summary "xfft_instances=2"
+puts $summary "xfft_instances=1"
+puts $summary "xfft_sharing=serial_forward_inverse"
 puts $summary "xfft_architecture=radix_4_burst"
 puts $summary "sample_rate_msps=15"
 puts $summary "acquisition_clock_mhz=100"

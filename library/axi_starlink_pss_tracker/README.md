@@ -1,14 +1,15 @@
-# Experimental Stage-15 exact PSS tracker — do not merge to HDL main
+# Experimental 15/30/60 MS/s exact PSS tracker — do not merge to HDL main
 
 `axi_starlink_pss_tracker` is the software boundary for one RX-only, one-
-candidate-at-a-time exact tracking pipeline. Software loads a 66-tap CI16
+candidate-at-a-time exact tracking pipeline. Software loads a rate-matched CI16
 template, schedules a future center in the capture stream's 64-bit sample
 counter, and receives one atomic 26-word packet containing the exact best lag
-from -30 through +30. The underlying arithmetic engine still produces the
-historical 65-tuple `-32..+32` trace; `TRACK_ONE` drains the four guard tuples
-and reduces exactly the frozen 61-lag tracking aperture.
+over the same +/-2 us aperture at 15, 30, or 60 MS/s. The respective tap,
+qualified-lag, and raw-guard-lag counts are 66/61/65, 132/121/129, and
+264/241/257. `TRACK_ONE` drains the guard tuples and reduces only the qualified
+aperture.
 
-ABI 1.2 adds a deterministic 130-sample accepted-path injection fixture. The
+ABI 1.2 at 15 MS/s adds a deterministic 130-sample accepted-path injection fixture. The
 fixture is loaded completely, committed immutable with a nonzero generation,
 and armed only at a future absolute accepted-sample index. Its selected I/Q,
 with the unchanged source strobe/index/timestamp, feeds both the tracker and RX
@@ -16,8 +17,9 @@ DMA packer. Any incomplete load, late/overlapping arm, or accepted-index jump
 is sticky and fail-closed. Injection proves the hardware data path; it is never
 reported as an ambient Starlink detection.
 
-This is a **15 MS/s milestone**, not an autonomous Starlink acquisition claim.
-The IP rejects every `RATE_MSPS` value other than 15 at elaboration. It does not
+This is a sparse tracker, not an autonomous Starlink acquisition claim. The IP
+accepts only `RATE_MSPS` values 15, 30, and 60 at elaboration; deterministic
+fixture injection remains deliberately limited to 15 MS/s. It does not
 contain or trust the older repeated-delay diagnostic, search an unbounded
 stream, identify SSS, qualify repeated-frame cadence, compensate carrier
 offset, or prove that a winner is Starlink. Those are later acquisition and
@@ -30,7 +32,7 @@ firmware main.
 
 ## Stream and clock contract
 
-The post-decimator stream accepts one CI16 sample when
+The full-rate RX stream accepts one CI16 sample when
 `sample_enable && sample_strobe` is true. `sample_index` and
 `sample_timestamp` name that same accepted beat. The Pluto Stage-15 block
 design drives both from the existing 64-bit capture timestamp counter, so a
@@ -47,7 +49,8 @@ captures, and unpublished results even if the PS AXI reset remains released.
 Software schedules from `CURRENT_INDEX_LO/HI`. Reading the low word snapshots
 both halves after a Gray-coded CDC. The observed value can lag the live stream
 by synchronizer latency, so software must schedule comfortably beyond the
-reported index. Hardware rejects a command with less than 64 samples of lead.
+reported index. In the Pluto composition hardware rejects a command with less
+than `64 * RATE_MSPS/15` samples of lead, preserving a constant time margin.
 
 ## Register map
 
@@ -59,9 +62,9 @@ while that buffer is occupied.
 | Offset | Name | Access | Meaning |
 |---:|---|:---:|---|
 | `0x00` | `IDENTIFICATION` | R | `0x50535354` (`PSST`) |
-| `0x04` | `VERSION` | R | `0x00010002` (ABI 1.2) |
-| `0x08` | `RATE_MSPS` | R | `15` |
-| `0x0c` | `GEOMETRY` | R | `{0, lags=61, capture=130, taps=66}` |
+| `0x04` | `VERSION` | R | ABI 1.2 at 15 MS/s; ABI 1.3 at 30/60 MS/s |
+| `0x08` | `RATE_MSPS` | R | `15`, `30`, or `60` |
+| `0x0c` | `GEOMETRY` | R | Rate-scaled qualified lags, capture samples, and taps |
 | `0x10` | `CAPABILITIES` | R | bit 0 exact score, bit 2 host scheduled, bit 3 atomic packet, bit 4 atomic telemetry, bit 5 deterministic injection |
 | `0x14` | `STATUS` | R | live state described below |
 | `0x18` | `CURRENT_INDEX_LO` | R | current index low; snapshots both halves |
@@ -115,12 +118,15 @@ Debug counters occupy `0x80` through `0xe0`:
 Offsets `0x84` through `0xb8` expose only the last immutable sample-clock
 telemetry snapshot. A toggle request captures all fourteen counters on one
 sample-clock edge; the 448-bit payload crosses through two destination stages
-and is published only after the acknowledgement plus two settling cycles.
+and its stable second stage is published only after the acknowledgement plus
+two settling cycles. The sample-side payload remains immutable until a new
+request has first cleared `valid`, avoiding a redundant third 448-bit bank.
 Software must serialize requests: read the generation, write control bit 0,
 then wait for `valid && !busy` and a changed generation before reading the
 snapshot. Counters outside that range are native to the AXI/engine clock.
 
-The ABI 1.2 injection extension occupies the final seven words:
+The 15 MS/s ABI 1.2 injection extension occupies the final seven words. Those
+registers remain present but the feature is compiled out at 30/60 MS/s:
 
 | Offset | Name | Access | Meaning |
 |---:|---|:---:|---|
@@ -134,7 +140,7 @@ The ABI 1.2 injection extension occupies the final seven words:
 
 ## Focused validation
 
-Run the self-checking AXI/core simulation from this directory:
+Run the self-checking AXI/core simulation at all three rates from this directory:
 
 ```sh
 ./run_tests.sh

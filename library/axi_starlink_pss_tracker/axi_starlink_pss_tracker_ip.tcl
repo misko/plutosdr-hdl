@@ -55,7 +55,7 @@ ipx::infer_bus_interface irq xilinx.com:signal:interrupt_rtl:1.0 \
 
 set_property -dict [list \
   value_validation_type list \
-  value_validation_list "15" \
+  value_validation_list "15 30 60" \
 ] [ipx::get_user_parameters RATE_MSPS -of_objects [ipx::current_core]]
 
 set_property -dict [list \
@@ -64,6 +64,11 @@ set_property -dict [list \
   value_validation_range_maximum 6 \
 ] [ipx::get_user_parameters COMMAND_FIFO_ADDRESS_WIDTH \
   -of_objects [ipx::current_core]]
+
+set_property -dict [list \
+  value_validation_type list \
+  value_validation_list "0 1" \
+] [ipx::get_user_parameters ENABLE_INJECTION -of_objects [ipx::current_core]]
 
 ipx::create_xgui_files [ipx::current_core]
 ipx::save_core [ipx::current_core]

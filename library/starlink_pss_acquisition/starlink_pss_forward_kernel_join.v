@@ -9,7 +9,8 @@
 `timescale 1ns/1ps
 
 module starlink_pss_forward_kernel_join #(
-  parameter KERNEL_ROM_FILE = "upper_edge_pss_kernel_q23.mem"
+  parameter KERNEL_ROM_FILE = "upper_edge_pss_kernel_q23.mem",
+  parameter integer DATA_WIDTH = 24
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -17,8 +18,8 @@ module starlink_pss_forward_kernel_join #(
 
   input  wire                    input_valid,
   output wire                    input_ready,
-  input  wire signed [23:0]      input_i,
-  input  wire signed [23:0]      input_q,
+  input  wire signed [DATA_WIDTH-1:0] input_i,
+  input  wire signed [DATA_WIDTH-1:0] input_q,
   input  wire [8:0]              input_bin_index,
   input  wire [4:0]              input_block_exponent,
   input  wire                    input_last,
@@ -26,10 +27,10 @@ module starlink_pss_forward_kernel_join #(
 
   output wire                    output_valid,
   input  wire                    output_ready,
-  output wire signed [23:0]      output_i,
-  output wire signed [23:0]      output_q,
-  output wire signed [23:0]      output_kernel_i,
-  output wire signed [23:0]      output_kernel_q,
+  output wire signed [DATA_WIDTH-1:0] output_i,
+  output wire signed [DATA_WIDTH-1:0] output_q,
+  output wire signed [DATA_WIDTH-1:0] output_kernel_i,
+  output wire signed [DATA_WIDTH-1:0] output_kernel_q,
   output wire [8:0]              output_bin_index,
   output wire [4:0]              output_block_exponent,
   output wire                    output_last,
@@ -43,8 +44,8 @@ module starlink_pss_forward_kernel_join #(
   output wire                    protocol_fault
 );
 
-  reg signed [23:0] captured_i;
-  reg signed [23:0] captured_q;
+  reg signed [DATA_WIDTH-1:0] captured_i;
+  reg signed [DATA_WIDTH-1:0] captured_q;
 
   wire input_accept;
 
@@ -53,7 +54,8 @@ module starlink_pss_forward_kernel_join #(
   assign output_q = captured_q;
 
   starlink_pss_kernel_rom #(
-    .ROM_FILE (KERNEL_ROM_FILE)
+    .ROM_FILE  (KERNEL_ROM_FILE),
+    .DATA_WIDTH(DATA_WIDTH)
   ) kernel_rom (
     .clk                       (clk),
     .resetn                    (resetn),

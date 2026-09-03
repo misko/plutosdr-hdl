@@ -30,12 +30,16 @@ require(
     "reducer tuple handshake is not connected to the raw core",
 )
 require(
-    r"TRACK_FIRST_LAG\s*=\s*-7'sd30",
-    "frozen first lag is not -30",
+    r"TRACK_FIRST_LAG\s*=.*?-30\s*\*\s*RATE_MULTIPLIER",
+    "first lag is not rate-scaled from -30",
 )
 require(
-    r"TRACK_LAST_LAG\s*=\s*7'sd30",
-    "frozen last lag is not +30",
+    r"TRACK_LAST_LAG\s*=.*?30\s*\*\s*RATE_MULTIPLIER",
+    "last lag is not rate-scaled from +30",
+)
+require(
+    r"\.RATE_MULTIPLIER\s*\(RATE_MULTIPLIER\)",
+    "rate multiplier is not propagated through the composition",
 )
 require(
     r"\.i_tuple_valid\s*\(raw_result_valid\s*&&\s*raw_result_in_track_aperture\)",
@@ -55,7 +59,6 @@ require(
 )
 
 print(
-    "REDUCED_TRACKING_STRUCTURE_PASS mode=TRACK_ONE first_lag=-30 "
-    "last_lag=30 raw_trace_lags=65 reduced_lags=61 "
+    "REDUCED_TRACKING_STRUCTURE_PASS mode=TRACK_ONE geometry=rate_scaled "
     "exact_eh_cancellation=1 atomic_store=1"
 )

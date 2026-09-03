@@ -94,6 +94,14 @@ set dsp_cells [get_cells -quiet -hier -filter {REF_NAME == DSP48E1}]
 if {[llength $ramb36_cells] != 1 || [llength $ramb18_cells] != 1} {
   error "expected one RAMB36E1 and one RAMB18E1, got [llength $ramb36_cells]/[llength $ramb18_cells]"
 }
+set registered_bram_outputs 0
+foreach ram_cell [concat $ramb36_cells $ramb18_cells] {
+  if {[get_property DOA_REG $ram_cell] != 1 ||
+      [get_property DOB_REG $ram_cell] != 1} {
+    error "FIFO payload RAM output register was not absorbed into $ram_cell"
+  }
+  incr registered_bram_outputs
+}
 if {[llength $dsp_cells] != 0} {
   error "sample ingress must use zero DSP48E1 cells"
 }
@@ -133,8 +141,9 @@ puts $summary "total_luts=$total_luts"
 puts $summary "total_ffs=$total_ffs"
 puts $summary "ramb36e1=[llength $ramb36_cells]"
 puts $summary "ramb18e1=[llength $ramb18_cells]"
+puts $summary "registered_bram_outputs=$registered_bram_outputs"
 puts $summary "dsp48e1=[llength $dsp_cells]"
 close $summary
 
-puts "STARLINK_SAMPLE_CDC_OOC_PASS setup_wns_ns=$setup_wns hold_whs_ns=$hold_whs total_luts=$total_luts total_ffs=$total_ffs ramb36e1=[llength $ramb36_cells] ramb18e1=[llength $ramb18_cells]"
+puts "STARLINK_SAMPLE_CDC_OOC_PASS setup_wns_ns=$setup_wns hold_whs_ns=$hold_whs total_luts=$total_luts total_ffs=$total_ffs ramb36e1=[llength $ramb36_cells] ramb18e1=[llength $ramb18_cells] registered_bram_outputs=$registered_bram_outputs"
 close_design
