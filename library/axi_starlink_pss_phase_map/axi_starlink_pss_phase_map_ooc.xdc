@@ -12,7 +12,13 @@ set map_inputs [get_ports [list \
   map_read_error accepted_score_count* discarded_score_count* \
   discontinuity_abort_count* map_publish_count* map_overrun_count* \
   score_protocol_error_count* map_arithmetic_overflow_count* \
-  map_read_error_count* map_release_error_count*]]
+  map_read_error_count* map_release_error_count* detector_health_flags* \
+  ingress_overflow_sticky ingress_dropped_sample_count* \
+  ingress_fifo_level* ingress_maximum_fifo_level* scheduler_gap_count* \
+  scheduler_index_error_count* scheduler_overflow_count* \
+  detector_fault_count* score_phase_index_discontinuity_count* \
+  score_denominator_zero_count* candidate_fifo_stored_count* \
+  candidate_fifo_maximum_stored_count*]]
 set map_outputs [get_ports [list \
   map_read_request map_read_bank map_read_index* map_release \
   map_release_bank acquisition_enable acquisition_flush]]

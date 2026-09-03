@@ -63,7 +63,13 @@ module starlink_pss_iq_to_phase_map #(
   output wire                          candidate_path_fault,
   output wire [9:0]                    candidate_fifo_stored_count,
   output wire [9:0]                    candidate_fifo_maximum_stored_count,
-  output reg  [31:0]                   score_phase_index_discontinuity_count,
+  output wire [31:0]                   score_phase_index_discontinuity_count,
+  output wire [31:0]                   scheduler_gap_count,
+  output wire [31:0]                   scheduler_index_error_count,
+  output wire [31:0]                   scheduler_overflow_count,
+  output wire [31:0]                   detector_fault_count,
+  output wire [31:0]                   score_denominator_zero_count,
+  output wire [31:0]                   detector_health_flags,
 
   output wire [31:0]                   accepted_score_count,
   output wire [31:0]                   discarded_score_count,
@@ -75,13 +81,6 @@ module starlink_pss_iq_to_phase_map #(
   output wire [31:0]                   map_read_error_count,
   output wire [31:0]                   map_release_error_count
 );
-
-  function automatic [31:0] increment_saturating_32;
-    input [31:0] value;
-    begin
-      increment_saturating_32 = (&value) ? value : value + 1'b1;
-    end
-  endfunction
 
   wire raw_score_valid;
   wire [7:0] raw_score_value;
@@ -221,12 +220,29 @@ module starlink_pss_iq_to_phase_map #(
     .map_release_error_count      (map_release_error_count)
   );
 
-  always @(posedge clk) begin
-    if (!resetn)
-      score_phase_index_discontinuity_count <= 32'd0;
-    else if (phase_index_discontinuity_pulse)
-      score_phase_index_discontinuity_count <= increment_saturating_32(
-          score_phase_index_discontinuity_count);
-  end
+  starlink_pss_acquisition_health acquisition_health (
+    .clk                                  (clk),
+    .resetn                               (resetn),
+    .detector_fault                       (detector_fault),
+    .scheduler_gap_pulse                  (scheduler_gap_pulse),
+    .scheduler_index_error_pulse          (scheduler_index_error_pulse),
+    .scheduler_overflow_pulse             (scheduler_overflow_pulse),
+    .forward_fft_fault                    (forward_fft_fault),
+    .kernel_join_fault                    (kernel_join_fault),
+    .product_overflow_fault               (product_overflow_fault),
+    .inverse_fft_fault                    (inverse_fft_fault),
+    .forward_exponent_fault               (forward_exponent_fault),
+    .candidate_path_fault                 (candidate_path_fault),
+    .phase_index_discontinuity_pulse      (phase_index_discontinuity_pulse),
+    .score_valid                          (raw_score_valid),
+    .score_denominator_zero               (raw_score_denominator_zero),
+    .scheduler_gap_count                  (scheduler_gap_count),
+    .scheduler_index_error_count          (scheduler_index_error_count),
+    .scheduler_overflow_count             (scheduler_overflow_count),
+    .detector_fault_count                 (detector_fault_count),
+    .score_phase_index_discontinuity_count(score_phase_index_discontinuity_count),
+    .score_denominator_zero_count         (score_denominator_zero_count),
+    .detector_health_flags                (detector_health_flags)
+  );
 
 endmodule

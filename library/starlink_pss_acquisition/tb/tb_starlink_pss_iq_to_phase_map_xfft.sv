@@ -50,6 +50,12 @@ module tb_starlink_pss_iq_to_phase_map_xfft;
   wire [9:0] candidate_fifo_stored_count;
   wire [9:0] candidate_fifo_maximum_stored_count;
   wire [31:0] score_phase_index_discontinuity_count;
+  wire [31:0] scheduler_gap_count;
+  wire [31:0] scheduler_index_error_count;
+  wire [31:0] scheduler_overflow_count;
+  wire [31:0] detector_fault_count;
+  wire [31:0] score_denominator_zero_count;
+  wire [31:0] detector_health_flags;
   wire [31:0] accepted_score_count;
   wire [31:0] discarded_score_count;
   wire [31:0] discontinuity_abort_count;
@@ -125,6 +131,12 @@ module tb_starlink_pss_iq_to_phase_map_xfft;
     .candidate_fifo_stored_count          (candidate_fifo_stored_count),
     .candidate_fifo_maximum_stored_count  (candidate_fifo_maximum_stored_count),
     .score_phase_index_discontinuity_count(score_phase_index_discontinuity_count),
+    .scheduler_gap_count                  (scheduler_gap_count),
+    .scheduler_index_error_count          (scheduler_index_error_count),
+    .scheduler_overflow_count             (scheduler_overflow_count),
+    .detector_fault_count                 (detector_fault_count),
+    .score_denominator_zero_count         (score_denominator_zero_count),
+    .detector_health_flags                (detector_health_flags),
     .accepted_score_count                 (accepted_score_count),
     .discarded_score_count                (discarded_score_count),
     .discontinuity_abort_count            (discontinuity_abort_count),
@@ -242,8 +254,15 @@ module tb_starlink_pss_iq_to_phase_map_xfft;
         map_overrun_count != 0 || score_protocol_error_count != 0 ||
         map_arithmetic_overflow_count != 0 || map_read_error_count != 0 ||
         map_release_error_count != 0 ||
-        score_phase_index_discontinuity_count != 0)
+        score_phase_index_discontinuity_count != 0 ||
+        scheduler_gap_count != 0 || scheduler_index_error_count != 0 ||
+        scheduler_overflow_count != 0 || detector_fault_count != 0 ||
+        score_denominator_zero_count != 0 || detector_health_flags != 0)
       fail("unexpected phase-map telemetry");
+    if (candidate_fifo_stored_count != 0 ||
+        candidate_fifo_maximum_stored_count == 0 ||
+        candidate_fifo_maximum_stored_count > 512)
+      fail("unexpected candidate FIFO occupancy telemetry");
 
     for (phase_index = 0; phase_index < PHASE_BINS;
          phase_index = phase_index + 1) begin
@@ -261,10 +280,11 @@ module tb_starlink_pss_iq_to_phase_map_xfft;
     if (map_read_error_count != 0 || map_release_error_count != 0)
       fail("map read changed error telemetry");
 
-    $display("IQ_TO_PHASE_MAP_XFFT_PASS samples=%0d scores=%0d phases=%0d frames=%0d exact_map_reads=%0d map_peak_phase=%0d map_peak_value=%0d bounded_handoff_bytes=%0d",
+    $display("IQ_TO_PHASE_MAP_XFFT_PASS samples=%0d scores=%0d phases=%0d frames=%0d exact_map_reads=%0d map_peak_phase=%0d map_peak_value=%0d bounded_handoff_bytes=%0d candidate_fifo_peak=%0d health_flags=0x%08x",
              driven_samples, score_count, PHASE_BINS, BLOCK_COUNT,
              PHASE_BINS, largest_map_phase, largest_map_value,
-             PHASE_BINS * 2);
+             PHASE_BINS * 2, candidate_fifo_maximum_stored_count,
+             detector_health_flags);
     $finish;
   end
 

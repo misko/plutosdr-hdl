@@ -22,6 +22,19 @@ module tb_axi_starlink_pss_phase_map_snapshot;
   reg [31:0] map_arithmetic_overflow_count = 32'hd0d0_d0d0;
   reg [31:0] map_read_error_count = 32'he0e0_e0e0;
   reg [31:0] map_release_error_count = 32'hf0f0_f0f0;
+  reg [31:0] detector_health_flags = 32'h0000_0a55;
+  reg ingress_overflow_sticky = 1'b1;
+  reg [31:0] ingress_dropped_sample_count = 32'h0101_0101;
+  reg [15:0] ingress_fifo_level = 16'h1234;
+  reg [15:0] ingress_maximum_fifo_level = 16'h5678;
+  reg [31:0] scheduler_gap_count = 32'h0202_0202;
+  reg [31:0] scheduler_index_error_count = 32'h0303_0303;
+  reg [31:0] scheduler_overflow_count = 32'h0404_0404;
+  reg [31:0] detector_fault_count = 32'h0505_0505;
+  reg [31:0] score_phase_index_discontinuity_count = 32'h0606_0606;
+  reg [31:0] score_denominator_zero_count = 32'h0707_0707;
+  reg [9:0] candidate_fifo_stored_count = 10'h155;
+  reg [9:0] candidate_fifo_maximum_stored_count = 10'h2aa;
 
   wire map_read_request;
   wire map_read_bank;
@@ -83,6 +96,19 @@ module tb_axi_starlink_pss_phase_map_snapshot;
     .map_arithmetic_overflow_count (map_arithmetic_overflow_count),
     .map_read_error_count          (map_read_error_count),
     .map_release_error_count       (map_release_error_count),
+    .detector_health_flags         (detector_health_flags),
+    .ingress_overflow_sticky       (ingress_overflow_sticky),
+    .ingress_dropped_sample_count  (ingress_dropped_sample_count),
+    .ingress_fifo_level            (ingress_fifo_level),
+    .ingress_maximum_fifo_level    (ingress_maximum_fifo_level),
+    .scheduler_gap_count           (scheduler_gap_count),
+    .scheduler_index_error_count   (scheduler_index_error_count),
+    .scheduler_overflow_count      (scheduler_overflow_count),
+    .detector_fault_count          (detector_fault_count),
+    .score_phase_index_discontinuity_count(score_phase_index_discontinuity_count),
+    .score_denominator_zero_count  (score_denominator_zero_count),
+    .candidate_fifo_stored_count   (candidate_fifo_stored_count),
+    .candidate_fifo_maximum_stored_count(candidate_fifo_maximum_stored_count),
     .acquisition_enable            (acquisition_enable),
     .acquisition_flush             (acquisition_flush),
     .irq                           (irq),
@@ -229,6 +255,16 @@ module tb_axi_starlink_pss_phase_map_snapshot;
       expect_read(8'h70, 32'hd0d0_d0d0);
       expect_read(8'h74, 32'he0e0_e0e0);
       expect_read(8'h78, 32'hf0f0_f0f0);
+      expect_read(8'h88, 32'h0000_1a55);
+      expect_read(8'h8c, 32'h0101_0101);
+      expect_read(8'h90, 32'h5678_1234);
+      expect_read(8'h94, 32'h0202_0202);
+      expect_read(8'h98, 32'h0303_0303);
+      expect_read(8'h9c, 32'h0404_0404);
+      expect_read(8'ha0, 32'h0505_0505);
+      expect_read(8'ha4, 32'h0606_0606);
+      expect_read(8'ha8, 32'h0707_0707);
+      expect_read(8'hac, 32'h02aa_0155);
     end
   endtask
 
@@ -250,6 +286,16 @@ module tb_axi_starlink_pss_phase_map_snapshot;
       expect_read(8'h70, 32'hdddd_dddd);
       expect_read(8'h74, 32'heeee_eeee);
       expect_read(8'h78, 32'hffff_ffff);
+      expect_read(8'h88, 32'h0000_05aa);
+      expect_read(8'h8c, 32'h1111_2222);
+      expect_read(8'h90, 32'h5566_3344);
+      expect_read(8'h94, 32'h1212_1212);
+      expect_read(8'h98, 32'h2323_2323);
+      expect_read(8'h9c, 32'h3434_3434);
+      expect_read(8'ha0, 32'h4545_4545);
+      expect_read(8'ha4, 32'h5656_5656);
+      expect_read(8'ha8, 32'h6767_6767);
+      expect_read(8'hac, 32'h03ff_0001);
     end
   endtask
 
@@ -282,6 +328,19 @@ module tb_axi_starlink_pss_phase_map_snapshot;
     map_arithmetic_overflow_count = 32'hdddd_dddd;
     map_read_error_count = 32'heeee_eeee;
     map_release_error_count = 32'hffff_ffff;
+    detector_health_flags = 32'h0000_05aa;
+    ingress_overflow_sticky = 1'b0;
+    ingress_dropped_sample_count = 32'h1111_2222;
+    ingress_fifo_level = 16'h3344;
+    ingress_maximum_fifo_level = 16'h5566;
+    scheduler_gap_count = 32'h1212_1212;
+    scheduler_index_error_count = 32'h2323_2323;
+    scheduler_overflow_count = 32'h3434_3434;
+    detector_fault_count = 32'h4545_4545;
+    score_phase_index_discontinuity_count = 32'h5656_5656;
+    score_denominator_zero_count = 32'h6767_6767;
+    candidate_fifo_stored_count = 10'h001;
+    candidate_fifo_maximum_stored_count = 10'h3ff;
 
     wait_snapshot();
     expect_read(8'h38, 32'd1);
@@ -295,7 +354,7 @@ module tb_axi_starlink_pss_phase_map_snapshot;
     check_second_snapshot();
 
     $display(
-      "AXI_PHASE_MAP_SNAPSHOT_PASS words=16 coherent_sets=2 request_overruns=1 map_hz=10000000 axi_hz=100000000"
+      "AXI_PHASE_MAP_SNAPSHOT_PASS words=26 coherent_sets=2 request_overruns=1 map_hz=10000000 axi_hz=100000000"
     );
     $finish;
   end

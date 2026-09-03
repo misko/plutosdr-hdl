@@ -159,6 +159,19 @@ module tb_axi_starlink_pss_phase_map #(
     .map_arithmetic_overflow_count (map_arithmetic_overflow_count),
     .map_read_error_count          (map_read_error_count),
     .map_release_error_count       (map_release_error_count),
+    .detector_health_flags         (32'd0),
+    .ingress_overflow_sticky       (1'b0),
+    .ingress_dropped_sample_count  (32'd0),
+    .ingress_fifo_level            (16'd0),
+    .ingress_maximum_fifo_level    (16'd0),
+    .scheduler_gap_count           (32'd0),
+    .scheduler_index_error_count   (32'd0),
+    .scheduler_overflow_count      (32'd0),
+    .detector_fault_count          (32'd0),
+    .score_phase_index_discontinuity_count(32'd0),
+    .score_denominator_zero_count  (32'd0),
+    .candidate_fifo_stored_count   (10'd0),
+    .candidate_fifo_maximum_stored_count(10'd0),
     .acquisition_enable            (acquisition_enable),
     .acquisition_flush             (acquisition_flush),
     .irq                           (irq),
@@ -447,7 +460,7 @@ module tb_axi_starlink_pss_phase_map #(
     if (read_value !== 32'h5053_4d41)
       fail("identification mismatch");
     axi_read(8'h04, read_value);
-    if (read_value !== 32'h0001_0000)
+    if (read_value !== 32'h0001_0001)
       fail("version mismatch");
     axi_read(8'h08, read_value);
     if (read_value !== PHASE_BINS)
@@ -456,7 +469,7 @@ module tb_axi_starlink_pss_phase_map #(
     if (read_value !== 32'h0004_1002)
       fail("tile geometry mismatch");
     axi_read(8'h10, read_value);
-    if (read_value !== 32'h0000_001f)
+    if (read_value !== 32'h0000_003f)
       fail("capabilities mismatch");
 
     axi_read_backpressured(8'h00, 32'h5053_4d41);

@@ -92,6 +92,7 @@ set rtl_sources [list \
   starlink_pss_score_phase_tagger.v \
   starlink_pss_phase_map_bank.v \
   starlink_pss_phase_map.v \
+  starlink_pss_acquisition_health.v \
   starlink_pss_iq_to_phase_map.v \
 ]
 foreach source_name $rtl_sources {

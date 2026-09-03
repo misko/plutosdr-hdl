@@ -5,7 +5,7 @@
 // The acquisition side owns the phase-map memories.  This bridge transfers
 // one explicit read or release command at a time with toggle mailboxes, and
 // returns read data only after a source-domain acknowledgement.  Map metadata
-// and counters are captured atomically into a separate 16-word snapshot.
+// and counters are captured atomically into a versioned telemetry snapshot.
 // No acquisition sample or score is ever backpressured by this block.
 
 `timescale 1ns/1ps
@@ -45,6 +45,20 @@ module axi_starlink_pss_phase_map #(
   input  wire [31:0]                   map_read_error_count,
   input  wire [31:0]                   map_release_error_count,
 
+  input  wire [31:0]                   detector_health_flags,
+  input  wire                          ingress_overflow_sticky,
+  input  wire [31:0]                   ingress_dropped_sample_count,
+  input  wire [15:0]                   ingress_fifo_level,
+  input  wire [15:0]                   ingress_maximum_fifo_level,
+  input  wire [31:0]                   scheduler_gap_count,
+  input  wire [31:0]                   scheduler_index_error_count,
+  input  wire [31:0]                   scheduler_overflow_count,
+  input  wire [31:0]                   detector_fault_count,
+  input  wire [31:0]                   score_phase_index_discontinuity_count,
+  input  wire [31:0]                   score_denominator_zero_count,
+  input  wire [9:0]                    candidate_fifo_stored_count,
+  input  wire [9:0]                    candidate_fifo_maximum_stored_count,
+
   output wire                          acquisition_enable,
   output reg                           acquisition_flush,
   output wire                          irq,
@@ -73,14 +87,15 @@ module axi_starlink_pss_phase_map #(
 );
 
   localparam [31:0] IDENTIFICATION = 32'h5053_4d41; // ASCII "PSMA".
-  localparam [31:0] VERSION = 32'h0001_0000;
-  localparam [31:0] CAPABILITIES = 32'h0000_001f;
+  localparam [31:0] VERSION = 32'h0001_0001;
+  localparam [31:0] CAPABILITIES = 32'h0000_003f;
   localparam [31:0] TILE_GEOMETRY =
       (TILE_FRAMES << 16) | (MAP_WIDTH << 8) | 2;
   localparam [PHASE_INDEX_WIDTH-1:0] LAST_PHASE = PHASE_BINS - 1;
-  // Fifteen full telemetry words plus the two meaningful ready-mask bits.
-  // The AXI register view expands the mask back to a zero-extended word.
-  localparam integer SNAPSHOT_BITS = 482;
+  // Twenty-four full telemetry words, two 10-bit candidate FIFO levels, and
+  // the two meaningful ready-mask bits.  AXI expands compact fields back to
+  // their documented zero-extended 32-bit register views.
+  localparam integer SNAPSHOT_BITS = 790;
 
   localparam [5:0] REG_IDENTIFICATION = 6'h00; // 0x00
   localparam [5:0] REG_VERSION = 6'h01; // 0x04
@@ -116,6 +131,21 @@ module axi_starlink_pss_phase_map #(
   localparam [5:0] REG_BRIDGE_READ_ERROR = 6'h1f; // 0x7c
   localparam [5:0] REG_BRIDGE_RELEASE_ERROR = 6'h20; // 0x80
   localparam [5:0] REG_SNAPSHOT_REQUEST_OVERRUN = 6'h21; // 0x84
+  localparam [5:0] REG_SNAPSHOT_HEALTH_FLAGS = 6'h22; // 0x88
+  localparam [5:0] REG_SNAPSHOT_INGRESS_DROPPED = 6'h23; // 0x8c
+  localparam [5:0] REG_SNAPSHOT_INGRESS_FIFO = 6'h24; // 0x90
+  localparam [5:0] REG_SNAPSHOT_SCHEDULER_GAP = 6'h25; // 0x94
+  localparam [5:0] REG_SNAPSHOT_SCHEDULER_INDEX_ERROR = 6'h26; // 0x98
+  localparam [5:0] REG_SNAPSHOT_SCHEDULER_OVERFLOW = 6'h27; // 0x9c
+  localparam [5:0] REG_SNAPSHOT_DETECTOR_FAULT = 6'h28; // 0xa0
+  localparam [5:0] REG_SNAPSHOT_PHASE_DISCONTINUITY = 6'h29; // 0xa4
+  localparam [5:0] REG_SNAPSHOT_DENOMINATOR_ZERO = 6'h2a; // 0xa8
+  localparam [5:0] REG_SNAPSHOT_CANDIDATE_FIFO = 6'h2b; // 0xac
+
+  localparam integer HEALTH_INGRESS_OVERFLOW = 12;
+  wire [31:0] snapshot_health_flags = detector_health_flags |
+      (ingress_overflow_sticky ?
+       (32'd1 << HEALTH_INGRESS_OVERFLOW) : 32'd0);
 
   generate
     if (PHASE_BINS < 2) begin : g_invalid_phase_bins
@@ -333,10 +363,10 @@ module axi_starlink_pss_phase_map #(
     end
   end
 
-  // Atomic 16-word telemetry snapshot.  Word zero contains the ready mask;
-  // the remaining words contain immutable metadata followed by all nine map
-  // counters.  The acknowledgement is delayed at the destination before the
-  // synchronized payload is published.
+  // Atomic telemetry snapshot.  Its original 1.0 prefix remains bit-for-bit
+  // stable; ABI 1.1 appends ingress and complete detector-health evidence.
+  // The acknowledgement is delayed at the destination before the synchronized
+  // payload is published.
   reg snapshot_request_toggle;
   (* ASYNC_REG = "TRUE", SHREG_EXTRACT = "NO" *)
   reg [1:0] snapshot_request_sync;
@@ -357,6 +387,17 @@ module axi_starlink_pss_phase_map #(
       if (snapshot_request_sync[1] != snapshot_request_seen) begin
         snapshot_request_seen <= snapshot_request_sync[1];
         snapshot_source_payload <= {
+          candidate_fifo_maximum_stored_count,
+          candidate_fifo_stored_count,
+          score_denominator_zero_count,
+          score_phase_index_discontinuity_count,
+          detector_fault_count,
+          scheduler_overflow_count,
+          scheduler_index_error_count,
+          scheduler_gap_count,
+          {ingress_maximum_fifo_level, ingress_fifo_level},
+          ingress_dropped_sample_count,
+          snapshot_health_flags,
           map_release_error_count,
           map_read_error_count,
           map_arithmetic_overflow_count,
@@ -553,6 +594,29 @@ module axi_starlink_pss_phase_map #(
           register_value = bridge_release_error_count;
         REG_SNAPSHOT_REQUEST_OVERRUN:
           register_value = snapshot_request_overrun_count;
+        REG_SNAPSHOT_HEALTH_FLAGS:
+          register_value = snapshot_payload[513:482];
+        REG_SNAPSHOT_INGRESS_DROPPED:
+          register_value = snapshot_payload[545:514];
+        REG_SNAPSHOT_INGRESS_FIFO:
+          register_value = snapshot_payload[577:546];
+        REG_SNAPSHOT_SCHEDULER_GAP:
+          register_value = snapshot_payload[609:578];
+        REG_SNAPSHOT_SCHEDULER_INDEX_ERROR:
+          register_value = snapshot_payload[641:610];
+        REG_SNAPSHOT_SCHEDULER_OVERFLOW:
+          register_value = snapshot_payload[673:642];
+        REG_SNAPSHOT_DETECTOR_FAULT:
+          register_value = snapshot_payload[705:674];
+        REG_SNAPSHOT_PHASE_DISCONTINUITY:
+          register_value = snapshot_payload[737:706];
+        REG_SNAPSHOT_DENOMINATOR_ZERO:
+          register_value = snapshot_payload[769:738];
+        REG_SNAPSHOT_CANDIDATE_FIFO:
+          register_value = {
+            6'd0, snapshot_payload[789:780],
+            6'd0, snapshot_payload[779:770]
+          };
         default: register_value = 32'd0;
       endcase
     end

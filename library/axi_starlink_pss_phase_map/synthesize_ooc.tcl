@@ -131,7 +131,7 @@ foreach {label pattern} {
   }
   set $label $value
 }
-if {$total_luts > 1400 || $total_ffs > 3200} {
+if {$total_luts > 1400 || $total_ffs > 4500} {
   error "AXI/CDC bridge logic budget exceeded: LUT=$total_luts FF=$total_ffs"
 }
 
@@ -141,9 +141,9 @@ set snapshot_sync [get_cells -quiet -hier -regexp \
   {.*snapshot_payload_sync_[12]_reg\[[0-9]+\].*}]
 set snapshot_destination [get_cells -quiet -hier -regexp \
   {.*snapshot_payload_reg\[[0-9]+\].*}]
-if {[llength $snapshot_source] != 482 ||
-    [llength $snapshot_sync] != 964 ||
-    [llength $snapshot_destination] != 482} {
+if {[llength $snapshot_source] != 790 ||
+    [llength $snapshot_sync] != 1580 ||
+    [llength $snapshot_destination] != 790} {
   error "snapshot mailbox bits are incomplete: source=[llength $snapshot_source] sync=[llength $snapshot_sync] destination=[llength $snapshot_destination]"
 }
 

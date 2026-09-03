@@ -23,6 +23,13 @@ CDC, methodology, and resource gate is:
 ```sh
 ./run_sample_cdc_ooc.sh /absolute/output/directory
 ```
+
+`starlink_pss_acquisition_health.v` retains the diagnostic evidence that must
+cross the PSMA 1.1 snapshot: scheduler gap/index/overflow counts, detector
+fault episodes, phase/index discontinuities, zero denominators, and sticky
+cause flags for every quarantining pipeline stage.  Its counters saturate
+rather than wrap; a reduced-width test proves saturation as well as episode
+versus level counting and reset-epoch clearing.
 It consumes one already-normalized eight-bit score for each candidate start at
 the canonical 15 MS/s acquisition rate.  It keeps all 20,000 one-sample phase
 hypotheses, sums exactly 64 complete frames into a 16-bit map, and uses two

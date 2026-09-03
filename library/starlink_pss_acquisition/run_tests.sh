@@ -6,6 +6,13 @@ cd "$script_dir"
 mkdir -p build
 
 iverilog -g2012 -Wall \
+  -s tb_starlink_pss_acquisition_health \
+  -o build/starlink_pss_acquisition_health.vvp \
+  starlink_pss_acquisition_health.v \
+  tb/tb_starlink_pss_acquisition_health.sv
+vvp build/starlink_pss_acquisition_health.vvp
+
+iverilog -g2012 -Wall \
   -s tb_starlink_pss_sample_cdc \
   -P tb_starlink_pss_sample_cdc.FIFO_ADDRESS_WIDTH=2 \
   -o build/starlink_pss_sample_cdc_depth4.vvp \

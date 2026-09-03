@@ -19,8 +19,10 @@ owned by the acquisition domain until software explicitly releases one.
   word, and auto-increments the selected phase index without wrapping.
 - A release command is acknowledged only after the map domain has accepted or
   rejected it.
-- Sixteen telemetry words are captured atomically. The CDC payload is compact:
-  15 full words plus the two ready bits, or 482 bits rather than 512.
+- Twenty-six telemetry words are captured atomically. The ABI 1.0 prefix is
+  unchanged and ABI 1.1 appends ten health words. The CDC payload is compact:
+  24 full words, two 10-bit candidate FIFO levels, and two ready bits, or 790
+  bits rather than the 832-bit zero-extended AXI register view.
 - Enable is a synchronized level. Flush is a toggle-transferred one-shot pulse.
 - A map-local reset clears the acquisition/control epoch. It aborts any AXI
   register request already in flight with a zero read result so the bus cannot
@@ -39,10 +41,10 @@ All offsets are bytes from the IP base. Reserved bits read as zero.
 | Offset | Name | Access | Meaning |
 |---:|---|:---:|---|
 | `0x00` | `IDENTIFICATION` | RO | `0x50534d41` (`PSMA`) |
-| `0x04` | `VERSION` | RO | `0x00010000` |
+| `0x04` | `VERSION` | RO | `0x00010001` |
 | `0x08` | `PHASE_BINS` | RO | Number of map bins; normally 20,000 |
 | `0x0c` | `TILE_GEOMETRY` | RO | `[31:16]` frames, `[15:8]` map width, `[7:0]` banks |
-| `0x10` | `CAPABILITIES` | RO | Bits 0–4: two banks, blocking data read, auto-increment, atomic snapshot, level IRQ |
+| `0x10` | `CAPABILITIES` | RO | Bits 0–5: two banks, blocking data read, auto-increment, atomic snapshot, level IRQ, health snapshot |
 | `0x14` | `CONTROL` | RW/WO | Bit 0 enable; writing bit 1 emits one flush pulse |
 | `0x18` | `STATUS` | RO | Bit 0 control epoch live, 1 enable, 3:2 ready, 4 IRQ, 5 read pending, 6 release pending, 7 snapshot pending, 8 snapshot valid |
 | `0x1c` | `MAP_SELECT` | RW | Bit 0 selects bank |
@@ -72,6 +74,23 @@ All offsets are bytes from the IP base. Reserved bits read as zero.
 | `0x7c` | `BRIDGE_READ_ERROR` | RO | Live saturating bridge read-error count |
 | `0x80` | `BRIDGE_RELEASE_ERROR` | RO | Live saturating bridge release-error count |
 | `0x84` | `SNAPSHOT_REQUEST_OVERRUN` | RO | Live saturating count of snapshot requests made while pending |
+| `0x88` | `SNAPSHOT_HEALTH_FLAGS` | RO | Captured sticky detector flags in bits 11:0 and ingress-overflow sticky in bit 12 |
+| `0x8c` | `SNAPSHOT_INGRESS_DROPPED` | RO | Captured saturating RX-to-acquisition FIFO drop count |
+| `0x90` | `SNAPSHOT_INGRESS_FIFO` | RO | Captured maximum FIFO level `[31:16]` and current level `[15:0]` |
+| `0x94` | `SNAPSHOT_SCHEDULER_GAP` | RO | Captured scheduler gap count |
+| `0x98` | `SNAPSHOT_SCHEDULER_INDEX_ERROR` | RO | Captured scheduler absolute-index error count |
+| `0x9c` | `SNAPSHOT_SCHEDULER_OVERFLOW` | RO | Captured overlap scheduler retention/queue overflow count |
+| `0xa0` | `SNAPSHOT_DETECTOR_FAULT` | RO | Captured aggregate detector-fault episode count |
+| `0xa4` | `SNAPSHOT_PHASE_DISCONTINUITY` | RO | Captured score phase/index discontinuity count |
+| `0xa8` | `SNAPSHOT_DENOMINATOR_ZERO` | RO | Captured normalized-score zero-denominator count |
+| `0xac` | `SNAPSHOT_CANDIDATE_FIFO` | RO | Captured maximum candidate FIFO occupancy `[25:16]` and current occupancy `[9:0]`; padding is zero |
+
+`SNAPSHOT_HEALTH_FLAGS` uses bit 0 for aggregate detector fault, bits 1–3
+for scheduler gap/index/overflow, bits 4–9 for forward FFT, kernel join,
+product overflow, inverse FFT, forward-exponent, and candidate-path faults,
+bit 10 for score phase/index discontinuity, bit 11 for a zero denominator,
+and bit 12 for an ingress FIFO drop. Detector flags are sticky for the reset
+epoch; counters are saturating.
 
 Writing `CONTROL=2` disables acquisition while flushing it. Software that wants
 to remain enabled must write `CONTROL=3`.
@@ -101,7 +120,7 @@ Run functional simulations:
 ```
 
 They exercise integrated map publication/read/release at four map-clock ratios
-(62.5, about 71.4, 100, and 125 MHz against 100 MHz AXI), all 16 atomic
+(62.5, about 71.4, 100, and 125 MHz against 100 MHz AXI), all 26 atomic
 snapshot words, a 10 MHz snapshot CDC stress case, split AW/W ordering, byte
 strobes, AXI response backpressure, invalid commands, flush, and reset abort.
 
@@ -114,7 +133,7 @@ Run the physical evidence gate with Vivado 2022.2:
 The gate synthesizes, places, and routes for `xc7z010clg400-1` at 100 MHz on
 both clocks. It requires zero methodology violations, no unexpected timing
 categories, zero critical CDC rows, exactly the known CDC report classes,
-three met bundled-data skew constraints, complete 482/964/482-bit snapshot
+three met bundled-data skew constraints, complete 790/1580/790-bit snapshot
 storage, nonnegative routed setup/hold slack, no BRAM/DSP, and explicit LUT/FF
 caps. These figures cover the bridge only; the phase-map BRAMs are accounted
 for by the acquisition-core evidence and later full-system implementation.

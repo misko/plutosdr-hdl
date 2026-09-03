@@ -30,7 +30,7 @@ def require(source: str, fragment: str, message: str) -> None:
 
 
 for source, fragment, message in (
-    (bridge, "localparam integer SNAPSHOT_BITS = 482", "snapshot is not compact"),
+    (bridge, "localparam integer SNAPSHOT_BITS = 790", "snapshot is not compact"),
     (bridge, "read_request_settle_count <= 2'd1", "read request has no payload settling cycle"),
     (bridge, "release_request_settle_count <= 2'd1", "release request has no payload settling cycle"),
     (bridge, "read_settle_count <= 2'd1", "read response has no payload settling cycle"),
@@ -48,7 +48,7 @@ for source, fragment, message in (
     (ooc_constraints, "set_clock_groups -asynchronous", "map and AXI clocks are not declared asynchronous"),
     (ooc_gate, "route_design -directive Explore", "physical gate does not route"),
     (ooc_gate, "critical_cdc_count", "physical gate does not reject critical CDC rows"),
-    (ooc_gate, "snapshot_source] != 482", "physical gate does not prove all source snapshot bits"),
+    (ooc_gate, "snapshot_source] != 790", "physical gate does not prove all source snapshot bits"),
     (ip_package, '"starlink_pss_axi_lite.v"', "AXI front end is absent from packaged IP"),
 ):
     require(source, fragment, message)
@@ -84,6 +84,18 @@ for unsafe_live_value in (
     "map_arithmetic_overflow_count",
     "map_read_error_count",
     "map_release_error_count",
+    "detector_health_flags",
+    "ingress_dropped_sample_count",
+    "ingress_fifo_level",
+    "ingress_maximum_fifo_level",
+    "scheduler_gap_count",
+    "scheduler_index_error_count",
+    "scheduler_overflow_count",
+    "detector_fault_count",
+    "score_phase_index_discontinuity_count",
+    "score_denominator_zero_count",
+    "candidate_fifo_stored_count",
+    "candidate_fifo_maximum_stored_count",
 ):
     if unsafe_live_value in register_function.group("body"):
         raise SystemExit(
@@ -91,7 +103,7 @@ for unsafe_live_value in (
         )
 
 print(
-    "AXI_PHASE_MAP_STRUCTURE_PASS axi_lite=long_latency snapshot_bits=482 "
+    "AXI_PHASE_MAP_STRUCTURE_PASS axi_lite=long_latency snapshot_bits=790 "
     "atomic_snapshot=1 reset_abort=1 async_clocks=1 skew_constraints=3 "
     "routed_gate=1"
 )
