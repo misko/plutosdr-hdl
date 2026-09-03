@@ -44,8 +44,15 @@ adi_project_files pluto [list \
 
 set_property is_enabled false [get_files  *system_sys_ps7_0.xdc]
 
-# Retain the known default implementation flow. The RX-only shell and detector
-# must earn fresh placed/routed timing evidence rather than inheriting the old
-# full-design placement experiments.
+# Retain the known default implementation flow at 15/30 MS/s.  The 60 MS/s
+# design is placement-sensitive near 75% LUT and 87.5% BRAM utilization, so use
+# one named Vivado strategy which adds Explore placement/routing and post-route
+# physical optimization.  This is still a fresh full implementation; it does
+# not reuse a prior checkpoint or relax any timing constraint.
+if {[info exists ::env(STARLINK_PSS_RATE_MSPS)] &&
+    $::env(STARLINK_PSS_RATE_MSPS) eq "60"} {
+  set_property strategy Performance_ExplorePostRoutePhysOpt [get_runs impl_1]
+}
+
 adi_project_run pluto
 source $ad_hdl_dir/library/axi_ad9361/axi_ad9361_delay.tcl
