@@ -725,9 +725,10 @@ module axi_ad9361 #(
     .up_rack (up_rack_tx_s));
   end else begin : g_rx_only_no_tx
     // A disabled DAC datapath is physically absent in the RX-only shell, so
-    // do not retain the otherwise idle TX register/control hierarchy. Keep
-    // the shared AXI aperture responsive with a zero-valued null target and
-    // drive every TX-facing signal to an explicitly quiescent value.
+    // do not retain the otherwise idle TX register/control hierarchy. The
+    // null target decodes only former DAC addresses: acknowledging ADC reads
+    // here would race the real ADC response and return a false zero. Drive
+    // every TX-facing signal to an explicitly quiescent value.
     assign dac_valid_s = 1'b0;
     assign dac_data_s = 48'd0;
     assign dac_clksel_s = DAC_CLK_EDGE_SEL;
@@ -745,9 +746,16 @@ module axi_ad9361 #(
     assign dac_valid_q1_s = 1'b0;
     assign up_dac_gpio_out = 32'd0;
     assign dac_up_pps_irq_mask_s = 1'b0;
-    assign up_wack_tx_s = up_wreq_s;
-    assign up_rack_tx_s = up_rreq_s;
-    assign up_rdata_tx_s = 32'd0;
+    axi_ad9361_tx_null #(
+      .MODE_1R1T (MODE_1R1T)
+    ) i_tx_null (
+      .up_wreq (up_wreq_s),
+      .up_waddr (up_waddr_s),
+      .up_wack (up_wack_tx_s),
+      .up_rreq (up_rreq_s),
+      .up_raddr (up_raddr_s),
+      .up_rdata (up_rdata_tx_s),
+      .up_rack (up_rack_tx_s));
   end
   endgenerate
 

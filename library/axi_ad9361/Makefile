@@ -37,6 +37,7 @@ GENERIC_DEPS += axi_ad9361_tdd.v
 GENERIC_DEPS += axi_ad9361_tdd_if.v
 GENERIC_DEPS += axi_ad9361_tx.v
 GENERIC_DEPS += axi_ad9361_tx_channel.v
+GENERIC_DEPS += axi_ad9361_tx_null.v
 
 XILINX_DEPS += ../common/ad_pps_receiver_constr.ttcl
 XILINX_DEPS += ../xilinx/common/ad_data_clk.v

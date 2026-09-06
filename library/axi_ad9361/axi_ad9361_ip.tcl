@@ -46,6 +46,7 @@ adi_ip_files axi_ad9361 [list \
   "axi_ad9361_rx.v" \
   "axi_ad9361_tx_channel.v" \
   "axi_ad9361_tx.v" \
+  "axi_ad9361_tx_null.v" \
   "axi_ad9361_tdd.v" \
   "axi_ad9361_tdd_if.v" \
   "axi_ad9361.v" ]
@@ -110,4 +111,3 @@ adi_add_auto_fpga_spec_params
 ipx::create_xgui_files [ipx::current_core]
 
 ipx::save_core [ipx::current_core]
-
