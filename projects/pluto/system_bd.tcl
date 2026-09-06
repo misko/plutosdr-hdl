@@ -312,7 +312,11 @@ ad_connect counter_timestamp/Q starlink_pss_tracker/sample_timestamp
 ad_connect axi_ad9361/l_clk starlink_pss_acquisition/sample_clk
 ad_connect axi_ad9361/rst starlink_pss_acquisition/sample_reset
 ad_connect starlink_pss_tracker/selected_sample_strobe starlink_pss_acquisition/sample_strobe
-ad_connect starlink_pss_tracker/selected_sample_enable starlink_pss_acquisition/sample_enable
+# Acquisition is armed by its own fail-closed MMIO control.  Do not gate the
+# observed RX stream with the Linux/DMA scan mask: adc_enable_i0/q0 reset low
+# and remain low when the host intentionally runs the PSS engine without an
+# IIO buffer.
+ad_connect VCC starlink_pss_acquisition/sample_enable
 ad_connect GND starlink_pss_acquisition/sample_gap
 ad_connect starlink_pss_tracker/selected_sample_i starlink_pss_acquisition/sample_i
 ad_connect starlink_pss_tracker/selected_sample_q starlink_pss_acquisition/sample_q
