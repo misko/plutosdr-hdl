@@ -153,15 +153,21 @@ join, ratio preparation, and the exact radix-4 divider. It exposes the energy
 cache transaction port and normalized score stream.  Any component fault is
 latched and immediately gates input and output; the external acquisition
 controller must then apply the same explicit flush to this path and its energy
-cache.  The shared XFFT core, coefficient ROM, scheduler wiring, phase-map wiring, and
-the real RX shell remain outside this source-only top.
+cache.  The two XFFT cores, coefficient ROM, scheduler wiring, phase-map wiring,
+and the real RX shell remain outside this source-only top.
+
+`starlink_pss_transform_fifo.v` is the four-entry registered boundary between
+the frequency-domain product and the inverse-XFFT adapter. It validates every
+bin position, TLAST, and complete 64-bit block identity before admission. Its
+input readiness depends only on registered occupancy, so downstream metadata
+checks cannot form a long combinational path back through the kernel ROM. A
+malformed beat is never stored and quarantines both sides until common flush.
 
 `starlink_pss_iq_to_score.v` closes the canonical 15 MS/s detector datapath from a
 continuous CI16 accepted-sample stream through the overlap scheduler, exact
-energy cache, one regenerated 18-bit XFFT v9.1 instance shared serially between
-forward and inverse transforms, a 512-by-36-bit atomic intermediate BRAM,
-hash-locked kernel join, complex product, inverse-result qualification, and
-normalized score tail. It
+energy cache, dedicated regenerated forward and inverse 18-bit XFFT v9.1
+instances, hash-locked kernel join, complex product, the registered transform
+boundary, inverse-result qualification, and normalized score tail. It
 publishes 447 exact timing scores per complete 512-sample overlap-save block
 and quarantines the detector on any constituent protocol or arithmetic fault.
 Registered lifecycle control keeps external reset/flush/fault inputs out of
@@ -242,6 +248,10 @@ input/output frame with independent stalls, proves data cannot precede either
 configuration or block status, checks exact lane/index/exponent/block metadata,
 and injects application framing, orphan status, hard core-event, status-halt,
 and output-index faults across explicit flush recovery.
+The transform-FIFO test fills its complete registered capacity, sustains a
+512-bin block through deterministic downstream stalls with exact payload and
+ordering checks, proves stalled-output stability, and verifies fail-closed
+TLAST and 64-bit block-identity handling plus flush recovery.
 The kernel-ROM test verifies all 512 coefficients across consecutive blocks,
 continuous one-bin-per-clock input, deterministic downstream stalls, exact
 metadata propagation, output stability, and fail-closed recovery from index,
@@ -368,7 +378,7 @@ The candidate-score-path OOC gate covers the complete composed tail named
 above.  It requires exactly two RAMB36E1 blocks, four DSP48E1 cells, bounded
 logic, clean methodology/check-timing reports, and nonnegative 100 MHz
 post-opt unplaced setup/hold slack.  It does not include the energy cache,
-the shared XFFT core, coefficient ROM, scheduler, phase map, AXI/CDC shell, or
+either XFFT core, coefficient ROM, scheduler, phase map, AXI/CDC shell, or
 complete placement and routing.
 
 The XFFT-boundary-adapter OOC gate requires no BRAM or DSPs, bounded control
@@ -384,9 +394,10 @@ nonnegative 100 MHz post-opt unplaced setup/hold slack.  It proves the
 coefficient lookup and its streaming protocol guard, not the forward XFFT
 values or complex-product composition.
 
-The full IQ-to-score OOC gate regenerates the exact one-core 18-bit,
-block-floating, radix-4-burst XFFT definition used by replay and synthesizes it
-with the complete source-only score path for `xc7z010clg400-1`.  It rejects a
+The full IQ-to-score OOC gate regenerates the exact 18-bit, block-floating,
+radix-4-burst XFFT definition used by replay, instantiates dedicated forward
+and inverse cores, and synthesizes them with the complete source-only score
+path for `xc7z010clg400-1`. It rejects a
 resource overflow, methodology/check-timing error, or negative 100 MHz
 post-opt unplaced setup/hold slack.  It is still not a placed-and-routed RX
 shell result and includes neither the phase map nor AXI/CDC/control plumbing.

@@ -6,7 +6,7 @@ cd "$script_dir"
 mkdir -p build
 
 python3 tb/verify_x2_ddc_structure.py
-python3 tb/verify_shared_xfft_structure.py
+python3 tb/verify_dual_xfft_structure.py
 PYTHONPATH="$script_dir/../../.." uv run --no-project --with numpy python \
   "$script_dir/../../../tools/generate_starlink_pss30_ddc_vectors.py" \
   "$script_dir/build"
@@ -156,6 +156,13 @@ iverilog -g2012 -Wall \
   starlink_pss_xfft_block_adapter.v \
   tb/tb_starlink_pss_xfft_block_adapter.sv
 vvp build/starlink_pss_xfft_block_adapter.vvp
+
+iverilog -g2012 -Wall \
+  -s tb_starlink_pss_transform_fifo \
+  -o build/starlink_pss_transform_fifo.vvp \
+  starlink_pss_transform_fifo.v \
+  tb/tb_starlink_pss_transform_fifo.sv
+vvp build/starlink_pss_transform_fifo.vvp
 
 iverilog -g2012 -Wall \
   -s tb_starlink_pss_xfft_intermediate_buffer \

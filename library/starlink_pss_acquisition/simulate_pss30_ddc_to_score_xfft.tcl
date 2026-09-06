@@ -1,5 +1,5 @@
 # Vivado 2022.2 bit-exact behavioral gate for the 30/60 MS/s DDC and real
-# shared-XFFT acquisition pipeline.
+# dual-XFFT acquisition pipeline.
 # Usage: vivado -mode batch -source simulate_pss30_ddc_to_score_xfft.tcl \
 #        -tclargs OUTPUT VECTOR_DIRECTORY ?SOURCE_RATE_MSPS?
 
@@ -88,10 +88,10 @@ set rtl_sources [list \
   starlink_pss_overlap_scheduler.v \
   starlink_pss_energy_cache.v \
   starlink_pss_xfft_block_adapter.v \
-  starlink_pss_xfft_intermediate_buffer.v \
   starlink_pss_kernel_rom.v \
   starlink_pss_forward_kernel_join.v \
   starlink_pss_spectrum_product.v \
+  starlink_pss_transform_fifo.v \
   starlink_pss_ifft_qualifier.v \
   starlink_pss_raw_result_fifo.v \
   starlink_pss_energy_join.v \

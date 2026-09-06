@@ -11,7 +11,8 @@
 
 module starlink_pss_xfft_block_adapter #(
   parameter integer FORWARD_TRANSFORM = 1,
-  parameter integer DATA_WIDTH = 24
+  parameter integer DATA_WIDTH = 24,
+  parameter integer CHECK_INPUT_BLOCK_IDENTITY = 1
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -107,6 +108,9 @@ module starlink_pss_xfft_block_adapter #(
       $fatal(1, "FORWARD_TRANSFORM must be zero or one");
     if (DATA_WIDTH < 17 || DATA_WIDTH > 24)
       $fatal(1, "DATA_WIDTH must use the XFFT 24-bit AXI component slot");
+    if (CHECK_INPUT_BLOCK_IDENTITY != 0 &&
+        CHECK_INPUT_BLOCK_IDENTITY != 1)
+      $fatal(1, "CHECK_INPUT_BLOCK_IDENTITY must be zero or one");
   end
 
   assign adapter_released = resetn && !flush &&
@@ -121,7 +125,7 @@ module starlink_pss_xfft_block_adapter #(
   assign input_metadata_valid =
     input_position == expected_input_position &&
     input_last == (expected_input_position == 9'd511) &&
-    (!block_inflight ||
+    (!CHECK_INPUT_BLOCK_IDENTITY || !block_inflight ||
      input_block_start_index == active_block_start_index);
   assign input_ready = adapter_released && configured && !protocol_fault &&
                        input_slot_available &&

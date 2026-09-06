@@ -40,10 +40,10 @@ adi_ip_files axi_starlink_pss_acquisition [list \
   "$acq_dir/starlink_pss_overlap_scheduler.v" \
   "$acq_dir/starlink_pss_energy_cache.v" \
   "$acq_dir/starlink_pss_xfft_block_adapter.v" \
-  "$acq_dir/starlink_pss_xfft_intermediate_buffer.v" \
   "$acq_dir/starlink_pss_kernel_rom.v" \
   "$acq_dir/starlink_pss_forward_kernel_join.v" \
   "$acq_dir/starlink_pss_spectrum_product.v" \
+  "$acq_dir/starlink_pss_transform_fifo.v" \
   "$acq_dir/starlink_pss_ifft_qualifier.v" \
   "$acq_dir/starlink_pss_raw_result_fifo.v" \
   "$acq_dir/starlink_pss_energy_join.v" \
@@ -71,7 +71,7 @@ adi_ip_properties axi_starlink_pss_acquisition
 set_property display_name "Experimental 15/30/60 MS/s Continuous PSS Acquisition" \
   [ipx::current_core]
 set_property description \
-  "Loss-aware RX CDC, optional x2/x4 acquisition DDC, continuous shared-XFFT phase maps, and atomic PSMA control" \
+  "Loss-aware RX CDC, optional x2/x4 acquisition DDC, continuous dual-XFFT phase maps, and atomic PSMA control" \
   [ipx::current_core]
 
 set sample_clock_intf [ipx::infer_bus_interface sample_clk \

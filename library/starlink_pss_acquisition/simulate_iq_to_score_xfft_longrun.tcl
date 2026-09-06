@@ -1,34 +1,19 @@
-# Vivado 2022.2 behavioral gate for the shared real XFFT through the phase map.
-# Usage: vivado -mode batch -source simulate_iq_to_phase_map_xfft.tcl \
-#        -tclargs OUTPUT VECTOR_DIRECTORY
+# Vivado 2022.2 long-horizon protocol/capacity diagnostic for the real XFFT.
+# Usage: vivado -mode batch -source simulate_iq_to_score_xfft_longrun.tcl \
+#        -tclargs OUTPUT
 
-if {$argc != 2} {
-  error "expected absolute output and vector directories"
+if {$argc != 1} {
+  error "expected an absolute output directory"
 }
 if {[version -short] ne "2022.2"} {
-  error "this evidence gate requires Vivado 2022.2, got [version -short]"
+  error "this diagnostic requires Vivado 2022.2, got [version -short]"
 }
 
 set script_dir [file dirname [file normalize [info script]]]
 set output_dir [file normalize [lindex $argv 0]]
-set vector_dir [file normalize [lindex $argv 1]]
 set project_dir [file join $output_dir project]
-set project_name starlink_pss_iq_to_phase_map_xfft_sim
+set project_name starlink_pss_iq_to_score_xfft_longrun_sim
 file mkdir $output_dir
-
-foreach required_file {
-  samples_ci16.mem
-  forward_q17.mem
-  product_q17.mem
-  inverse_q17.mem
-  forward_exponents.mem
-  inverse_exponents.mem
-  scores_u8.mem
-} {
-  if {![file isfile [file join $vector_dir $required_file]]} {
-    error "missing replay vector $required_file"
-  }
-}
 
 create_project -force $project_name $project_dir -part xc7z010clg400-1
 set_property target_language Verilog [current_project]
@@ -70,9 +55,13 @@ if {[llength $wrappers] != 1} {
 set wrapper_file [open [lindex $wrappers 0] r]
 set wrapper_text [read $wrapper_file]
 close $wrapper_file
-if {![regexp {C_ARCH => 1,} $wrapper_text]} {
+if {![regexp {C_ARCH => ([0-9]+),} $wrapper_text unused selected_arch]} {
+  error "could not identify the generated XFFT architecture"
+}
+if {$selected_arch != 1} {
   error "20 MS/s automatic selection did not choose radix-4 burst C_ARCH=1"
 }
+puts "STARLINK_XFFT_CONFIGURATION target_msps=20 implementation=automatically_select c_arch=$selected_arch instances=2"
 
 set rtl_sources [list \
   starlink_pss_overlap_scheduler.v \
@@ -91,30 +80,22 @@ set rtl_sources [list \
   starlink_pss_score_lanes.v \
   starlink_pss_candidate_score_path.v \
   starlink_pss_iq_to_score.v \
-  starlink_pss_score_phase_tagger.v \
-  starlink_pss_phase_map_bank.v \
-  starlink_pss_phase_map.v \
-  starlink_pss_acquisition_health.v \
-  starlink_pss_iq_to_phase_map.v \
 ]
 foreach source_name $rtl_sources {
   add_files -norecurse [file join $script_dir $source_name]
 }
 
 add_files -fileset sim_1 -norecurse \
-  [file join $script_dir tb tb_starlink_pss_iq_to_phase_map_xfft.sv]
+  [file join $script_dir tb tb_starlink_pss_iq_to_score_xfft_longrun.sv]
 add_files -fileset sim_1 -norecurse \
   [file join $script_dir tb upper_edge_pss_kernel_q17.mem]
-foreach vector_file [glob [file join $vector_dir *.mem]] {
-  add_files -fileset sim_1 -norecurse $vector_file
-}
 set_property file_type {Memory Initialization Files} \
   [get_files -of_objects [get_filesets sim_1] *.mem]
-set_property top tb_starlink_pss_iq_to_phase_map_xfft [get_filesets sim_1]
+set_property top tb_starlink_pss_iq_to_score_xfft_longrun [get_filesets sim_1]
 set_property xsim.simulate.runtime {all} [get_filesets sim_1]
 
 launch_simulation -simset sim_1 -mode behavioral
 close_sim
 close_project
 
-puts "STARLINK_IQ_TO_PHASE_MAP_XFFT_SIMULATION_COMPLETE"
+puts "STARLINK_IQ_TO_SCORE_XFFT_LONGRUN_SIMULATION_COMPLETE"

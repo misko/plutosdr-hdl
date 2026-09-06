@@ -65,10 +65,10 @@ foreach source_name {
   starlink_pss_overlap_scheduler.v
   starlink_pss_energy_cache.v
   starlink_pss_xfft_block_adapter.v
-  starlink_pss_xfft_intermediate_buffer.v
   starlink_pss_kernel_rom.v
   starlink_pss_forward_kernel_join.v
   starlink_pss_spectrum_product.v
+  starlink_pss_transform_fifo.v
   starlink_pss_ifft_qualifier.v
   starlink_pss_raw_result_fifo.v
   starlink_pss_energy_join.v
@@ -174,10 +174,11 @@ set summary [open \
 puts $summary "vivado_version=[version -short]"
 puts $summary "xfft_version=9.1"
 puts $summary "part=xc7z010clg400-1"
-puts $summary "xfft_instances=1"
-puts $summary "xfft_sharing=serial_forward_inverse"
+puts $summary "xfft_instances=2"
+puts $summary "xfft_sharing=dedicated_forward_inverse_pipeline"
 puts $summary "xfft_architecture=radix_4_burst"
 puts $summary "sample_rate_msps=15"
+puts $summary "companion_sustained_simulation_blocks=64"
 puts $summary "acquisition_clock_mhz=100"
 puts $summary "clock_period_ns=10.000"
 puts $summary "timing_scope=post_opt_unplaced"
