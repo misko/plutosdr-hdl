@@ -64,6 +64,15 @@ iverilog -g2012 -Wall \
 vvp build/starlink_pss_score_phase_tagger.vvp
 
 iverilog -g2012 -Wall \
+  -s tb_starlink_pss_m2_phase_matrix \
+  -o build/starlink_pss_m2_phase_matrix.vvp \
+  starlink_pss_score_phase_tagger.v \
+  starlink_pss_phase_map_bank.v \
+  starlink_pss_phase_map.v \
+  tb/tb_starlink_pss_m2_phase_matrix.sv
+vvp build/starlink_pss_m2_phase_matrix.vvp
+
+iverilog -g2012 -Wall \
   -s tb_starlink_pss_overlap_scheduler \
   -o build/starlink_pss_overlap_scheduler.vvp \
   starlink_pss_overlap_scheduler.v \

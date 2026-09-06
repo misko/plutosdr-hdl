@@ -246,8 +246,12 @@ set starlink_pss_profile full
 if {[info exists ::env(STARLINK_PSS_PROFILE)]} {
   set starlink_pss_profile $::env(STARLINK_PSS_PROFILE)
 }
-if {$starlink_pss_profile ni {full acquisition-only}} {
-  error "STARLINK_PSS_PROFILE must be full or acquisition-only, got $starlink_pss_profile"
+if {$starlink_pss_profile ni {full acquisition-only acquisition-injection}} {
+  error "STARLINK_PSS_PROFILE must be full, acquisition-only, or acquisition-injection, got $starlink_pss_profile"
+}
+if {$starlink_pss_profile eq "acquisition-injection" &&
+    $starlink_pss_rate_msps != 15} {
+  error "STARLINK_PSS_PROFILE=acquisition-injection is qualified only at 15 MS/s"
 }
 puts "STARLINK_PSS_BUILD_PROFILE rate_msps=$starlink_pss_rate_msps profile=$starlink_pss_profile"
 set starlink_pss_minimum_lead_samples [expr {
@@ -266,6 +270,8 @@ if {$starlink_pss_profile eq "full"} {
   ad_ip_instance util_vector_logic starlink_pss_stream_enable [list \
     C_OPERATION {and} \
     C_SIZE 1]
+} elseif {$starlink_pss_profile eq "acquisition-injection"} {
+  ad_ip_instance axi_starlink_pss_periodic_injector starlink_pss_periodic_injector
 }
 ad_ip_instance xlslice cpack_timestamp_every_slice
 ad_ip_parameter cpack_timestamp_every_slice CONFIG.DIN_WIDTH 32
@@ -294,6 +300,8 @@ ad_connect axi_ad9361/l_clk counter_timestamp/CLK
 ad_connect axi_ad9361/adc_valid_i0 counter_timestamp/CE
 if {$starlink_pss_profile eq "full"} {
   ad_connect starlink_pss_tracker/selected_sample_timestamp cpack_timestamp/timestamp
+} elseif {$starlink_pss_profile eq "acquisition-injection"} {
+  ad_connect starlink_pss_periodic_injector/selected_sample_timestamp cpack_timestamp/timestamp
 } else {
   ad_connect counter_timestamp/Q cpack_timestamp/timestamp
 }
@@ -319,16 +327,27 @@ if {$starlink_pss_profile eq "full"} {
   ad_connect starlink_pss_stream_enable/Res starlink_pss_tracker/sample_enable
   ad_connect counter_timestamp/Q starlink_pss_tracker/sample_index
   ad_connect counter_timestamp/Q starlink_pss_tracker/sample_timestamp
+} elseif {$starlink_pss_profile eq "acquisition-injection"} {
+  ad_connect axi_ad9361/l_clk starlink_pss_periodic_injector/sample_clk
+  ad_connect axi_ad9361/rst starlink_pss_periodic_injector/sample_reset
+  ad_connect axi_ad9361/adc_data_i0 starlink_pss_periodic_injector/sample_i
+  ad_connect axi_ad9361/adc_data_q0 starlink_pss_periodic_injector/sample_q
+  ad_connect axi_ad9361/adc_valid_i0 starlink_pss_periodic_injector/sample_strobe
+  ad_connect VCC starlink_pss_periodic_injector/sample_enable
+  ad_connect counter_timestamp/Q starlink_pss_periodic_injector/sample_index
+  ad_connect counter_timestamp/Q starlink_pss_periodic_injector/sample_timestamp
 }
 
-# Continuous acquisition observes either the full profile's selected stream or
-# the acquisition-only profile's direct RX0 stream. It has no ready or
-# backpressure output. The associated absolute index is transported with every
-# accepted CI16 beat through its loss-detecting FIFO into sys_cpu_clk.
+# Continuous acquisition observes the selected stream in full/injection
+# profiles or direct RX0 in acquisition-only. It has no ready or backpressure
+# output. The associated absolute index is transported with every accepted
+# CI16 beat through its loss-detecting FIFO into sys_cpu_clk.
 ad_connect axi_ad9361/l_clk starlink_pss_acquisition/sample_clk
 ad_connect axi_ad9361/rst starlink_pss_acquisition/sample_reset
 if {$starlink_pss_profile eq "full"} {
   ad_connect starlink_pss_tracker/selected_sample_strobe starlink_pss_acquisition/sample_strobe
+} elseif {$starlink_pss_profile eq "acquisition-injection"} {
+  ad_connect starlink_pss_periodic_injector/selected_sample_strobe starlink_pss_acquisition/sample_strobe
 } else {
   ad_connect axi_ad9361/adc_valid_i0 starlink_pss_acquisition/sample_strobe
 }
@@ -342,6 +361,10 @@ if {$starlink_pss_profile eq "full"} {
   ad_connect starlink_pss_tracker/selected_sample_i starlink_pss_acquisition/sample_i
   ad_connect starlink_pss_tracker/selected_sample_q starlink_pss_acquisition/sample_q
   ad_connect starlink_pss_tracker/selected_sample_index starlink_pss_acquisition/sample_index
+} elseif {$starlink_pss_profile eq "acquisition-injection"} {
+  ad_connect starlink_pss_periodic_injector/selected_sample_i starlink_pss_acquisition/sample_i
+  ad_connect starlink_pss_periodic_injector/selected_sample_q starlink_pss_acquisition/sample_q
+  ad_connect starlink_pss_periodic_injector/selected_sample_index starlink_pss_acquisition/sample_index
 } else {
   ad_connect axi_ad9361/adc_data_i0 starlink_pss_acquisition/sample_i
   ad_connect axi_ad9361/adc_data_q0 starlink_pss_acquisition/sample_q
@@ -371,6 +394,15 @@ if {$starlink_pss_profile eq "full"} {
   ad_connect cpack/fifo_wr_data_0 starlink_pss_tracker/selected_sample_i
   ad_connect cpack/fifo_wr_data_1 starlink_pss_tracker/selected_sample_q
   ad_connect starlink_pss_tracker/selected_sample_strobe cpack/fifo_wr_en
+} elseif {$starlink_pss_profile eq "acquisition-injection"} {
+  # Preserve Linux's independent I/Q scan mask for RX DMA. PSSI is enabled
+  # continuously only on the acquisition branch; it must not force DMA
+  # channels active when no IIO buffer exists.
+  ad_connect axi_ad9361/adc_enable_i0 cpack/enable_0
+  ad_connect axi_ad9361/adc_enable_q0 cpack/enable_1
+  ad_connect cpack/fifo_wr_data_0 starlink_pss_periodic_injector/selected_sample_i
+  ad_connect cpack/fifo_wr_data_1 starlink_pss_periodic_injector/selected_sample_q
+  ad_connect starlink_pss_periodic_injector/selected_sample_strobe cpack/fifo_wr_en
 } else {
   ad_connect axi_ad9361/adc_enable_i0 cpack/enable_0
   ad_connect axi_ad9361/adc_enable_q0 cpack/enable_1
@@ -398,6 +430,8 @@ ad_connect  cpack/fifo_wr_overflow axi_ad9361/adc_dovf
 ad_cpu_interconnect 0x79020000 axi_ad9361
 if {$starlink_pss_profile eq "full"} {
   ad_cpu_interconnect 0x79030000 starlink_pss_tracker
+} elseif {$starlink_pss_profile eq "acquisition-injection"} {
+  ad_cpu_interconnect 0x79030000 starlink_pss_periodic_injector
 }
 ad_cpu_interconnect 0x79040000 starlink_pss_acquisition
 ad_cpu_interconnect 0x7C400000 axi_ad9361_adc_dma

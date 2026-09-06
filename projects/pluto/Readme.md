@@ -19,6 +19,14 @@ and interrupt, and fans the unmodified RX0 CI16 stream directly to both the
 continuous acquisition engine and RX DMA.  The acquisition engine remains
 independent of the IIO scan-enable mask in either profile.
 
+`STARLINK_PSS_PROFILE=acquisition-injection` is the M2 qualification image. It
+retains the acquisition-only resource shape and adds a bounded PSSI peripheral
+at `0x79030000`. PSSI can substitute one sealed 130-sample CI16 fixture every
+20,000 accepted samples for exactly 130 repetitions while leaving all source
+indices and timestamps intact. This profile fails the build unless the selected
+rate is exactly 15 MS/s; it is RAM-boot-only and must never be persistently
+flashed.
+
 Select the input geometry independently with
 `STARLINK_PSS_RATE_MSPS=15`, `30`, or `60`.  Both settings are compile-time
 choices and are printed as `STARLINK_PSS_BUILD_PROFILE` in the Vivado log.
@@ -27,4 +35,5 @@ For example:
 
 ```sh
 make STARLINK_PSS_RATE_MSPS=15 STARLINK_PSS_PROFILE=acquisition-only
+make STARLINK_PSS_RATE_MSPS=15 STARLINK_PSS_PROFILE=acquisition-injection
 ```

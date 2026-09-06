@@ -12,8 +12,9 @@ PROJECT_NAME := pluto
 STARLINK_PSS_RATE_MSPS ?= 15
 export STARLINK_PSS_RATE_MSPS
 
-# Keep the historical tracker path available, but let the blind-acquisition
-# milestone omit it explicitly.  The default preserves existing builds.
+# Keep the historical tracker path available, let blind acquisition omit it,
+# and make the deterministic injector a separate qualification-only profile.
+# The default preserves existing builds.
 STARLINK_PSS_PROFILE ?= full
 export STARLINK_PSS_PROFILE
 
@@ -23,6 +24,7 @@ M_DEPS += ../../library/axi_ad9361/axi_ad9361_delay.tcl
 LIB_DEPS += axi_ad9361
 LIB_DEPS += axi_dmac
 LIB_DEPS += axi_starlink_pss_acquisition
+LIB_DEPS += axi_starlink_pss_periodic_injector
 LIB_DEPS += axi_starlink_pss_tracker
 LIB_DEPS += util_pack/util_cpack2
 
