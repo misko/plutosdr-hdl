@@ -242,6 +242,14 @@ if {[info exists ::env(STARLINK_PSS_RATE_MSPS)]} {
 if {$starlink_pss_rate_msps ni {15 30 60}} {
   error "STARLINK_PSS_RATE_MSPS must be 15, 30, or 60, got $starlink_pss_rate_msps"
 }
+set starlink_pss_profile full
+if {[info exists ::env(STARLINK_PSS_PROFILE)]} {
+  set starlink_pss_profile $::env(STARLINK_PSS_PROFILE)
+}
+if {$starlink_pss_profile ni {full acquisition-only}} {
+  error "STARLINK_PSS_PROFILE must be full or acquisition-only, got $starlink_pss_profile"
+}
+puts "STARLINK_PSS_BUILD_PROFILE rate_msps=$starlink_pss_rate_msps profile=$starlink_pss_profile"
 set starlink_pss_minimum_lead_samples [expr {
   64 * $starlink_pss_rate_msps / 15
 }]
@@ -249,14 +257,16 @@ set starlink_pss_minimum_lead_samples [expr {
 ad_ip_instance axi_starlink_pss_acquisition starlink_pss_acquisition
 ad_ip_parameter starlink_pss_acquisition CONFIG.SAMPLE_FIFO_ADDRESS_WIDTH 7
 ad_ip_parameter starlink_pss_acquisition CONFIG.INPUT_RATE_MSPS $starlink_pss_rate_msps
-ad_ip_instance axi_starlink_pss_tracker starlink_pss_tracker
-ad_ip_parameter starlink_pss_tracker CONFIG.RATE_MSPS $starlink_pss_rate_msps
-ad_ip_parameter starlink_pss_tracker CONFIG.COMMAND_FIFO_ADDRESS_WIDTH 3
-ad_ip_parameter starlink_pss_tracker CONFIG.MINIMUM_LEAD_SAMPLES $starlink_pss_minimum_lead_samples
-ad_ip_parameter starlink_pss_tracker CONFIG.ENABLE_INJECTION 0
-ad_ip_instance util_vector_logic starlink_pss_stream_enable [list \
-  C_OPERATION {and} \
-  C_SIZE 1]
+if {$starlink_pss_profile eq "full"} {
+  ad_ip_instance axi_starlink_pss_tracker starlink_pss_tracker
+  ad_ip_parameter starlink_pss_tracker CONFIG.RATE_MSPS $starlink_pss_rate_msps
+  ad_ip_parameter starlink_pss_tracker CONFIG.COMMAND_FIFO_ADDRESS_WIDTH 3
+  ad_ip_parameter starlink_pss_tracker CONFIG.MINIMUM_LEAD_SAMPLES $starlink_pss_minimum_lead_samples
+  ad_ip_parameter starlink_pss_tracker CONFIG.ENABLE_INJECTION 0
+  ad_ip_instance util_vector_logic starlink_pss_stream_enable [list \
+    C_OPERATION {and} \
+    C_SIZE 1]
+}
 ad_ip_instance xlslice cpack_timestamp_every_slice
 ad_ip_parameter cpack_timestamp_every_slice CONFIG.DIN_WIDTH 32
 ad_ip_parameter cpack_timestamp_every_slice CONFIG.DIN_FROM 31
@@ -282,7 +292,11 @@ ad_connect  axi_ad9361/l_clk axi_ad9361/clk
 
 ad_connect axi_ad9361/l_clk counter_timestamp/CLK
 ad_connect axi_ad9361/adc_valid_i0 counter_timestamp/CE
-ad_connect starlink_pss_tracker/selected_sample_timestamp cpack_timestamp/timestamp
+if {$starlink_pss_profile eq "full"} {
+  ad_connect starlink_pss_tracker/selected_sample_timestamp cpack_timestamp/timestamp
+} else {
+  ad_connect counter_timestamp/Q cpack_timestamp/timestamp
+}
 # cpack_timestamp synchronizes this counter word into sys_cpu_clk before it
 # reaches the ARM-visible ADC GPIO status register (0x800000B8).
 ad_connect cpack_timestamp/timestamp_cpu axi_ad9361/up_adc_gpio_in
@@ -294,33 +308,45 @@ ad_connect cpack_timestamp/timestamp_cpu axi_ad9361/up_adc_gpio_in
 # only the exact normalized winner within one scheduled 61-lag window; it is
 # not autonomous search, SSS alignment, cadence qualification, or a Starlink
 # claim.
-ad_connect axi_ad9361/l_clk starlink_pss_tracker/sample_clk
-ad_connect axi_ad9361/rst starlink_pss_tracker/sample_reset
-ad_connect axi_ad9361/adc_data_i0 starlink_pss_tracker/sample_i
-ad_connect axi_ad9361/adc_data_q0 starlink_pss_tracker/sample_q
-ad_connect axi_ad9361/adc_valid_i0 starlink_pss_tracker/sample_strobe
-ad_connect axi_ad9361/adc_enable_i0 starlink_pss_stream_enable/Op1
-ad_connect axi_ad9361/adc_enable_q0 starlink_pss_stream_enable/Op2
-ad_connect starlink_pss_stream_enable/Res starlink_pss_tracker/sample_enable
-ad_connect counter_timestamp/Q starlink_pss_tracker/sample_index
-ad_connect counter_timestamp/Q starlink_pss_tracker/sample_timestamp
+if {$starlink_pss_profile eq "full"} {
+  ad_connect axi_ad9361/l_clk starlink_pss_tracker/sample_clk
+  ad_connect axi_ad9361/rst starlink_pss_tracker/sample_reset
+  ad_connect axi_ad9361/adc_data_i0 starlink_pss_tracker/sample_i
+  ad_connect axi_ad9361/adc_data_q0 starlink_pss_tracker/sample_q
+  ad_connect axi_ad9361/adc_valid_i0 starlink_pss_tracker/sample_strobe
+  ad_connect axi_ad9361/adc_enable_i0 starlink_pss_stream_enable/Op1
+  ad_connect axi_ad9361/adc_enable_q0 starlink_pss_stream_enable/Op2
+  ad_connect starlink_pss_stream_enable/Res starlink_pss_tracker/sample_enable
+  ad_connect counter_timestamp/Q starlink_pss_tracker/sample_index
+  ad_connect counter_timestamp/Q starlink_pss_tracker/sample_timestamp
+}
 
-# Continuous acquisition observes the exact stream already shared by the
-# deterministic injection path, sparse tracker, and RX DMA. It has no ready or
-# backpressure output. The absolute selected index is transported with every
+# Continuous acquisition observes either the full profile's selected stream or
+# the acquisition-only profile's direct RX0 stream. It has no ready or
+# backpressure output. The associated absolute index is transported with every
 # accepted CI16 beat through its loss-detecting FIFO into sys_cpu_clk.
 ad_connect axi_ad9361/l_clk starlink_pss_acquisition/sample_clk
 ad_connect axi_ad9361/rst starlink_pss_acquisition/sample_reset
-ad_connect starlink_pss_tracker/selected_sample_strobe starlink_pss_acquisition/sample_strobe
+if {$starlink_pss_profile eq "full"} {
+  ad_connect starlink_pss_tracker/selected_sample_strobe starlink_pss_acquisition/sample_strobe
+} else {
+  ad_connect axi_ad9361/adc_valid_i0 starlink_pss_acquisition/sample_strobe
+}
 # Acquisition is armed by its own fail-closed MMIO control.  Do not gate the
 # observed RX stream with the Linux/DMA scan mask: adc_enable_i0/q0 reset low
 # and remain low when the host intentionally runs the PSS engine without an
 # IIO buffer.
 ad_connect VCC starlink_pss_acquisition/sample_enable
 ad_connect GND starlink_pss_acquisition/sample_gap
-ad_connect starlink_pss_tracker/selected_sample_i starlink_pss_acquisition/sample_i
-ad_connect starlink_pss_tracker/selected_sample_q starlink_pss_acquisition/sample_q
-ad_connect starlink_pss_tracker/selected_sample_index starlink_pss_acquisition/sample_index
+if {$starlink_pss_profile eq "full"} {
+  ad_connect starlink_pss_tracker/selected_sample_i starlink_pss_acquisition/sample_i
+  ad_connect starlink_pss_tracker/selected_sample_q starlink_pss_acquisition/sample_q
+  ad_connect starlink_pss_tracker/selected_sample_index starlink_pss_acquisition/sample_index
+} else {
+  ad_connect axi_ad9361/adc_data_i0 starlink_pss_acquisition/sample_i
+  ad_connect axi_ad9361/adc_data_q0 starlink_pss_acquisition/sample_q
+  ad_connect counter_timestamp/Q starlink_pss_acquisition/sample_index
+}
 
 ad_connect axi_ad9361/up_adc_gpio_out cpack_timestamp_every_slice/Din
 ad_connect cpack_timestamp_every_slice/Dout cpack_timestamp_every_concat/In0
@@ -339,11 +365,19 @@ ad_connect axi_ad9361/adc_data_i1 cpack/fifo_wr_data_2
 ad_connect axi_ad9361/adc_enable_q1 cpack/enable_3
 ad_connect axi_ad9361/adc_data_q1 cpack/fifo_wr_data_3
 
-ad_connect cpack/enable_0 starlink_pss_tracker/selected_sample_enable
-ad_connect cpack/enable_1 starlink_pss_tracker/selected_sample_enable
-ad_connect cpack/fifo_wr_data_0 starlink_pss_tracker/selected_sample_i
-ad_connect cpack/fifo_wr_data_1 starlink_pss_tracker/selected_sample_q
-ad_connect starlink_pss_tracker/selected_sample_strobe cpack/fifo_wr_en
+if {$starlink_pss_profile eq "full"} {
+  ad_connect cpack/enable_0 starlink_pss_tracker/selected_sample_enable
+  ad_connect cpack/enable_1 starlink_pss_tracker/selected_sample_enable
+  ad_connect cpack/fifo_wr_data_0 starlink_pss_tracker/selected_sample_i
+  ad_connect cpack/fifo_wr_data_1 starlink_pss_tracker/selected_sample_q
+  ad_connect starlink_pss_tracker/selected_sample_strobe cpack/fifo_wr_en
+} else {
+  ad_connect axi_ad9361/adc_enable_i0 cpack/enable_0
+  ad_connect axi_ad9361/adc_enable_q0 cpack/enable_1
+  ad_connect axi_ad9361/adc_data_i0 cpack/fifo_wr_data_0
+  ad_connect axi_ad9361/adc_data_q0 cpack/fifo_wr_data_1
+  ad_connect axi_ad9361/adc_valid_i0 cpack/fifo_wr_en
+}
 
 ad_connect cpack/packed_fifo_wr cpack_timestamp/packed_fifo_wr
 ad_connect cpack_timestamp/packed_timestamped_fifo_wr axi_ad9361_adc_dma/fifo_wr
@@ -362,7 +396,9 @@ ad_connect  cpack/fifo_wr_overflow axi_ad9361/adc_dovf
 # interconnects
 
 ad_cpu_interconnect 0x79020000 axi_ad9361
-ad_cpu_interconnect 0x79030000 starlink_pss_tracker
+if {$starlink_pss_profile eq "full"} {
+  ad_cpu_interconnect 0x79030000 starlink_pss_tracker
+}
 ad_cpu_interconnect 0x79040000 starlink_pss_acquisition
 ad_cpu_interconnect 0x7C400000 axi_ad9361_adc_dma
 ad_cpu_interconnect 0x7C430000 axi_spi
@@ -382,6 +418,8 @@ ad_connect sys_cpu_resetn axi_ad9361_adc_dma/m_dest_axi_aresetn
 # interrupts
 
 ad_cpu_interrupt ps-13 mb-13 axi_ad9361_adc_dma/irq
-ad_cpu_interrupt ps-12 mb-12 starlink_pss_tracker/irq
+if {$starlink_pss_profile eq "full"} {
+  ad_cpu_interrupt ps-12 mb-12 starlink_pss_tracker/irq
+}
 ad_cpu_interrupt ps-11 mb-11 axi_spi/ip2intc_irpt
 ad_cpu_interrupt ps-10 mb-10 starlink_pss_acquisition/irq

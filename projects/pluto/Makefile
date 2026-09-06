@@ -12,6 +12,11 @@ PROJECT_NAME := pluto
 STARLINK_PSS_RATE_MSPS ?= 15
 export STARLINK_PSS_RATE_MSPS
 
+# Keep the historical tracker path available, but let the blind-acquisition
+# milestone omit it explicitly.  The default preserves existing builds.
+STARLINK_PSS_PROFILE ?= full
+export STARLINK_PSS_PROFILE
+
 M_DEPS += ../../library/common/ad_iobuf.v
 M_DEPS += ../../library/axi_ad9361/axi_ad9361_delay.tcl
 

@@ -26,14 +26,23 @@ set tracker [get_cells -quiet -hier -filter {
 set acquisition [get_cells -quiet -hier -filter {
   NAME =~ *starlink_pss_acquisition/inst
 }]
-foreach {label cells} [list tracker $tracker acquisition $acquisition] {
-  if {[llength $cells] != 1} {
-    error "expected one $label hierarchy, got [llength $cells]"
-  }
+if {[llength $tracker] > 1} {
+  error "expected at most one tracker hierarchy, got [llength $tracker]"
+}
+if {[llength $acquisition] != 1} {
+  error "expected one acquisition hierarchy, got [llength $acquisition]"
+}
+foreach {label cells} [list acquisition $acquisition] {
   report_utilization -cells $cells -hierarchical -hierarchical_depth 8 \
     -file [file join $output_dir ${label}_utilization.rpt]
   report_control_sets -cells $cells -verbose \
     -file [file join $output_dir ${label}_control_sets.rpt]
+}
+if {[llength $tracker] == 1} {
+  report_utilization -cells $tracker -hierarchical -hierarchical_depth 8 \
+    -file [file join $output_dir tracker_utilization.rpt]
+  report_control_sets -cells $tracker -verbose \
+    -file [file join $output_dir tracker_control_sets.rpt]
 }
 
 report_qor_suggestions \
@@ -48,5 +57,5 @@ puts $summary "telemetry_ramb18e1=[llength $telemetry_ramb18]"
 puts $summary "tracker_cells=[llength $tracker]"
 puts $summary "acquisition_cells=[llength $acquisition]"
 close $summary
-puts "STARLINK_SYNTH_REPORT_PASS telemetry_ramb18e1=[llength $telemetry_ramb18]"
+puts "STARLINK_SYNTH_REPORT_PASS tracker_cells=[llength $tracker] acquisition_cells=[llength $acquisition] telemetry_ramb18e1=[llength $telemetry_ramb18]"
 close_design

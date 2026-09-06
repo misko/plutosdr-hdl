@@ -25,12 +25,15 @@ if {$ADI_USE_OOC_SYNTHESIS == 1} {
   set_property STEPS.SYNTH_DESIGN.ARGS.CONTROL_SET_OPT_THRESHOLD 4 \
     $rx_dma_synth_run
 
-  # Keep both experimental PSS blocks independently synthesized with the same
-  # area-first policy used by their OOC gates. The complete route remains the
-  # authority on whether the combined tracker/acquisition shell fits.
-  foreach pss_synth_run [list \
-      [get_runs system_starlink_pss_tracker_0_synth_1] \
-      [get_runs system_starlink_pss_acquisition_0_synth_1]] {
+  # Keep every instantiated experimental PSS block independently synthesized
+  # with the same area-first policy used by its OOC gate. The complete route
+  # remains the authority on whether the selected profile fits.
+  set pss_synth_runs [get_runs system_starlink_pss_acquisition_0_synth_1]
+  set tracker_synth_run [get_runs -quiet system_starlink_pss_tracker_0_synth_1]
+  if {[llength $tracker_synth_run] == 1} {
+    lappend pss_synth_runs $tracker_synth_run
+  }
+  foreach pss_synth_run $pss_synth_runs {
     set_property strategy Flow_AreaOptimized_high $pss_synth_run
     set_property STEPS.SYNTH_DESIGN.ARGS.CONTROL_SET_OPT_THRESHOLD 4 \
       $pss_synth_run
