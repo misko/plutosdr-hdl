@@ -10,7 +10,10 @@
 //   source_center_index = 2 * output_index
 //   output_index = (newest_source_index - 7) / 2.
 // A reset, flush, explicit gap, disable, or source-index discontinuity purges
-// validity and requires fifteen new consecutive source samples.
+// validity and requires fifteen new consecutive source samples.  Reset,
+// flush, and disable establish a clean cold boundary; only an explicit source
+// gap or a discontinuity in an already-locked stream marks the restarted
+// output segment with output_gap.
 
 `timescale 1ns/1ps
 
@@ -139,6 +142,7 @@ module starlink_pss_x2_ddc #(
   reg [3:0] history_count;
   reg stream_locked;
   reg [63:0] expected_input_index;
+  reg segment_pending;
   reg gap_pending;
 
   wire source_contiguous = stream_locked && !input_gap &&
@@ -188,13 +192,14 @@ module starlink_pss_x2_ddc #(
   reg [16:0] quantized_i_register;
   reg [16:0] quantized_q_register;
 
-  // A discontinuity forces fifteen new source samples before the next FIR
-  // result can issue.  That interval is longer than this five-stage data
-  // pipeline, so no old result can overlap the first result of a restarted
-  // segment.  Retain the restart index once instead of transporting 64 bits
-  // through every arithmetic stage.  Subsequent output indexes are exactly
-  // consecutive by construction.
+  // A new segment forces fifteen source samples before the next FIR result can
+  // issue.  That interval is longer than this five-stage data pipeline, so no
+  // old result can overlap the first result of a restarted segment.  Retain
+  // the restart index once instead of transporting 64 bits through every
+  // arithmetic stage.  Keep its true-gap qualifier separate so a clean cold
+  // start loads the absolute index without fabricating a discontinuity.
   reg restart_output_pending;
+  reg restart_output_gap;
   reg [63:0] restart_output_index;
 
   // Keep arithmetic registers free of stage-specific clock enables.  Validity
@@ -267,13 +272,15 @@ module starlink_pss_x2_ddc #(
       history_count <= 4'd0;
       stream_locked <= 1'b0;
       expected_input_index <= 64'd0;
-      gap_pending <= 1'b1;
+      segment_pending <= 1'b1;
+      gap_pending <= 1'b0;
       pair_valid <= 1'b0;
       product_valid <= 1'b0;
       accumulator_valid <= 1'b0;
       magnitude_valid <= 1'b0;
       quantized_valid <= 1'b0;
       restart_output_pending <= 1'b0;
+      restart_output_gap <= 1'b0;
       restart_output_index <= 64'd0;
     end else if (flush || !enable) begin
       output_valid <= 1'b0;
@@ -281,13 +288,15 @@ module starlink_pss_x2_ddc #(
       history_count <= 4'd0;
       stream_locked <= 1'b0;
       expected_input_index <= 64'd0;
-      gap_pending <= 1'b1;
+      segment_pending <= 1'b1;
+      gap_pending <= 1'b0;
       pair_valid <= 1'b0;
       product_valid <= 1'b0;
       accumulator_valid <= 1'b0;
       magnitude_valid <= 1'b0;
       quantized_valid <= 1'b0;
       restart_output_pending <= 1'b0;
+      restart_output_gap <= 1'b0;
     end else begin
       output_valid <= quantized_valid;
       pair_valid <= 1'b0;
@@ -297,7 +306,7 @@ module starlink_pss_x2_ddc #(
       quantized_valid <= magnitude_valid;
 
       if (quantized_valid) begin
-        output_gap <= restart_output_pending;
+        output_gap <= restart_output_pending && restart_output_gap;
         output_i <= quantized_i_register[15:0];
         output_q <= quantized_q_register[15:0];
         if (restart_output_pending)
@@ -305,6 +314,7 @@ module starlink_pss_x2_ddc #(
         else
           output_index <= output_index + 1'b1;
         restart_output_pending <= 1'b0;
+        restart_output_gap <= 1'b0;
         emitted_sample_count <= add_saturating_32(
             emitted_sample_count, 2'd1);
         saturation_event_count <= add_saturating_32(
@@ -329,7 +339,8 @@ module starlink_pss_x2_ddc #(
 
         if (!source_contiguous) begin
           history_count <= 4'd1;
-          gap_pending <= 1'b1;
+          segment_pending <= 1'b1;
+          gap_pending <= input_gap || stream_locked;
           if (input_gap || stream_locked)
             discontinuity_count <= add_saturating_32(
                 discontinuity_count, 2'd1);
@@ -339,11 +350,13 @@ module starlink_pss_x2_ddc #(
 
           if (filter_issue) begin
             pair_valid <= 1'b1;
-            if (gap_pending) begin
+            if (segment_pending) begin
               restart_output_pending <= 1'b1;
+              restart_output_gap <= gap_pending;
               restart_output_index <=
                   (input_index - GROUP_DELAY_SAMPLES) >> 1;
             end
+            segment_pending <= 1'b0;
             gap_pending <= 1'b0;
           end
         end

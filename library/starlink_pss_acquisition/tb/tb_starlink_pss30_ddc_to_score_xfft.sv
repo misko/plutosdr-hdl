@@ -242,8 +242,7 @@ module tb_starlink_pss30_ddc_to_score_xfft #(
           fail("too many DDC outputs");
         if ({ddc_q, ddc_i} !== expected_ddc[ddc_count])
           fail("DDC value mismatch");
-        if (ddc_index !== FIRST_ACQUISITION_INDEX + ddc_count ||
-            ddc_gap !== (ddc_count == 0))
+        if (ddc_index !== FIRST_ACQUISITION_INDEX + ddc_count || ddc_gap)
           fail("DDC index/gap mismatch");
         ddc_count = ddc_count + 1;
       end
@@ -355,7 +354,7 @@ module tb_starlink_pss30_ddc_to_score_xfft #(
         source_i = source_samples[drive_index][15:0];
         source_q = source_samples[drive_index][31:16];
         source_index = FIRST_SOURCE_INDEX + drive_index;
-        source_gap = drive_index == 0;
+        source_gap = 1'b0;
         source_valid = 1'b1;
         drive_index = drive_index + 1;
       end
@@ -380,16 +379,16 @@ module tb_starlink_pss30_ddc_to_score_xfft #(
         product_count != BLOCK_COUNT * FFT_SAMPLES ||
         inverse_count != BLOCK_COUNT * FFT_SAMPLES || score_count != SCORE_COUNT)
       fail("end-to-end count mismatch");
-    if (scheduler_gap_count != 1)
-      fail("startup discontinuity did not produce exactly one scheduler gap");
+    if (scheduler_gap_count != 0)
+      fail("clean startup produced a scheduler gap");
     if (ddc_accepted_count != SOURCE_SAMPLE_COUNT ||
         ddc_emitted_count != ACQUISITION_SAMPLE_COUNT ||
-        ddc_discontinuity_count != 1 || ddc_saturation_count != 0)
+        ddc_discontinuity_count != 0 || ddc_saturation_count != 0)
       fail("DDC telemetry mismatch");
     if (candidate_fifo_maximum_stored_count >= 512)
       fail("candidate FIFO exhausted its declared capacity");
 
-    $display("PSS_DDC_XFFT_PASS rate=%0d source=%0d ddc=%0d blocks=%0d scores=%0d pss255=3 first_source=%0d first_score=%0d scheduler_gaps=1 max_fifo=%0d",
+    $display("PSS_DDC_XFFT_PASS rate=%0d source=%0d ddc=%0d blocks=%0d scores=%0d pss255=3 first_source=%0d first_score=%0d scheduler_gaps=0 max_fifo=%0d",
              SOURCE_RATE_MSPS, driven_sources, ddc_count, BLOCK_COUNT, score_count,
              FIRST_SOURCE_INDEX, FIRST_ACQUISITION_INDEX,
              candidate_fifo_maximum_stored_count);
