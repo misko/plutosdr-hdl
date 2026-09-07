@@ -12,11 +12,11 @@ if {[lsearch $ip_repo_list $quantulum_ip_repo_path] == -1} {
 
 # default ports
 
-# The 60 MS/s detector-only image dedicates the small Z-7010 fabric to the two
-# PSS engines.  Its expansion-header AXI SPI and IIC controllers are unrelated
-# to the AD9361, which remains controlled through PS7 SPI0 below.  Keep those
-# optional peripherals in every normal image and omit them only from this
-# explicitly selected, non-mainline detector profile.
+# The result-only detector image dedicates the small Z-7010 fabric to the two
+# PSS engines at the selected 15/30/60 MS/s geometry. Its expansion-header AXI
+# SPI and IIC controllers are unrelated to the AD9361, which remains controlled
+# through PS7 SPI0 below. Keep those optional peripherals in every normal image
+# and omit them only from this explicitly selected, non-mainline profile.
 set starlink_pss_detector_only [expr {
   [info exists ::env(STARLINK_PSS_PROFILE)] &&
   $::env(STARLINK_PSS_PROFILE) eq "detector-only"
@@ -249,10 +249,6 @@ if {$starlink_pss_profile ni {full detector-only acquisition-only acquisition-in
 if {$starlink_pss_profile eq "acquisition-injection" &&
     $starlink_pss_rate_msps != 15} {
   error "STARLINK_PSS_PROFILE=acquisition-injection is qualified only at 15 MS/s"
-}
-if {$starlink_pss_profile eq "detector-only" &&
-    $starlink_pss_rate_msps != 60} {
-  error "STARLINK_PSS_PROFILE=detector-only is qualified only at 60 MS/s"
 }
 set starlink_pss_tracker_enabled [expr {
   $starlink_pss_profile in {full detector-only}

@@ -14,10 +14,10 @@ export STARLINK_PSS_RATE_MSPS
 
 # Keep the historical tracker path available, let blind acquisition omit it,
 # and make the deterministic injector a separate qualification-only profile.
-# The 60 MS/s detector-only profile keeps both PSS stages but omits the raw RX
+# The result-only detector profile keeps both PSS stages but omits the raw RX
 # DMA/DDR copy and expansion-header AXI SPI/IIC controllers, none of which is
-# part of either detector. PS SPI0 and IIO control of the AD9361 remain. The
-# default preserves existing builds.
+# part of either detector. It is rate-parameterized at 15/30/60 MS/s; PS SPI0
+# and IIO control of the AD9361 remain. The default preserves existing builds.
 STARLINK_PSS_PROFILE ?= full
 export STARLINK_PSS_PROFILE
 

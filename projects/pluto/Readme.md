@@ -27,6 +27,13 @@ indices and timestamps intact. This profile fails the build unless the selected
 rate is exactly 15 MS/s; it is RAM-boot-only and must never be persistently
 flashed.
 
+`STARLINK_PSS_PROFILE=detector-only` is the native-result-IIO profile. It
+retains the continuous coarse detector and scheduled full-rate tracker while
+omitting raw RX DMA/DDR copying and the unrelated expansion-header AXI SPI/IIC
+controllers. Only compact maps and fine-result packets leave the FPGA. This
+profile uses the selected 15, 30, or 60 MS/s geometry; PS7 SPI0 continues to
+control the AD9361.
+
 Select the input geometry independently with
 `STARLINK_PSS_RATE_MSPS=15`, `30`, or `60`.  Both settings are compile-time
 choices and are printed as `STARLINK_PSS_BUILD_PROFILE` in the Vivado log.
@@ -36,4 +43,6 @@ For example:
 ```sh
 make STARLINK_PSS_RATE_MSPS=15 STARLINK_PSS_PROFILE=acquisition-only
 make STARLINK_PSS_RATE_MSPS=15 STARLINK_PSS_PROFILE=acquisition-injection
+make STARLINK_PSS_RATE_MSPS=30 STARLINK_PSS_PROFILE=detector-only
+make STARLINK_PSS_RATE_MSPS=60 STARLINK_PSS_PROFILE=detector-only
 ```
