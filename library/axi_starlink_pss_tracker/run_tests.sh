@@ -27,6 +27,7 @@ iverilog -g2012 -Wall \
   ../starlink_pss_raw_correlator/starlink_pss_sliding_correlator.v \
   ../starlink_pss_raw_correlator/starlink_pss_tracking_core.v \
   ../starlink_pss_raw_correlator/starlink_pss_exact_reducer.v \
+  ../starlink_pss_raw_correlator/starlink_pss_exact_track_reducer.v \
   ../starlink_pss_raw_correlator/starlink_pss_result_store.v \
   ../starlink_pss_raw_correlator/starlink_pss_reduced_tracking_core.v \
   starlink_pss_injection_mux.v \
@@ -47,6 +48,7 @@ iverilog -g2012 -Wall \
   ../starlink_pss_raw_correlator/starlink_pss_sliding_correlator.v \
   ../starlink_pss_raw_correlator/starlink_pss_tracking_core.v \
   ../starlink_pss_raw_correlator/starlink_pss_exact_reducer.v \
+  ../starlink_pss_raw_correlator/starlink_pss_exact_track_reducer.v \
   ../starlink_pss_raw_correlator/starlink_pss_result_store.v \
   ../starlink_pss_raw_correlator/starlink_pss_reduced_tracking_core.v \
   starlink_pss_injection_mux.v \
@@ -67,6 +69,7 @@ iverilog -g2012 -Wall \
   ../starlink_pss_raw_correlator/starlink_pss_sliding_correlator.v \
   ../starlink_pss_raw_correlator/starlink_pss_tracking_core.v \
   ../starlink_pss_raw_correlator/starlink_pss_exact_reducer.v \
+  ../starlink_pss_raw_correlator/starlink_pss_exact_track_reducer.v \
   ../starlink_pss_raw_correlator/starlink_pss_result_store.v \
   ../starlink_pss_raw_correlator/starlink_pss_reduced_tracking_core.v \
   starlink_pss_injection_mux.v \
@@ -86,6 +89,7 @@ iverilog -g2012 -Wall \
   ../starlink_pss_raw_correlator/starlink_pss_sliding_correlator.v \
   ../starlink_pss_raw_correlator/starlink_pss_tracking_core.v \
   ../starlink_pss_raw_correlator/starlink_pss_exact_reducer.v \
+  ../starlink_pss_raw_correlator/starlink_pss_exact_track_reducer.v \
   ../starlink_pss_raw_correlator/starlink_pss_result_store.v \
   ../starlink_pss_raw_correlator/starlink_pss_reduced_tracking_core.v \
   starlink_pss_injection_mux.v \
@@ -105,6 +109,7 @@ iverilog -g2012 -Wall \
   ../starlink_pss_raw_correlator/starlink_pss_sliding_correlator.v \
   ../starlink_pss_raw_correlator/starlink_pss_tracking_core.v \
   ../starlink_pss_raw_correlator/starlink_pss_exact_reducer.v \
+  ../starlink_pss_raw_correlator/starlink_pss_exact_track_reducer.v \
   ../starlink_pss_raw_correlator/starlink_pss_result_store.v \
   ../starlink_pss_raw_correlator/starlink_pss_reduced_tracking_core.v \
   starlink_pss_injection_mux.v \

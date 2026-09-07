@@ -12,6 +12,16 @@ if {[lsearch $ip_repo_list $quantulum_ip_repo_path] == -1} {
 
 # default ports
 
+# The 60 MS/s detector-only image dedicates the small Z-7010 fabric to the two
+# PSS engines.  Its expansion-header AXI SPI and IIC controllers are unrelated
+# to the AD9361, which remains controlled through PS7 SPI0 below.  Keep those
+# optional peripherals in every normal image and omit them only from this
+# explicitly selected, non-mainline detector profile.
+set starlink_pss_detector_only [expr {
+  [info exists ::env(STARLINK_PSS_PROFILE)] &&
+  $::env(STARLINK_PSS_PROFILE) eq "detector-only"
+}]
+
 create_bd_intf_port -mode Master -vlnv xilinx.com:interface:ddrx_rtl:1.0 ddr
 create_bd_intf_port -mode Master -vlnv xilinx.com:display_processing_system7:fixedio_rtl:1.0 fixed_io
 
@@ -29,13 +39,15 @@ create_bd_port -dir I -from 17 -to 0 gpio_i
 create_bd_port -dir O -from 17 -to 0 gpio_o
 create_bd_port -dir O -from 17 -to 0 gpio_t
 
-create_bd_port -dir O spi_csn_o
-create_bd_port -dir I spi_csn_i
-create_bd_port -dir I spi_clk_i
-create_bd_port -dir O spi_clk_o
-create_bd_port -dir I spi_sdo_i
-create_bd_port -dir O spi_sdo_o
-create_bd_port -dir I spi_sdi_i
+if {!$starlink_pss_detector_only} {
+  create_bd_port -dir O spi_csn_o
+  create_bd_port -dir I spi_csn_i
+  create_bd_port -dir I spi_clk_i
+  create_bd_port -dir O spi_clk_o
+  create_bd_port -dir I spi_sdo_i
+  create_bd_port -dir O spi_sdo_o
+  create_bd_port -dir I spi_sdi_i
+}
 
 # instance: sys_ps7
 
@@ -118,10 +130,12 @@ ad_ip_parameter sys_rstgen CONFIG.C_EXT_RST_WIDTH 1
 
 # add external spi
 
-ad_ip_instance axi_quad_spi axi_spi
-ad_ip_parameter axi_spi CONFIG.C_USE_STARTUP 0
-ad_ip_parameter axi_spi CONFIG.C_NUM_SS_BITS 1
-ad_ip_parameter axi_spi CONFIG.C_SCK_RATIO 8
+if {!$starlink_pss_detector_only} {
+  ad_ip_instance axi_quad_spi axi_spi
+  ad_ip_parameter axi_spi CONFIG.C_USE_STARTUP 0
+  ad_ip_parameter axi_spi CONFIG.C_NUM_SS_BITS 1
+  ad_ip_parameter axi_spi CONFIG.C_SCK_RATIO 8
+}
 
 ad_connect  sys_cpu_clk sys_ps7/FCLK_CLK0
 ad_connect  sys_200m_clk sys_ps7/FCLK_CLK1
@@ -152,14 +166,16 @@ ad_connect  spi0_sdi_i sys_ps7/SPI0_MISO_I
 
 # axi spi connections
 
-ad_connect  sys_cpu_clk  axi_spi/ext_spi_clk
-ad_connect  spi_csn_i  axi_spi/ss_i
-ad_connect  spi_csn_o  axi_spi/ss_o
-ad_connect  spi_clk_i  axi_spi/sck_i
-ad_connect  spi_clk_o  axi_spi/sck_o
-ad_connect  spi_sdo_i  axi_spi/io0_i
-ad_connect  spi_sdo_o  axi_spi/io0_o
-ad_connect  spi_sdi_i  axi_spi/io1_i
+if {!$starlink_pss_detector_only} {
+  ad_connect  sys_cpu_clk  axi_spi/ext_spi_clk
+  ad_connect  spi_csn_i  axi_spi/ss_i
+  ad_connect  spi_csn_o  axi_spi/ss_o
+  ad_connect  spi_clk_i  axi_spi/sck_i
+  ad_connect  spi_clk_o  axi_spi/sck_o
+  ad_connect  spi_sdo_i  axi_spi/io0_i
+  ad_connect  spi_sdo_o  axi_spi/io0_o
+  ad_connect  spi_sdi_i  axi_spi/io1_i
+}
 
 # interrupts
 
@@ -183,13 +199,15 @@ ad_connect  sys_concat_intc/In0 GND
 
 # iic
 
-create_bd_intf_port -mode Master -vlnv xilinx.com:interface:iic_rtl:1.0 iic_main
+if {!$starlink_pss_detector_only} {
+  create_bd_intf_port -mode Master -vlnv xilinx.com:interface:iic_rtl:1.0 iic_main
 
-ad_ip_instance axi_iic axi_iic_main
+  ad_ip_instance axi_iic axi_iic_main
 
-ad_connect  iic_main axi_iic_main/iic
-ad_cpu_interconnect 0x41600000 axi_iic_main
-ad_cpu_interrupt ps-15 mb-15 axi_iic_main/iic2intc_irpt
+  ad_connect  iic_main axi_iic_main/iic
+  ad_cpu_interconnect 0x41600000 axi_iic_main
+  ad_cpu_interrupt ps-15 mb-15 axi_iic_main/iic2intc_irpt
+}
 
 # ad9361
 
@@ -214,27 +232,6 @@ ad_ip_parameter axi_ad9361 CONFIG.ADC_DCFILTER_DISABLE 1
 ad_ip_parameter axi_ad9361 CONFIG.ADC_IQCORRECTION_DISABLE 1
 ad_ip_parameter axi_ad9361 CONFIG.ADC_INIT_DELAY 21
 
-ad_ip_instance axi_dmac axi_ad9361_adc_dma
-ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_TYPE_SRC 2
-ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_TYPE_DEST 0
-ad_ip_parameter axi_ad9361_adc_dma CONFIG.CYCLIC 0
-ad_ip_parameter axi_ad9361_adc_dma CONFIG.AXI_SLICE_SRC 0
-ad_ip_parameter axi_ad9361_adc_dma CONFIG.AXI_SLICE_DEST 0
-ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_2D_TRANSFER 0
-ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_DATA_WIDTH_SRC 64
-ad_ip_parameter axi_ad9361_adc_dma CONFIG.SYNC_TRANSFER_START {true}
-# Metadata captures add one 64-bit timestamp to the requested IQ payload.  The
-# largest supported frame is therefore (4,194,304 + 1) * 8 = 33,554,440 bytes.
-# The 24-bit default forces that buffer into multiple synchronized transfers,
-# inserting a new timestamp and dropping IQ at each segment boundary.  A
-# 26-bit length field keeps every supported metadata frame in one transfer.
-ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_LENGTH_WIDTH 26
-
-ad_ip_instance util_cpack2 cpack
-ad_ip_instance c_counter_binary counter_timestamp
-ad_ip_parameter counter_timestamp CONFIG.Output_Width 64
-ad_ip_parameter counter_timestamp CONFIG.CE true
-ad_ip_instance util_cpack2_timestamp cpack_timestamp
 set starlink_pss_rate_msps 15
 if {[info exists ::env(STARLINK_PSS_RATE_MSPS)]} {
   set starlink_pss_rate_msps $::env(STARLINK_PSS_RATE_MSPS)
@@ -246,41 +243,75 @@ set starlink_pss_profile full
 if {[info exists ::env(STARLINK_PSS_PROFILE)]} {
   set starlink_pss_profile $::env(STARLINK_PSS_PROFILE)
 }
-if {$starlink_pss_profile ni {full acquisition-only acquisition-injection}} {
-  error "STARLINK_PSS_PROFILE must be full, acquisition-only, or acquisition-injection, got $starlink_pss_profile"
+if {$starlink_pss_profile ni {full detector-only acquisition-only acquisition-injection}} {
+  error "STARLINK_PSS_PROFILE must be full, detector-only, acquisition-only, or acquisition-injection, got $starlink_pss_profile"
 }
 if {$starlink_pss_profile eq "acquisition-injection" &&
     $starlink_pss_rate_msps != 15} {
   error "STARLINK_PSS_PROFILE=acquisition-injection is qualified only at 15 MS/s"
 }
+if {$starlink_pss_profile eq "detector-only" &&
+    $starlink_pss_rate_msps != 60} {
+  error "STARLINK_PSS_PROFILE=detector-only is qualified only at 60 MS/s"
+}
+set starlink_pss_tracker_enabled [expr {
+  $starlink_pss_profile in {full detector-only}
+}]
+set starlink_pss_rx_dma_enabled [expr {
+  $starlink_pss_profile ne "detector-only"
+}]
 puts "STARLINK_PSS_BUILD_PROFILE rate_msps=$starlink_pss_rate_msps profile=$starlink_pss_profile"
 set starlink_pss_minimum_lead_samples [expr {
   64 * $starlink_pss_rate_msps / 15
 }]
 
+if {$starlink_pss_rx_dma_enabled} {
+  ad_ip_instance axi_dmac axi_ad9361_adc_dma
+  ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_TYPE_SRC 2
+  ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_TYPE_DEST 0
+  ad_ip_parameter axi_ad9361_adc_dma CONFIG.CYCLIC 0
+  ad_ip_parameter axi_ad9361_adc_dma CONFIG.AXI_SLICE_SRC 0
+  ad_ip_parameter axi_ad9361_adc_dma CONFIG.AXI_SLICE_DEST 0
+  ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_2D_TRANSFER 0
+  ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_DATA_WIDTH_SRC 64
+  ad_ip_parameter axi_ad9361_adc_dma CONFIG.SYNC_TRANSFER_START {true}
+  # Metadata captures add one 64-bit timestamp to the requested IQ payload.
+  # A 26-bit length field keeps the largest supported frame in one transfer.
+  ad_ip_parameter axi_ad9361_adc_dma CONFIG.DMA_LENGTH_WIDTH 26
+  ad_ip_instance util_cpack2 cpack
+  ad_ip_instance util_cpack2_timestamp cpack_timestamp
+}
+ad_ip_instance c_counter_binary counter_timestamp
+ad_ip_parameter counter_timestamp CONFIG.Output_Width 64
+ad_ip_parameter counter_timestamp CONFIG.CE true
+
 ad_ip_instance axi_starlink_pss_acquisition starlink_pss_acquisition
 ad_ip_parameter starlink_pss_acquisition CONFIG.SAMPLE_FIFO_ADDRESS_WIDTH 7
 ad_ip_parameter starlink_pss_acquisition CONFIG.INPUT_RATE_MSPS $starlink_pss_rate_msps
-if {$starlink_pss_profile eq "full"} {
+if {$starlink_pss_tracker_enabled} {
   ad_ip_instance axi_starlink_pss_tracker starlink_pss_tracker
   ad_ip_parameter starlink_pss_tracker CONFIG.RATE_MSPS $starlink_pss_rate_msps
   ad_ip_parameter starlink_pss_tracker CONFIG.COMMAND_FIFO_ADDRESS_WIDTH 3
   ad_ip_parameter starlink_pss_tracker CONFIG.MINIMUM_LEAD_SAMPLES $starlink_pss_minimum_lead_samples
   ad_ip_parameter starlink_pss_tracker CONFIG.ENABLE_INJECTION 0
-  ad_ip_instance util_vector_logic starlink_pss_stream_enable [list \
-    C_OPERATION {and} \
-    C_SIZE 1]
+  if {$starlink_pss_profile eq "full"} {
+    ad_ip_instance util_vector_logic starlink_pss_stream_enable [list \
+      C_OPERATION {and} \
+      C_SIZE 1]
+  }
 } elseif {$starlink_pss_profile eq "acquisition-injection"} {
   ad_ip_instance axi_starlink_pss_periodic_injector starlink_pss_periodic_injector
 }
-ad_ip_instance xlslice cpack_timestamp_every_slice
-ad_ip_parameter cpack_timestamp_every_slice CONFIG.DIN_WIDTH 32
-ad_ip_parameter cpack_timestamp_every_slice CONFIG.DIN_FROM 31
-ad_ip_parameter cpack_timestamp_every_slice CONFIG.DIN_TO 1
-ad_ip_instance xlconcat cpack_timestamp_every_concat
-ad_ip_parameter cpack_timestamp_every_concat CONFIG.NUM_PORTS 2
-ad_ip_parameter cpack_timestamp_every_concat CONFIG.IN0_WIDTH 31
-ad_ip_parameter cpack_timestamp_every_concat CONFIG.IN1_WIDTH 1
+if {$starlink_pss_rx_dma_enabled} {
+  ad_ip_instance xlslice cpack_timestamp_every_slice
+  ad_ip_parameter cpack_timestamp_every_slice CONFIG.DIN_WIDTH 32
+  ad_ip_parameter cpack_timestamp_every_slice CONFIG.DIN_FROM 31
+  ad_ip_parameter cpack_timestamp_every_slice CONFIG.DIN_TO 1
+  ad_ip_instance xlconcat cpack_timestamp_every_concat
+  ad_ip_parameter cpack_timestamp_every_concat CONFIG.NUM_PORTS 2
+  ad_ip_parameter cpack_timestamp_every_concat CONFIG.IN0_WIDTH 31
+  ad_ip_parameter cpack_timestamp_every_concat CONFIG.IN1_WIDTH 1
+}
 
 # connections
 
@@ -298,16 +329,22 @@ ad_connect  axi_ad9361/l_clk axi_ad9361/clk
 
 ad_connect axi_ad9361/l_clk counter_timestamp/CLK
 ad_connect axi_ad9361/adc_valid_i0 counter_timestamp/CE
-if {$starlink_pss_profile eq "full"} {
-  ad_connect starlink_pss_tracker/selected_sample_timestamp cpack_timestamp/timestamp
-} elseif {$starlink_pss_profile eq "acquisition-injection"} {
-  ad_connect starlink_pss_periodic_injector/selected_sample_timestamp cpack_timestamp/timestamp
+if {$starlink_pss_rx_dma_enabled} {
+  if {$starlink_pss_tracker_enabled} {
+    ad_connect starlink_pss_tracker/selected_sample_timestamp cpack_timestamp/timestamp
+  } elseif {$starlink_pss_profile eq "acquisition-injection"} {
+    ad_connect starlink_pss_periodic_injector/selected_sample_timestamp cpack_timestamp/timestamp
+  } else {
+    ad_connect counter_timestamp/Q cpack_timestamp/timestamp
+  }
+  # cpack_timestamp synchronizes this counter word into sys_cpu_clk before it
+  # reaches the ARM-visible ADC GPIO status register (0x800000B8).
+  ad_connect cpack_timestamp/timestamp_cpu axi_ad9361/up_adc_gpio_in
 } else {
-  ad_connect counter_timestamp/Q cpack_timestamp/timestamp
+  # Detector-only firmware intentionally has no Linux RX buffer.  Its PSMA
+  # and PSST blocks expose coherent source counters through their own MMIO.
+  ad_connect GND axi_ad9361/up_adc_gpio_in
 }
-# cpack_timestamp synchronizes this counter word into sys_cpu_clk before it
-# reaches the ARM-visible ADC GPIO status register (0x800000B8).
-ad_connect cpack_timestamp/timestamp_cpu axi_ad9361/up_adc_gpio_in
 
 # Host-scheduled exact TRACK_ONE pipeline. ABI 1.2 adds a fail-closed, future-
 # indexed 130-sample deterministic injection mux before the shared tracker/DMA
@@ -316,15 +353,21 @@ ad_connect cpack_timestamp/timestamp_cpu axi_ad9361/up_adc_gpio_in
 # only the exact normalized winner within one scheduled 61-lag window; it is
 # not autonomous search, SSS alignment, cadence qualification, or a Starlink
 # claim.
-if {$starlink_pss_profile eq "full"} {
+if {$starlink_pss_tracker_enabled} {
   ad_connect axi_ad9361/l_clk starlink_pss_tracker/sample_clk
   ad_connect axi_ad9361/rst starlink_pss_tracker/sample_reset
   ad_connect axi_ad9361/adc_data_i0 starlink_pss_tracker/sample_i
   ad_connect axi_ad9361/adc_data_q0 starlink_pss_tracker/sample_q
   ad_connect axi_ad9361/adc_valid_i0 starlink_pss_tracker/sample_strobe
-  ad_connect axi_ad9361/adc_enable_i0 starlink_pss_stream_enable/Op1
-  ad_connect axi_ad9361/adc_enable_q0 starlink_pss_stream_enable/Op2
-  ad_connect starlink_pss_stream_enable/Res starlink_pss_tracker/sample_enable
+  if {$starlink_pss_profile eq "full"} {
+    ad_connect axi_ad9361/adc_enable_i0 starlink_pss_stream_enable/Op1
+    ad_connect axi_ad9361/adc_enable_q0 starlink_pss_stream_enable/Op2
+    ad_connect starlink_pss_stream_enable/Res starlink_pss_tracker/sample_enable
+  } else {
+    # Detector-only operation never opens a Linux DMA buffer, so its tracker
+    # must consume every valid RX0 sample independently of the scan mask.
+    ad_connect VCC starlink_pss_tracker/sample_enable
+  }
   ad_connect counter_timestamp/Q starlink_pss_tracker/sample_index
   ad_connect counter_timestamp/Q starlink_pss_tracker/sample_timestamp
 } elseif {$starlink_pss_profile eq "acquisition-injection"} {
@@ -344,7 +387,7 @@ if {$starlink_pss_profile eq "full"} {
 # CI16 beat through its loss-detecting FIFO into sys_cpu_clk.
 ad_connect axi_ad9361/l_clk starlink_pss_acquisition/sample_clk
 ad_connect axi_ad9361/rst starlink_pss_acquisition/sample_reset
-if {$starlink_pss_profile eq "full"} {
+if {$starlink_pss_tracker_enabled} {
   ad_connect starlink_pss_tracker/selected_sample_strobe starlink_pss_acquisition/sample_strobe
 } elseif {$starlink_pss_profile eq "acquisition-injection"} {
   ad_connect starlink_pss_periodic_injector/selected_sample_strobe starlink_pss_acquisition/sample_strobe
@@ -357,7 +400,7 @@ if {$starlink_pss_profile eq "full"} {
 # IIO buffer.
 ad_connect VCC starlink_pss_acquisition/sample_enable
 ad_connect GND starlink_pss_acquisition/sample_gap
-if {$starlink_pss_profile eq "full"} {
+if {$starlink_pss_tracker_enabled} {
   ad_connect starlink_pss_tracker/selected_sample_i starlink_pss_acquisition/sample_i
   ad_connect starlink_pss_tracker/selected_sample_q starlink_pss_acquisition/sample_q
   ad_connect starlink_pss_tracker/selected_sample_index starlink_pss_acquisition/sample_index
@@ -371,48 +414,47 @@ if {$starlink_pss_profile eq "full"} {
   ad_connect counter_timestamp/Q starlink_pss_acquisition/sample_index
 }
 
-ad_connect axi_ad9361/up_adc_gpio_out cpack_timestamp_every_slice/Din
-ad_connect cpack_timestamp_every_slice/Dout cpack_timestamp_every_concat/In0
-ad_connect GND cpack_timestamp_every_concat/In1
-ad_connect cpack_timestamp_every_concat/dout cpack_timestamp/timestamp_every
+if {$starlink_pss_rx_dma_enabled} {
+  ad_connect axi_ad9361/up_adc_gpio_out cpack_timestamp_every_slice/Din
+  ad_connect cpack_timestamp_every_slice/Dout cpack_timestamp_every_concat/In0
+  ad_connect GND cpack_timestamp_every_concat/In1
+  ad_connect cpack_timestamp_every_concat/dout cpack_timestamp/timestamp_every
 
-ad_connect axi_ad9361/l_clk cpack/clk
-ad_connect axi_ad9361/rst cpack/reset
+  ad_connect axi_ad9361/l_clk cpack/clk
+  ad_connect axi_ad9361/rst cpack/reset
+  ad_connect sys_cpu_clk cpack_timestamp/dma_clk
+  ad_connect axi_ad9361/l_clk cpack_timestamp/adc_clk
+  ad_connect axi_ad9361/rst cpack_timestamp/reset
+  ad_connect axi_ad9361/adc_enable_i1 cpack/enable_2
+  ad_connect axi_ad9361/adc_data_i1 cpack/fifo_wr_data_2
+  ad_connect axi_ad9361/adc_enable_q1 cpack/enable_3
+  ad_connect axi_ad9361/adc_data_q1 cpack/fifo_wr_data_3
 
-ad_connect sys_cpu_clk cpack_timestamp/dma_clk
-ad_connect axi_ad9361/l_clk cpack_timestamp/adc_clk
-ad_connect axi_ad9361/rst cpack_timestamp/reset
+  if {$starlink_pss_tracker_enabled} {
+    ad_connect cpack/enable_0 starlink_pss_tracker/selected_sample_enable
+    ad_connect cpack/enable_1 starlink_pss_tracker/selected_sample_enable
+    ad_connect cpack/fifo_wr_data_0 starlink_pss_tracker/selected_sample_i
+    ad_connect cpack/fifo_wr_data_1 starlink_pss_tracker/selected_sample_q
+    ad_connect starlink_pss_tracker/selected_sample_strobe cpack/fifo_wr_en
+  } elseif {$starlink_pss_profile eq "acquisition-injection"} {
+    # Preserve Linux's independent I/Q scan mask for RX DMA. PSSI is enabled
+    # continuously only on the acquisition branch; it must not force DMA.
+    ad_connect axi_ad9361/adc_enable_i0 cpack/enable_0
+    ad_connect axi_ad9361/adc_enable_q0 cpack/enable_1
+    ad_connect cpack/fifo_wr_data_0 starlink_pss_periodic_injector/selected_sample_i
+    ad_connect cpack/fifo_wr_data_1 starlink_pss_periodic_injector/selected_sample_q
+    ad_connect starlink_pss_periodic_injector/selected_sample_strobe cpack/fifo_wr_en
+  } else {
+    ad_connect axi_ad9361/adc_enable_i0 cpack/enable_0
+    ad_connect axi_ad9361/adc_enable_q0 cpack/enable_1
+    ad_connect axi_ad9361/adc_data_i0 cpack/fifo_wr_data_0
+    ad_connect axi_ad9361/adc_data_q0 cpack/fifo_wr_data_1
+    ad_connect axi_ad9361/adc_valid_i0 cpack/fifo_wr_en
+  }
 
-ad_connect axi_ad9361/adc_enable_i1 cpack/enable_2
-ad_connect axi_ad9361/adc_data_i1 cpack/fifo_wr_data_2
-ad_connect axi_ad9361/adc_enable_q1 cpack/enable_3
-ad_connect axi_ad9361/adc_data_q1 cpack/fifo_wr_data_3
-
-if {$starlink_pss_profile eq "full"} {
-  ad_connect cpack/enable_0 starlink_pss_tracker/selected_sample_enable
-  ad_connect cpack/enable_1 starlink_pss_tracker/selected_sample_enable
-  ad_connect cpack/fifo_wr_data_0 starlink_pss_tracker/selected_sample_i
-  ad_connect cpack/fifo_wr_data_1 starlink_pss_tracker/selected_sample_q
-  ad_connect starlink_pss_tracker/selected_sample_strobe cpack/fifo_wr_en
-} elseif {$starlink_pss_profile eq "acquisition-injection"} {
-  # Preserve Linux's independent I/Q scan mask for RX DMA. PSSI is enabled
-  # continuously only on the acquisition branch; it must not force DMA
-  # channels active when no IIO buffer exists.
-  ad_connect axi_ad9361/adc_enable_i0 cpack/enable_0
-  ad_connect axi_ad9361/adc_enable_q0 cpack/enable_1
-  ad_connect cpack/fifo_wr_data_0 starlink_pss_periodic_injector/selected_sample_i
-  ad_connect cpack/fifo_wr_data_1 starlink_pss_periodic_injector/selected_sample_q
-  ad_connect starlink_pss_periodic_injector/selected_sample_strobe cpack/fifo_wr_en
-} else {
-  ad_connect axi_ad9361/adc_enable_i0 cpack/enable_0
-  ad_connect axi_ad9361/adc_enable_q0 cpack/enable_1
-  ad_connect axi_ad9361/adc_data_i0 cpack/fifo_wr_data_0
-  ad_connect axi_ad9361/adc_data_q0 cpack/fifo_wr_data_1
-  ad_connect axi_ad9361/adc_valid_i0 cpack/fifo_wr_en
+  ad_connect cpack/packed_fifo_wr cpack_timestamp/packed_fifo_wr
+  ad_connect cpack_timestamp/packed_timestamped_fifo_wr axi_ad9361_adc_dma/fifo_wr
 }
-
-ad_connect cpack/packed_fifo_wr cpack_timestamp/packed_fifo_wr
-ad_connect cpack_timestamp/packed_timestamped_fifo_wr axi_ad9361_adc_dma/fifo_wr
 # The transmit datapath is compiled out.  Tie every remaining DAC-facing input
 # low so the disabled interface has deterministic, fail-safe values.
 ad_connect GND axi_ad9361/dac_data_i0
@@ -422,38 +464,50 @@ ad_connect GND axi_ad9361/dac_data_q1
 ad_connect GND axi_ad9361/dac_dunf
 ad_connect GND axi_ad9361/up_dac_gpio_in
 
-ad_connect  sys_cpu_clk axi_ad9361_adc_dma/fifo_wr_clk
-ad_connect  cpack/fifo_wr_overflow axi_ad9361/adc_dovf
+if {$starlink_pss_rx_dma_enabled} {
+  ad_connect sys_cpu_clk axi_ad9361_adc_dma/fifo_wr_clk
+  ad_connect cpack/fifo_wr_overflow axi_ad9361/adc_dovf
+} else {
+  ad_connect GND axi_ad9361/adc_dovf
+}
 
 # interconnects
 
 ad_cpu_interconnect 0x79020000 axi_ad9361
-if {$starlink_pss_profile eq "full"} {
+if {$starlink_pss_tracker_enabled} {
   ad_cpu_interconnect 0x79030000 starlink_pss_tracker
 } elseif {$starlink_pss_profile eq "acquisition-injection"} {
   ad_cpu_interconnect 0x79030000 starlink_pss_periodic_injector
 }
 ad_cpu_interconnect 0x79040000 starlink_pss_acquisition
-ad_cpu_interconnect 0x7C400000 axi_ad9361_adc_dma
-ad_cpu_interconnect 0x7C430000 axi_spi
+if {$starlink_pss_rx_dma_enabled} {
+  ad_cpu_interconnect 0x7C400000 axi_ad9361_adc_dma
+}
+if {!$starlink_pss_detector_only} {
+  ad_cpu_interconnect 0x7C430000 axi_spi
+}
 
 ad_ip_parameter sys_ps7 CONFIG.PCW_USE_S_AXI_HP1 {1}
 ad_connect sys_cpu_clk sys_ps7/S_AXI_HP1_ACLK
-ad_connect axi_ad9361_adc_dma/m_dest_axi sys_ps7/S_AXI_HP1
-
-create_bd_addr_seg -range 0x20000000 -offset 0x00000000 \
-                    [get_bd_addr_spaces axi_ad9361_adc_dma/m_dest_axi] \
-                    [get_bd_addr_segs sys_ps7/S_AXI_HP1/HP1_DDR_LOWOCM] \
-                    SEG_sys_ps7_HP1_DDR_LOWOCM
-
-ad_connect sys_cpu_clk axi_ad9361_adc_dma/m_dest_axi_aclk
-ad_connect sys_cpu_resetn axi_ad9361_adc_dma/m_dest_axi_aresetn
+if {$starlink_pss_rx_dma_enabled} {
+  ad_connect axi_ad9361_adc_dma/m_dest_axi sys_ps7/S_AXI_HP1
+  create_bd_addr_seg -range 0x20000000 -offset 0x00000000 \
+                      [get_bd_addr_spaces axi_ad9361_adc_dma/m_dest_axi] \
+                      [get_bd_addr_segs sys_ps7/S_AXI_HP1/HP1_DDR_LOWOCM] \
+                      SEG_sys_ps7_HP1_DDR_LOWOCM
+  ad_connect sys_cpu_clk axi_ad9361_adc_dma/m_dest_axi_aclk
+  ad_connect sys_cpu_resetn axi_ad9361_adc_dma/m_dest_axi_aresetn
+}
 
 # interrupts
 
-ad_cpu_interrupt ps-13 mb-13 axi_ad9361_adc_dma/irq
-if {$starlink_pss_profile eq "full"} {
+if {$starlink_pss_rx_dma_enabled} {
+  ad_cpu_interrupt ps-13 mb-13 axi_ad9361_adc_dma/irq
+}
+if {$starlink_pss_tracker_enabled} {
   ad_cpu_interrupt ps-12 mb-12 starlink_pss_tracker/irq
 }
-ad_cpu_interrupt ps-11 mb-11 axi_spi/ip2intc_irpt
+if {!$starlink_pss_detector_only} {
+  ad_cpu_interrupt ps-11 mb-11 axi_spi/ip2intc_irpt
+}
 ad_cpu_interrupt ps-10 mb-10 starlink_pss_acquisition/irq

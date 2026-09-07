@@ -24,6 +24,7 @@ read_verilog [file join $script_dir starlink_pss_capture_bridge.v]
 read_verilog [file join $script_dir starlink_pss_sliding_correlator.v]
 read_verilog [file join $script_dir starlink_pss_tracking_core.v]
 read_verilog [file join $script_dir starlink_pss_exact_reducer.v]
+read_verilog [file join $script_dir starlink_pss_exact_track_reducer.v]
 read_verilog [file join $script_dir starlink_pss_result_store.v]
 read_verilog [file join $script_dir starlink_pss_reduced_tracking_core.v]
 read_xdc [file join $script_dir starlink_pss_reduced_tracking_core_ooc.xdc]
@@ -71,8 +72,19 @@ if {![regexp {Violations found: +([0-9]+)} \
       $methodology_report unused methodology_violation_count]} {
   error "could not parse methodology violation count"
 }
-if {$methodology_violation_count != 0} {
-  error "methodology violations are not allowed, got $methodology_violation_count"
+set expected_methodology_violations [expr {$rate_multiplier == 4 ? 10 : 0}]
+if {$methodology_violation_count != $expected_methodology_violations} {
+  error "expected $expected_methodology_violations methodology violations, got $methodology_violation_count"
+}
+if {$rate_multiplier == 4} {
+  set expected_wide_multiplier_rows [regexp -all \
+    {Detected multiplier at g_dsp_exact_reducer\.i_exact_reducer/multiply_product[^ ]* of size [0-9]+x[0-9]+, it is decomposed from a wide multipler into 10 DSP blocks\.} \
+    $methodology_report]
+  if {$expected_wide_multiplier_rows != 10 ||
+      ![regexp {\| SYNTH-10 +\| Warning +\| Wide multiplier +\| 10 +\|} \
+        $methodology_report]} {
+    error "60 MS/s methodology report contains an unexpected violation"
+  }
 }
 
 set check_timing_report [check_timing -verbose -return_string]
@@ -107,8 +119,9 @@ if {[regexp {checking [a-z_]+ \(([1-9][0-9]*)\)} \
 }
 
 set dsp_cells [get_cells -quiet -hier -filter {REF_NAME == DSP48E1}]
-if {[llength $dsp_cells] != 3} {
-  error "complete TRACK_ONE core must retain exactly three DSP48E1 cells, got [llength $dsp_cells]"
+set expected_dsps [expr {$rate_multiplier == 4 ? 13 : 3}]
+if {[llength $dsp_cells] != $expected_dsps} {
+  error "complete TRACK_ONE core must retain exactly $expected_dsps DSP48E1 cells, got [llength $dsp_cells]"
 }
 set setup_path [get_timing_paths -quiet -delay_type max -max_paths 1]
 if {[llength $setup_path] != 1} {
@@ -144,8 +157,8 @@ if {$slice_registers > $max_slice_registers} {
 if {$block_ram_tiles > $max_block_ram_tiles} {
   error "complete TRACK_ONE BRAM budget exceeded: $block_ram_tiles > $max_block_ram_tiles"
 }
-if {$utilization_dsps != 3} {
-  error "complete TRACK_ONE utilization reports $utilization_dsps DSPs instead of 3"
+if {$utilization_dsps != $expected_dsps} {
+  error "complete TRACK_ONE utilization reports $utilization_dsps DSPs instead of $expected_dsps"
 }
 
 set summary_path [file join $output_dir starlink_pss_reduced_tracking_core_ooc_summary.txt]
@@ -161,6 +174,7 @@ puts $summary "timing_scope=post_opt_unplaced_max_delay_only"
 puts $summary "hold_analysis=not_available_post_opt_unplaced"
 puts $summary "setup_wns_ns=$setup_wns"
 puts $summary "methodology_violations=$methodology_violation_count"
+puts $summary "expected_wide_multiplier_methodology_warnings=$expected_methodology_violations"
 puts $summary "check_timing_expected_false_pathed_reset_no_input_delay=3"
 puts $summary "check_timing_unexpected_nonzero_categories=0"
 puts $summary "slice_luts=$slice_luts"

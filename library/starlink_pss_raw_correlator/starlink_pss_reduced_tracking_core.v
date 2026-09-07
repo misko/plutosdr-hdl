@@ -216,9 +216,11 @@ module starlink_pss_reduced_tracking_core #(
   wire [76:0] reduced_result_score_numerator;
   wire [68:0] reduced_result_score_denominator;
 
-  starlink_pss_exact_reducer #(
-    .RATE_MULTIPLIER (RATE_MULTIPLIER)
-  ) i_exact_reducer (
+  generate
+    if (RATE_MULTIPLIER == 4) begin : g_dsp_exact_reducer
+      starlink_pss_exact_track_reducer #(
+        .RATE_MULTIPLIER (RATE_MULTIPLIER)
+      ) i_exact_reducer (
     .i_clk                            (i_engine_clk),
     .i_reset                          (!i_engine_resetn),
     .i_tuple_valid                    (raw_result_valid &&
@@ -260,7 +262,55 @@ module starlink_pss_reduced_tracking_core #(
     .o_invalid_tuple_count            (o_reducer_invalid_tuple_count),
     .o_bound_error_count              (o_reducer_bound_error_count),
     .o_protocol_error_count           (o_reducer_protocol_error_count)
-  );
+      );
+    end else begin : g_slice_exact_reducer
+      starlink_pss_exact_reducer #(
+        .RATE_MULTIPLIER (RATE_MULTIPLIER)
+      ) i_exact_reducer (
+        .i_clk                            (i_engine_clk),
+        .i_reset                          (!i_engine_resetn),
+        .i_tuple_valid                    (raw_result_valid &&
+                                           raw_result_in_track_aperture),
+        .o_tuple_ready                    (reducer_tuple_ready),
+        .i_tuple_first                    (raw_result_lag == TRACK_FIRST_LAG),
+        .i_tuple_last                     (raw_result_lag == TRACK_LAST_LAG),
+        .i_include_eh                     (1'b0),
+        .i_request_id                     (raw_result_request_id),
+        .i_center_index                   (raw_result_center_index),
+        .i_center_timestamp               (raw_result_center_timestamp),
+        .i_lag                            (raw_result_lag),
+        .i_timestamp                      (raw_result_timestamp),
+        .i_coefficient_generation         (raw_result_coefficient_generation),
+        .i_c_re                           (raw_result_c_re),
+        .i_c_im                           (raw_result_c_im),
+        .i_ex                             (raw_result_ex),
+        .i_eh                             (raw_result_eh),
+        .i_saturation_events              (raw_result_saturation_events),
+        .o_result_valid                   (reduced_result_valid),
+        .i_result_ready                   (reduced_result_ready),
+        .o_result_score_valid             (reduced_result_score_valid),
+        .o_result_includes_eh             (reduced_result_includes_eh),
+        .o_result_request_id              (reduced_result_request_id),
+        .o_result_center_index            (reduced_result_center_index),
+        .o_result_center_timestamp        (reduced_result_center_timestamp),
+        .o_result_lag                     (reduced_result_lag),
+        .o_result_timestamp               (reduced_result_timestamp),
+        .o_result_coefficient_generation  (reduced_result_coefficient_generation),
+        .o_result_c_re                    (reduced_result_c_re),
+        .o_result_c_im                    (reduced_result_c_im),
+        .o_result_ex                      (reduced_result_ex),
+        .o_result_eh                      (reduced_result_eh),
+        .o_result_saturation_events       (reduced_result_saturation_events),
+        .o_result_score_numerator         (reduced_result_score_numerator),
+        .o_result_score_denominator       (reduced_result_score_denominator),
+        .o_processed_job_count            (o_reducer_processed_job_count),
+        .o_emitted_result_count           (o_reducer_emitted_result_count),
+        .o_invalid_tuple_count            (o_reducer_invalid_tuple_count),
+        .o_bound_error_count              (o_reducer_bound_error_count),
+        .o_protocol_error_count           (o_reducer_protocol_error_count)
+      );
+    end
+  endgenerate
 
   starlink_pss_result_store #(
     .LAG_WIDTH (LAG_WIDTH)

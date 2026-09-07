@@ -94,13 +94,15 @@ module system_top (
   wire    [17:0]  gpio_o;
   wire    [17:0]  gpio_t;
 
-  wire            iic_scl;
-  wire            iic_sda;
   wire            phaser_enable;
   wire            pl_muxout;
+`ifndef STARLINK_PSS_DETECTOR_ONLY
+  wire            iic_scl;
+  wire            iic_sda;
   wire            pl_spi_clk_o;
   wire            pl_spi_miso;
   wire            pl_spi_mosi;
+`endif
 
   // instantiations
 
@@ -122,6 +124,15 @@ module system_top (
   // state or a userspace write left over from a transceiver-capable image.
   assign phaser_enable = 1'b0;
 
+`ifdef STARLINK_PSS_DETECTOR_ONLY
+  // The dedicated detector image has no expansion-bus controllers.  Leave
+  // bidirectional header pins undriven and hold the output-only MOSI pin low.
+  assign pl_gpio4 = 1'bz;
+  assign pl_gpio3 = 1'bz;
+  assign pl_gpio2 = 1'bz;
+  assign pl_gpio0 = 1'b0;
+  assign pl_muxout = 1'b0;
+`else
   assign pl_gpio4 = iic_scl;      //PL_GPIO4
   assign pl_gpio3 = iic_sda;      //PL_GPIO3
 
@@ -139,6 +150,7 @@ module system_top (
 
   //PL_GPIO0
   assign pl_gpio0 = pl_spi_mosi;
+`endif
 
   // This shell has no FPGA transmit datapath.  Hold the RFIC digital TX bus
   // static; Linux also skips TX interface tuning and exposes no TX DMA/DDS.
@@ -172,8 +184,10 @@ module system_top (
     .gpio_i (gpio_i),
     .gpio_o (gpio_o),
     .gpio_t (gpio_t),
+`ifndef STARLINK_PSS_DETECTOR_ONLY
     .iic_main_scl_io (iic_scl),
     .iic_main_sda_io (iic_sda),
+`endif
     .rx_clk_in (rx_clk_in),
     .rx_data_in (rx_data_in),
     .rx_frame_in (rx_frame_in),
@@ -188,6 +202,7 @@ module system_top (
     .spi0_sdo_i (1'b0),
     .spi0_sdo_o (spi_mosi),
 
+`ifndef STARLINK_PSS_DETECTOR_ONLY
     .spi_clk_i(1'b0),
     .spi_clk_o(pl_spi_clk_o),
     .spi_csn_i(1'b1),
@@ -195,6 +210,7 @@ module system_top (
     .spi_sdi_i(pl_spi_miso),
     .spi_sdo_i(1'b0),
     .spi_sdo_o(pl_spi_mosi),
+`endif
 
     .txnrx (txnrx),
     .up_enable (gpio_o[15]),

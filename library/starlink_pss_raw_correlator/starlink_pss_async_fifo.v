@@ -62,6 +62,9 @@ module starlink_pss_async_fifo #(
   reg [ADDRESS_WIDTH:0] read_binary;
   reg [ADDRESS_WIDTH:0] read_gray;
   reg read_valid;
+  // Payload has no reset: read_valid is reset low and can become high only in
+  // the same transaction that loads this register from an owned FIFO word.
+  // This keeps unobservable data bits off the device-wide reset control set.
   reg [DATA_WIDTH-1:0] read_data;
 
   (* ASYNC_REG = "TRUE", SHREG_EXTRACT = "NO" *)
@@ -113,7 +116,6 @@ module starlink_pss_async_fifo #(
       read_binary <= {(ADDRESS_WIDTH+1){1'b0}};
       read_gray <= {(ADDRESS_WIDTH+1){1'b0}};
       read_valid <= 1'b0;
-      read_data <= {DATA_WIDTH{1'b0}};
       write_gray_read_sync_1 <= {(ADDRESS_WIDTH+1){1'b0}};
       write_gray_read_sync_2 <= {(ADDRESS_WIDTH+1){1'b0}};
     end else begin
