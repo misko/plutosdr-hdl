@@ -61,8 +61,8 @@ module axi_starlink_pss_phase_map_sync #(
   input  wire [31:0]                   score_denominator_zero_count,
   input  wire [9:0]                    candidate_fifo_stored_count,
   input  wire [9:0]                    candidate_fifo_maximum_stored_count,
-  input  wire [31:0]                   ddc_accepted_sample_count,
-  input  wire [31:0]                   ddc_emitted_sample_count,
+  input  wire [63:0]                   ddc_accepted_sample_count,
+  input  wire [63:0]                   ddc_emitted_sample_count,
   input  wire [31:0]                   ddc_discontinuity_count,
   input  wire [31:0]                   ddc_saturation_event_count,
 
@@ -96,12 +96,12 @@ module axi_starlink_pss_phase_map_sync #(
   localparam [31:0] IDENTIFICATION = 32'h5053_4d41;
   localparam integer DDC_ENABLED = INPUT_RATE_MSPS != 15;
   localparam [31:0] VERSION = (INPUT_RATE_MSPS == 60) ?
-      32'h0001_0003 :
+      32'h0001_0004 :
       ((INPUT_RATE_MSPS == 30) ? 32'h0001_0002 : 32'h0001_0001);
-  localparam [31:0] CAPABILITIES = DDC_ENABLED ?
-      32'h0000_007f : 32'h0000_003f;
-  // ABI 1.1/1.2 values remain exact. ABI 1.3 advertises two cascaded stages
-  // in the high byte and total decimation four in the third byte.
+  localparam [31:0] CAPABILITIES = (INPUT_RATE_MSPS == 60) ?
+      32'h0000_00ff : (DDC_ENABLED ? 32'h0000_007f : 32'h0000_003f);
+  // ABI 1.1/1.2 values remain exact. ABI 1.4 advertises two cascaded stages,
+  // total decimation four, and coherent 64-bit DDC observation counters.
   localparam [31:0] DDC_CONFIG = (INPUT_RATE_MSPS == 60) ?
       32'h020f_0403 :
       {8'd0, 8'd15, 8'd2, 6'd0, 1'b1,
@@ -176,6 +176,8 @@ module axi_starlink_pss_phase_map_sync #(
   localparam [5:0] REG_DDC_EMITTED = 6'h39;
   localparam [5:0] REG_DDC_DISCONTINUITY = 6'h3a;
   localparam [5:0] REG_DDC_SATURATION = 6'h3b;
+  localparam [5:0] REG_DDC_ACCEPTED_HI = 6'h3c;
+  localparam [5:0] REG_DDC_EMITTED_HI = 6'h3d;
 
   localparam integer HEALTH_INGRESS_OVERFLOW = 12;
   localparam integer HEALTH_DDC_SATURATION = 13;
@@ -375,13 +377,19 @@ module axi_starlink_pss_phase_map_sync #(
         REG_DDC_CONTRACT_7:
           register_value = DDC_ENABLED ? DDC_CONTRACT[31:0] : 32'd0;
         REG_DDC_ACCEPTED:
-          register_value = DDC_ENABLED ? ddc_accepted_sample_count : 32'd0;
+          register_value = DDC_ENABLED ? ddc_accepted_sample_count[31:0] : 32'd0;
         REG_DDC_EMITTED:
-          register_value = DDC_ENABLED ? ddc_emitted_sample_count : 32'd0;
+          register_value = DDC_ENABLED ? ddc_emitted_sample_count[31:0] : 32'd0;
         REG_DDC_DISCONTINUITY:
           register_value = DDC_ENABLED ? ddc_discontinuity_count : 32'd0;
         REG_DDC_SATURATION:
           register_value = DDC_ENABLED ? ddc_saturation_event_count : 32'd0;
+        REG_DDC_ACCEPTED_HI:
+          register_value = (INPUT_RATE_MSPS == 60) ?
+              ddc_accepted_sample_count[63:32] : 32'd0;
+        REG_DDC_EMITTED_HI:
+          register_value = (INPUT_RATE_MSPS == 60) ?
+              ddc_emitted_sample_count[63:32] : 32'd0;
         default: register_value = 32'd0;
       endcase
     end

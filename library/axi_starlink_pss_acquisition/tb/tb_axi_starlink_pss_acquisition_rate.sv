@@ -243,6 +243,12 @@ module tb_axi_starlink_pss_acquisition_rate #(
     axi_read(8'hec, register_value);
     if (register_value != (DDC_ENABLED ? summary_memory[3] : 0))
       fail("DDC saturation counter register mismatch");
+    axi_read(8'hf0, register_value);
+    if (register_value != 0)
+      fail("DDC accepted high counter register mismatch");
+    axi_read(8'hf4, register_value);
+    if (register_value != 0)
+      fail("DDC emitted high counter register mismatch");
 
     $display("ACQUISITION_RATE_PASS rate=%0d inputs=%0d outputs=%0d ddc=%0d drops=0",
              INPUT_RATE_MSPS, INPUT_COUNT, observed_outputs,

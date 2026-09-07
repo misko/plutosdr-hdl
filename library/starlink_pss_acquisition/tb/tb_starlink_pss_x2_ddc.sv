@@ -24,8 +24,8 @@ module tb_starlink_pss_x2_ddc #(
   wire signed [15:0] output_i;
   wire signed [15:0] output_q;
   wire [63:0] output_index;
-  wire [31:0] accepted_sample_count;
-  wire [31:0] emitted_sample_count;
+  wire [63:0] accepted_sample_count;
+  wire [63:0] emitted_sample_count;
   wire [31:0] discontinuity_count;
   wire [31:0] saturation_event_count;
 

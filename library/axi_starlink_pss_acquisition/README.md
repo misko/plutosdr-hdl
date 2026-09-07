@@ -17,7 +17,7 @@ The AXI clock is also the fixed 100 MHz acquisition clock. The wrapper uses a
 single-clock PSMA 1.1 bridge so it does not synthesize redundant asynchronous
 mailbox payloads between identical clocks; the separately packaged generic
 phase-map bridge retains its independent-clock CDC implementation. Software
-must validate the rate-specific PSMA ABI (1.1/1.2/1.3), then explicitly enable
+must validate the rate-specific PSMA ABI (1.1/1.2/1.4), then explicitly enable
 acquisition. The IRQ is
 level-based while either immutable phase-map bank is ready.
 

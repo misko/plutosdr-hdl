@@ -135,8 +135,8 @@ module axi_starlink_pss_acquisition #(
   wire signed [15:0] acquisition_sample_i;
   wire signed [15:0] acquisition_sample_q;
   wire [63:0] acquisition_sample_index;
-  wire [31:0] ddc_accepted_sample_count;
-  wire [31:0] ddc_emitted_sample_count;
+  wire [63:0] ddc_accepted_sample_count;
+  wire [63:0] ddc_emitted_sample_count;
   wire [31:0] ddc_discontinuity_count;
   wire [31:0] ddc_saturation_event_count;
 
@@ -162,8 +162,8 @@ module axi_starlink_pss_acquisition #(
       assign acquisition_sample_i = ingress_sample_i;
       assign acquisition_sample_q = ingress_sample_q;
       assign acquisition_sample_index = ingress_sample_index;
-      assign ddc_accepted_sample_count = 32'd0;
-      assign ddc_emitted_sample_count = 32'd0;
+      assign ddc_accepted_sample_count = 64'd0;
+      assign ddc_emitted_sample_count = 64'd0;
       assign ddc_discontinuity_count = 32'd0;
       assign ddc_saturation_event_count = 32'd0;
     end else if (INPUT_RATE_MSPS == 30) begin : g_rate_30
@@ -196,12 +196,12 @@ module axi_starlink_pss_acquisition #(
       wire signed [15:0] stage_30_i;
       wire signed [15:0] stage_30_q;
       wire [63:0] stage_30_index;
-      wire [31:0] stage_60_accepted_count;
-      wire [31:0] stage_60_emitted_count;
+      wire [63:0] stage_60_accepted_count;
+      wire [63:0] stage_60_emitted_count;
       wire [31:0] stage_60_discontinuity_count;
       wire [31:0] stage_60_saturation_count;
-      wire [31:0] stage_30_accepted_count;
-      wire [31:0] stage_30_emitted_count;
+      wire [63:0] stage_30_accepted_count;
+      wire [63:0] stage_30_emitted_count;
       wire [31:0] stage_30_discontinuity_count;
       wire [31:0] stage_30_saturation_count;
       wire [32:0] saturation_sum =
@@ -213,7 +213,8 @@ module axi_starlink_pss_acquisition #(
       // the already-qualified 30->15 MS/s operation.  The final index k maps
       // exactly to raw source center 4*k (21 raw input samples of latency).
       starlink_pss_x2_ddc #(
-        .EDGE_UPPER(1)
+        .EDGE_UPPER               (1),
+        .WIDE_OBSERVATION_COUNTERS(1)
       ) acquisition_ddc_60_to_30 (
         .clk                    (s_axi_aclk),
         .resetn                 (s_axi_aresetn),
@@ -237,7 +238,8 @@ module axi_starlink_pss_acquisition #(
       );
 
       starlink_pss_x2_ddc #(
-        .EDGE_UPPER(1)
+        .EDGE_UPPER               (1),
+        .WIDE_OBSERVATION_COUNTERS(1)
       ) acquisition_ddc_30_to_15 (
         .clk                    (s_axi_aclk),
         .resetn                 (s_axi_aresetn),

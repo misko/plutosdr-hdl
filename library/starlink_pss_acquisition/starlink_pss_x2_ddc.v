@@ -18,7 +18,8 @@
 `timescale 1ns/1ps
 
 module starlink_pss_x2_ddc #(
-  parameter integer EDGE_UPPER = 1
+  parameter integer EDGE_UPPER = 1,
+  parameter integer WIDE_OBSERVATION_COUNTERS = 0
 ) (
   input  wire                 clk,
   input  wire                 resetn,
@@ -38,8 +39,8 @@ module starlink_pss_x2_ddc #(
   output reg signed [15:0]    output_q,
   output reg [63:0]           output_index,
 
-  output reg [31:0]           accepted_sample_count,
-  output reg [31:0]           emitted_sample_count,
+  output reg [63:0]           accepted_sample_count,
+  output reg [63:0]           emitted_sample_count,
   output reg [31:0]           discontinuity_count,
   output reg [31:0]           saturation_event_count
 );
@@ -55,6 +56,10 @@ module starlink_pss_x2_ddc #(
     if ((EDGE_UPPER != 0) && (EDGE_UPPER != 1)) begin : g_invalid_edge
       initial $fatal(1, "EDGE_UPPER must be zero or one");
     end
+    if ((WIDE_OBSERVATION_COUNTERS != 0) &&
+        (WIDE_OBSERVATION_COUNTERS != 1)) begin : g_invalid_counter_width
+      initial $fatal(1, "WIDE_OBSERVATION_COUNTERS must be zero or one");
+    end
   endgenerate
 
   function automatic [31:0] add_saturating_32;
@@ -64,6 +69,22 @@ module starlink_pss_x2_ddc #(
     begin
       sum = {1'b0, value} + increment;
       add_saturating_32 = sum[32] ? 32'hffff_ffff : sum[31:0];
+    end
+  endfunction
+
+  function automatic [63:0] increment_saturating_64;
+    input [63:0] value;
+    begin
+      increment_saturating_64 = (&value) ? value : value + 1'b1;
+    end
+  endfunction
+
+  function automatic [63:0] increment_observation_counter;
+    input [63:0] value;
+    begin
+      increment_observation_counter = WIDE_OBSERVATION_COUNTERS ?
+          increment_saturating_64(value) :
+          {32'd0, add_saturating_32(value[31:0], 2'd1)};
     end
   endfunction
 
@@ -265,8 +286,8 @@ module starlink_pss_x2_ddc #(
       output_i <= 16'sd0;
       output_q <= 16'sd0;
       output_index <= 64'd0;
-      accepted_sample_count <= 32'd0;
-      emitted_sample_count <= 32'd0;
+      accepted_sample_count <= 64'd0;
+      emitted_sample_count <= 64'd0;
       discontinuity_count <= 32'd0;
       saturation_event_count <= 32'd0;
       history_count <= 4'd0;
@@ -315,8 +336,8 @@ module starlink_pss_x2_ddc #(
           output_index <= output_index + 1'b1;
         restart_output_pending <= 1'b0;
         restart_output_gap <= 1'b0;
-        emitted_sample_count <= add_saturating_32(
-            emitted_sample_count, 2'd1);
+        emitted_sample_count <= increment_observation_counter(
+            emitted_sample_count);
         saturation_event_count <= add_saturating_32(
             saturation_event_count,
             {1'b0, quantized_i_register[16]} +
@@ -324,8 +345,8 @@ module starlink_pss_x2_ddc #(
       end
 
       if (input_valid) begin
-        accepted_sample_count <= add_saturating_32(
-            accepted_sample_count, 2'd1);
+        accepted_sample_count <= increment_observation_counter(
+            accepted_sample_count);
         expected_input_index <= input_index + 1'b1;
         stream_locked <= 1'b1;
 

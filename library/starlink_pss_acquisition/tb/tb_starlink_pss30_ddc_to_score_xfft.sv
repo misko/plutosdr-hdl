@@ -39,8 +39,8 @@ module tb_starlink_pss30_ddc_to_score_xfft #(
   wire signed [15:0] ddc_i;
   wire signed [15:0] ddc_q;
   wire [63:0] ddc_index;
-  wire [31:0] ddc_accepted_count;
-  wire [31:0] ddc_emitted_count;
+  wire [63:0] ddc_accepted_count;
+  wire [63:0] ddc_emitted_count;
   wire [31:0] ddc_discontinuity_count;
   wire [31:0] ddc_saturation_count;
 
@@ -76,8 +76,8 @@ module tb_starlink_pss30_ddc_to_score_xfft #(
   wire signed [15:0] stage_30_i;
   wire signed [15:0] stage_30_q;
   wire [63:0] stage_30_index;
-  wire [31:0] stage_60_accepted_count;
-  wire [31:0] stage_60_emitted_count;
+  wire [63:0] stage_60_accepted_count;
+  wire [63:0] stage_60_emitted_count;
   wire [31:0] stage_60_discontinuity_count;
   wire [31:0] stage_60_saturation_count;
 
@@ -118,7 +118,7 @@ module tb_starlink_pss30_ddc_to_score_xfft #(
       assign ddc_discontinuity_count = stage_60_discontinuity_count;
       assign ddc_saturation_count = stage_60_saturation_count;
     end else begin : g_rate_60
-      wire [31:0] final_accepted_count;
+      wire [63:0] final_accepted_count;
       wire [31:0] final_saturation_count;
       wire [32:0] saturation_sum =
           {1'b0, stage_60_saturation_count} +

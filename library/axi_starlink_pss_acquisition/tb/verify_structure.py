@@ -42,8 +42,8 @@ if WRAPPER.count("starlink_pss_x2_ddc #(") != 3:
     )
 
 for fragment, label in (
-    ("32'h0001_0003", "60 MS/s ABI version"),
-    ("32'h0000_007f : 32'h0000_003f", "conditional capabilities"),
+    ("32'h0001_0004", "60 MS/s 64-bit-counter ABI version"),
+    ("32'h0000_00ff", "64-bit-counter capability"),
     ("REG_INPUT_RATE_MSPS = 6'h2c", "rate register"),
     ("REG_DDC_CONTRACT_0 = 6'h30", "contract register start"),
     ("REG_DDC_CONTRACT_7 = 6'h37", "contract register end"),
@@ -51,6 +51,8 @@ for fragment, label in (
     ("256'h8e807d15d5372b0a9669d1190d899697e7c2911a73ddfb23095806c2a31de5b2", "cascade contract digest"),
     ("REG_DDC_ACCEPTED = 6'h38", "accepted counter"),
     ("REG_DDC_SATURATION = 6'h3b", "saturation counter"),
+    ("REG_DDC_ACCEPTED_HI = 6'h3c", "accepted counter high word"),
+    ("REG_DDC_EMITTED_HI = 6'h3d", "emitted counter high word"),
     ("HEALTH_DDC_SATURATION = 13", "saturation health bit"),
 ):
     require(CONTROL, fragment, label)
@@ -65,5 +67,5 @@ for fragment, label in (
 
 print(
     "ACQUISITION_WRAPPER_STRUCTURE_PASS rates=15,30,60 bypass15=1 "
-    "ddc30_stages=1 ddc60_stages=2 contract_words=8 live_counters=4"
+    "ddc30_stages=1 ddc60_stages=2 contract_words=8 live_counters64=2"
 )

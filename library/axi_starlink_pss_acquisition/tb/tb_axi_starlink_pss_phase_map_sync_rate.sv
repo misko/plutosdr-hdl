@@ -9,8 +9,10 @@ module tb_axi_starlink_pss_phase_map_sync_rate #(
       ((INPUT_RATE_MSPS == 30) ? 31'd1073744004 : 31'd1073742825);
   localparam integer DDC_ENABLED = INPUT_RATE_MSPS != 15;
   localparam [31:0] EXPECTED_VERSION = (INPUT_RATE_MSPS == 60) ?
-      32'h0001_0003 :
+      32'h0001_0004 :
       ((INPUT_RATE_MSPS == 30) ? 32'h0001_0002 : 32'h0001_0001);
+  localparam [31:0] EXPECTED_CAPABILITIES = (INPUT_RATE_MSPS == 60) ?
+      32'h0000_00ff : (DDC_ENABLED ? 32'h0000_007f : 32'h0000_003f);
   localparam [31:0] EXPECTED_DDC_CONFIG = (INPUT_RATE_MSPS == 60) ?
       32'h020f_0403 :
       ((INPUT_RATE_MSPS == 30) ? 32'h000f_0203 : 32'h000f_0202);
@@ -92,8 +94,8 @@ module tb_axi_starlink_pss_phase_map_sync_rate #(
     .score_denominator_zero_count         (32'd0),
     .candidate_fifo_stored_count          (10'd0),
     .candidate_fifo_maximum_stored_count  (10'd0),
-    .ddc_accepted_sample_count            (32'd500),
-    .ddc_emitted_sample_count             (32'd229),
+    .ddc_accepted_sample_count            (64'h0000_0001_0000_01f4),
+    .ddc_emitted_sample_count             (64'h0000_0001_0000_00e5),
     .ddc_discontinuity_count              (32'd3),
     .ddc_saturation_event_count           (32'd1),
     .acquisition_enable                   (acquisition_enable),
@@ -210,7 +212,7 @@ module tb_axi_starlink_pss_phase_map_sync_rate #(
 
     expect_register(8'h00, 32'h5053_4d41);
     expect_register(8'h04, EXPECTED_VERSION);
-    expect_register(8'h10, DDC_ENABLED ? 32'h0000_007f : 32'h0000_003f);
+    expect_register(8'h10, EXPECTED_CAPABILITIES);
     expect_register(8'hb0, INPUT_RATE_MSPS);
     expect_register(8'hb4, EXPECTED_DDC_CONFIG);
     expect_register(8'hb8, EXPECTED_DDC_DELAY);
@@ -228,6 +230,8 @@ module tb_axi_starlink_pss_phase_map_sync_rate #(
     expect_register(8'he4, DDC_ENABLED ? 32'd229 : 32'd0);
     expect_register(8'he8, DDC_ENABLED ? 32'd3 : 32'd0);
     expect_register(8'hec, DDC_ENABLED ? 32'd1 : 32'd0);
+    expect_register(8'hf0, INPUT_RATE_MSPS == 60 ? 32'd1 : 32'd0);
+    expect_register(8'hf4, INPUT_RATE_MSPS == 60 ? 32'd1 : 32'd0);
 
     axi_write(8'h30, 32'd1);
     repeat (3) @(posedge clk);
@@ -235,7 +239,7 @@ module tb_axi_starlink_pss_phase_map_sync_rate #(
 
     $display("PSMA_RATE_PASS rate=%0d version=%0d.%0d ddc=%0d energy=%0d",
              INPUT_RATE_MSPS, 1,
-             INPUT_RATE_MSPS == 60 ? 3 : (INPUT_RATE_MSPS == 30 ? 2 : 1),
+             INPUT_RATE_MSPS == 60 ? 4 : (INPUT_RATE_MSPS == 30 ? 2 : 1),
              DDC_ENABLED, COEFFICIENT_ENERGY);
     $finish;
   end

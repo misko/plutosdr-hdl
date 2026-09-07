@@ -32,8 +32,8 @@ module tb_starlink_pss30_ddc_to_score_xfft_longrun;
   wire signed [15:0] ddc_i;
   wire signed [15:0] ddc_q;
   wire [63:0] ddc_index;
-  wire [31:0] ddc_accepted_count;
-  wire [31:0] ddc_emitted_count;
+  wire [63:0] ddc_accepted_count;
+  wire [63:0] ddc_emitted_count;
   wire [31:0] ddc_discontinuity_count;
   wire [31:0] ddc_saturation_count;
 
