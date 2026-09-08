@@ -3,7 +3,7 @@
 // metadata is {inverse, block_start[63:0], forward_exponent[4:0]}; output adds
 // the measured transform exponent in bits [4:0]. The frozen XFFT arithmetic
 // is unchanged. Complete-block RAM ownership crosses clocks in each direction.
-// This core is not yet connected to a receiver profile or hardware-qualified.
+// Selected only by the opt-in paired-receiver build; not hardware-qualified.
 `timescale 1ns/1ps
 module starlink_pss_shared_xfft_service (
   input wire clk,
@@ -48,12 +48,15 @@ module starlink_pss_shared_xfft_service (
   wire [35:0] fast_input_data;
   wire [8:0] fast_input_position;
   wire [69:0] fast_input_metadata;
-  starlink_pss_block_mailbox input_mailbox (
-    .input_clk(clk), .input_resetn(resetn),
+  // The controller and BOTH mailboxes use one coherent release pair. Each
+  // includes both raw epochs, rather than independently resynchronizing the
+  // same launch reset into three physically distinct release chains.
+  starlink_pss_block_mailbox #(.RESET_RELEASE_EXTERNAL(1)) input_mailbox (
+    .input_clk(clk), .input_resetn(slow_running),
     .input_valid(input_valid && !service_fault), .input_ready(input_mailbox_ready),
     .input_data(input_data), .input_position(input_position), .input_last(input_last),
     .input_metadata(input_metadata), .input_fault(input_mailbox_fault),
-    .output_clk(fft_clk), .output_resetn(fft_resetn),
+    .output_clk(fft_clk), .output_resetn(fast_running),
     .output_valid(fast_input_valid), .output_ready(fast_input_ready),
     .output_data(fast_input_data), .output_position(fast_input_position),
     .output_last(fast_input_last), .output_metadata(fast_input_metadata)
@@ -79,12 +82,14 @@ module starlink_pss_shared_xfft_service (
   assign fast_input_ready = engine_active && !engine_input_closed && !fast_fault && adapter_input_ready;
   assign output_valid = slow_running && slow_output_valid && !service_fault;
 
-  starlink_pss_block_mailbox #(.METADATA_WIDTH(75)) output_mailbox (
-    .input_clk(fft_clk), .input_resetn(fft_resetn),
+  starlink_pss_block_mailbox #(
+    .METADATA_WIDTH(75), .RESET_RELEASE_EXTERNAL(1)
+  ) output_mailbox (
+    .input_clk(fft_clk), .input_resetn(fast_running),
     .input_valid(fast_output_valid && !fast_fault), .input_ready(output_mailbox_ready),
     .input_data({fast_output_q, fast_output_i}), .input_position(fast_output_position),
     .input_last(fast_output_last), .input_metadata({engine_metadata, fast_output_exponent}),
-    .input_fault(output_mailbox_fault), .output_clk(clk), .output_resetn(resetn),
+    .input_fault(output_mailbox_fault), .output_clk(clk), .output_resetn(slow_running),
     .output_valid(slow_output_valid), .output_ready(output_ready && !service_fault),
     .output_data(output_data), .output_position(output_position),
     .output_last(output_last), .output_metadata(output_metadata)

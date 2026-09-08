@@ -73,16 +73,44 @@ module axi_starlink_pilot_capture #(
   reg [OUTPUT_FIFO_BITS:0] fifo_count, fifo_high_water;
   (* ram_style = "distributed" *) reg [31:0] fifo [0:FIFO_DEPTH-1];
   wire empty = fifo_count == 0;
-  wire command = wreq && waddr == 6'h02 && wstrb == 4'hf;
-  wire arm_request = command && wdata == 1;
-  wire stop_request = command && wdata == 2;
-  wire clear_request = command && wdata == 4;
-  wire snapshot_request = command && wdata == 8;
+  // Decode the slow control word BEFORE the capture/DDC admission boundary.
+  // Otherwise a 32-bit command comparison feeds several levels of immediate
+  // fault/flush checks and every downstream RAM write enable in one cycle.
+  // The AXI helper is single-outstanding and holds wdata until our delayed
+  // acknowledgement, so configuration payloads need no second 32-bit copy.
+  wire command = waddr == 6'h02 && wstrb == 4'hf;
+  reg write_pending;
+  reg arm_request, stop_request, clear_request, snapshot_request;
+  reg visit_request, limit_request;
+  always @(posedge s_axi_aclk) begin
+    if (!s_axi_aresetn) begin
+      write_pending <= 0;
+      arm_request <= 0;
+      stop_request <= 0;
+      clear_request <= 0;
+      snapshot_request <= 0;
+      visit_request <= 0;
+      limit_request <= 0;
+    end else begin
+      write_pending <= wreq;
+      arm_request <= wreq && command && wdata == 1;
+      stop_request <= wreq && command && wdata == 2;
+      clear_request <= wreq && command && wdata == 4;
+      snapshot_request <= wreq && command && wdata == 8;
+      visit_request <= wreq && waddr == 6'h08 && wstrb == 4'hf;
+      limit_request <= wreq && waddr == 6'h27 && wstrb == 4'hf;
+    end
+  end
   wire clear_ok = clear_request && !active && empty;
   wire arm_ok = arm_request && !active && !used && empty && faults == 0 && visit_id != 0;
-  wire visit_write = wreq && waddr == 6'h08 && wstrb == 4'hf && !active && !used && empty;
-  wire limit_write = wreq && waddr == 6'h27 && wstrb == 4'hf && !active && !used && empty;
-  wire bad_write = wreq && !(arm_ok || stop_request || clear_ok || snapshot_request || visit_write || limit_write);
+  wire visit_write = visit_request && !active && !used && empty;
+  wire limit_write = limit_request && !active && !used && empty;
+  wire bad_write = write_pending && !(arm_ok || stop_request || clear_ok || snapshot_request || visit_write || limit_write);
+  // During capture only STOP and SNAPSHOT are legal. Keep that small decode
+  // separate from inactive ARM eligibility (sticky faults, visit, FIFO, used),
+  // which must not feed through DDC flush into every active output admission.
+  // bad_write still supplies the complete sticky diagnostic in every state.
+  wire active_bad_write = write_pending && !(stop_request || snapshot_request);
   wire ddc_valid, ddc_support, ddc_halted;
   wire signed [15:0] ddc_i, ddc_q;
   wire [63:0] ddc_index, ddc_accepted, ddc_emitted;
@@ -104,11 +132,13 @@ module axi_starlink_pilot_capture #(
   wire [31:0] faults_now = {25'd0, exhausted, bad_write,
       active && canonical_flush, bad_index, overflow,
       active && canonical_gap, active && ddc_halted};
-  wire push = eligible && faults_now == 0 && !stop_request;
-  wire running = active && faults_now == 0 && !stop_request;
+  wire active_fault_now = exhausted || active_bad_write || canonical_flush ||
+      bad_index || overflow || canonical_gap || ddc_halted;
+  wire running = active && !active_fault_now && !stop_request;
+  wire push = running && ddc_valid && ddc_support;
   // Do not feed output-derived faults combinationally back into DDC flush:
   // DDC valid itself is qualified by flush. Latch those faults on this edge.
-  wire source_run = active && !stop_request && !canonical_flush && !bad_write;
+  wire source_run = active && !stop_request && !canonical_flush && !active_bad_write;
   assign pilot_enable = active;
   assign irq = faults != 0;
 
@@ -202,7 +232,9 @@ module axi_starlink_pilot_capture #(
     end
   end
   always @(posedge s_axi_aclk) begin
-    wack <= wreq;
+    // Respond only after the registered request has taken effect. AXI BVALID
+    // must never promise completion while a STOP/CLEAR/configuration is pending.
+    wack <= write_pending;
     rack <= rreq;
     if (!s_axi_aresetn) begin wack <= 0; rack <= 0; rdata <= 0; end
     else if (rreq) begin

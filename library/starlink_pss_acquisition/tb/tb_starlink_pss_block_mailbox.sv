@@ -1,6 +1,10 @@
 `timescale 1ns/1ps
 module tb_starlink_pss_block_mailbox;
   parameter integer ADDRESS_WIDTH = 9;
+  parameter integer METADATA_WIDTH = 70;
+  parameter integer RESET_RELEASE_EXTERNAL = 0;
+  parameter integer INPUT_RELEASE_EXTRA_CYCLES = 0;
+  parameter integer OUTPUT_RELEASE_EXTRA_CYCLES = 0;
   parameter real INPUT_HALF_NS = 5.0;
   parameter real OUTPUT_HALF_NS = 2.5;
   parameter real OUTPUT_PHASE_NS = 0.7;
@@ -12,16 +16,16 @@ module tb_starlink_pss_block_mailbox;
   reg [35:0] input_data = 0;
   reg [ADDRESS_WIDTH-1:0] input_position = 0;
   reg input_last = 0;
-  reg [69:0] input_metadata = 0;
+  reg [METADATA_WIDTH-1:0] input_metadata = 0;
   wire [35:0] output_data;
   wire [ADDRESS_WIDTH-1:0] output_position;
-  wire [69:0] output_metadata;
+  wire [METADATA_WIDTH-1:0] output_metadata;
   integer output_cycles = 0, received = 0, checked_blocks = 0;
   integer expected_block = 1, expected_position = 0;
   integer block_number, index_number, fault_kind, snapshot;
   reg check_outputs = 1, drain_enable = 0;
   reg held = 0;
-  reg [105:0] held_value;
+  reg [METADATA_WIDTH+35:0] held_value;
   reg [ADDRESS_WIDTH-1:0] held_position;
   reg held_last;
 
@@ -30,14 +34,49 @@ module tb_starlink_pss_block_mailbox;
     #(OUTPUT_PHASE_NS);
     forever #(OUTPUT_HALF_NS) output_clk = !output_clk;
   end
-  starlink_pss_block_mailbox #(.ADDRESS_WIDTH(ADDRESS_WIDTH)) dut (.*);
+  // Model the service's single local release pair, including independent
+  // raw reset assertion and optional additional release skew in either clock.
+  reg [1+INPUT_RELEASE_EXTRA_CYCLES:0] raw_in_to_in = 0, raw_out_to_in = 0;
+  reg [1+OUTPUT_RELEASE_EXTRA_CYCLES:0] raw_in_to_out = 0, raw_out_to_out = 0;
+  always @(posedge input_clk or negedge input_resetn)
+    if (!input_resetn) raw_in_to_in <= 0;
+    else raw_in_to_in <= (raw_in_to_in << 1) | 1'b1;
+  always @(posedge input_clk or negedge output_resetn)
+    if (!output_resetn) raw_out_to_in <= 0;
+    else raw_out_to_in <= (raw_out_to_in << 1) | 1'b1;
+  always @(posedge output_clk or negedge input_resetn)
+    if (!input_resetn) raw_in_to_out <= 0;
+    else raw_in_to_out <= (raw_in_to_out << 1) | 1'b1;
+  always @(posedge output_clk or negedge output_resetn)
+    if (!output_resetn) raw_out_to_out <= 0;
+    else raw_out_to_out <= (raw_out_to_out << 1) | 1'b1;
+  wire local_input_resetn = raw_in_to_in[1+INPUT_RELEASE_EXTRA_CYCLES] &&
+                           raw_out_to_in[1+INPUT_RELEASE_EXTRA_CYCLES];
+  wire local_output_resetn = raw_in_to_out[1+OUTPUT_RELEASE_EXTRA_CYCLES] &&
+                            raw_out_to_out[1+OUTPUT_RELEASE_EXTRA_CYCLES];
+  starlink_pss_block_mailbox #(
+    .ADDRESS_WIDTH(ADDRESS_WIDTH), .METADATA_WIDTH(METADATA_WIDTH),
+    .RESET_RELEASE_EXTERNAL(RESET_RELEASE_EXTERNAL)
+  ) dut (
+    .input_resetn(RESET_RELEASE_EXTERNAL ? local_input_resetn : input_resetn),
+    .output_resetn(RESET_RELEASE_EXTERNAL ? local_output_resetn : output_resetn), .*
+  );
 
   function automatic [35:0] payload(input integer block_id, input integer position);
     payload = 36'hb12345678 ^ (block_id * 65537) ^ (position * 131);
   endfunction
-  function automatic [69:0] metadata(input integer block_id);
-    metadata = 70'h25_123456789abcdef0 ^ (block_id * 7919);
+  function automatic [METADATA_WIDTH-1:0] metadata(input integer block_id);
+    begin
+      metadata = 70'h25_123456789abcdef0 ^ (block_id * 7919);
+      metadata[METADATA_WIDTH-1 -: 6] = block_id[5:0];
+    end
   endfunction
+
+  always @(posedge input_clk) begin
+    if (dut.in_running && dut.metadata_load !==
+        (dut.input_accept && dut.input_framing_valid && dut.write_position == 0))
+      $fatal(1, "first-word metadata gate differs from original framing predicate");
+  end
 
   always @(negedge output_clk) begin
     output_ready = drain_enable && (output_cycles % 17 != 3) &&
@@ -79,7 +118,8 @@ module tb_starlink_pss_block_mailbox;
       @(negedge input_clk);
       input_valid = 1;
       input_data = payload(block_id, position);
-      input_metadata = metadata(block_id) ^ wrong_metadata;
+      input_metadata = metadata(block_id);
+      if (wrong_metadata) input_metadata[METADATA_WIDTH-1] = !input_metadata[METADATA_WIDTH-1];
       input_position = supplied_position;
       input_last = supplied_last;
       @(posedge input_clk);
@@ -201,8 +241,9 @@ module tb_starlink_pss_block_mailbox;
       send_block(expected_block);
       wait_received(snapshot + DEPTH);
     end
-    $display("BLOCK_MAILBOX_PASS depth=%0d blocks=%0d words=%0d input_half=%0.2f output_half=%0.2f framing_faults=4 independent_resets=10 mid_read_resets=2",
-             DEPTH, checked_blocks, received, INPUT_HALF_NS, OUTPUT_HALF_NS);
+    $display("BLOCK_MAILBOX_PASS depth=%0d blocks=%0d words=%0d input_half=%0.2f output_half=%0.2f framing_faults=4 independent_resets=10 mid_read_resets=2 external_reset=%0d release_skew_in=%0d release_skew_out=%0d",
+             DEPTH, checked_blocks, received, INPUT_HALF_NS, OUTPUT_HALF_NS,
+             RESET_RELEASE_EXTERNAL, INPUT_RELEASE_EXTRA_CYCLES, OUTPUT_RELEASE_EXTRA_CYCLES);
     $finish(0);
   end
 endmodule

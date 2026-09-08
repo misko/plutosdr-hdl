@@ -30,6 +30,11 @@ and invalidates an active pilot capture. Pilot enable keeps conditioning alive
 at 30/60 MS/s even when map acquisition is disabled. Disabling pilot does not
 disable map acquisition. Original non-pilot profiles retain their behavior.
 
+The control word is decoded into a registered request before execution. AXI
+write response follows execution, not initial decode. This adds one internal
+clock of control latency without changing the register meanings. The source
+counter, not host command-send time, remains the observation coordinate.
+
 Commands require a full 32-bit write, one command at a time:
 
 - CLEAR (4): only inactive and FIFO empty. Clears session counters, faults,
@@ -111,6 +116,9 @@ oracle, snapshots and high indexes, stalls/overflow with stable AXIS promises,
 stop/drain/clear/rearm, invalid commands and source faults. Its rate parameter
 checks rate reporting; the canonical stimulus is always 15 MS/s. Upstream
 30/60 numerical composition is covered separately by the DDC tests.
+The AXI bench checks exactly one execution and response per write, payload
+stability through the registered request, and no premature acknowledgement.
+All reserved command bits and partial write strobes are exercised fail-closed.
 
 Full receiver route, real DMA behavior, IIO/PPU, digital hardware replay, RF
 settling, lower/upper hops, and live GLRT/qualified PSS lock remain separate

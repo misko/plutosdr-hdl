@@ -32,9 +32,35 @@ module tb_starlink_pilot_capture;
   );
   reg stalled = 0;
   reg [31:0] held;
+  integer write_requests = 0, write_executions = 0, write_responses = 0;
+  reg [31:0] held_write_data;
   always @(posedge clk) begin
-    if (!resetn) stalled <= 0;
+    if (!resetn) begin
+      stalled <= 0;
+      write_requests = 0; write_executions = 0; write_responses = 0;
+    end
     else begin
+      if (dut.running !== (dut.active && dut.faults_now == 0 && !dut.stop_request) ||
+          dut.push !== (dut.eligible && dut.faults_now == 0 && !dut.stop_request) ||
+          dut.source_run !== (dut.active && !dut.stop_request && !input_flush && !dut.bad_write))
+        $fatal(1, "factored admission differs from original lifecycle gates");
+      if (dut.wreq) begin
+        if (write_requests != write_responses) $fatal(1, "overlapping AXI writes");
+        write_requests = write_requests + 1;
+        held_write_data = dut.wdata;
+      end
+      if (dut.write_pending) begin
+        if (write_requests != write_executions + 1 || dut.wdata !== held_write_data)
+          $fatal(1, "registered command lost, repeated, or payload changed");
+        write_executions = write_executions + 1;
+      end
+      if (bvalid) begin
+        if (write_executions != write_responses + 1)
+          $fatal(1, "AXI response preceded execution or was repeated");
+        write_responses = write_responses + 1;
+      end
+      if (dut.stop_request && dut.push) $fatal(1, "STOP admitted another IQ beat");
+      if (dut.bad_write && dut.push) $fatal(1, "invalid write admitted another IQ beat");
       if (stalled && (!valid || data !== held)) $fatal(1, "AXIS promise changed under stall");
       stalled <= valid && !ready;
       held <= data;
@@ -70,6 +96,22 @@ module tb_starlink_pilot_capture;
   reg signed [15:0] cw_i, cw_q;
   reg [63:0] index;
   reg [31:0] value;
+  task automatic drive_cw(input [63:0] first, input integer count);
+    begin
+      for (cw_n = 0; cw_n < count; cw_n = cw_n + 1) begin
+        cw_gap = cw_n % 3 == 0 ? 6 : 7;
+        repeat(cw_gap-1) begin @(negedge clk); input_valid = 0; end
+        @(negedge clk);
+        input_valid = 1;
+        input_index = first + cw_n;
+        cw_phase = (input_index[5:0] * 12) % 64;
+        cw_i = $signed(dut.ddc.mixer[cw_phase][17:0]) >>> 3;
+        cw_q = (-$signed(dut.ddc.mixer[cw_phase][35:18])) >>> 3;
+        input_data = {cw_q, cw_i};
+      end
+      @(negedge clk); input_valid = 0;
+    end
+  endtask
   initial begin
     repeat(5) @(negedge clk);
     resetn = 1;
@@ -93,24 +135,25 @@ module tb_starlink_pilot_capture;
         8: begin resetn = 0; repeat(4) @(negedge clk); resetn = 1; end
         // Procedural canonical 15 MS/s CW, avoiding a multi-million-line
         // stimulus file for the exact 120 ms supported-output capture gate.
-        9: begin
-          for (cw_n = 0; cw_n < value; cw_n = cw_n + 1) begin
-            cw_gap = cw_n % 3 == 0 ? 6 : 7;
-            repeat(cw_gap-1) begin @(negedge clk); input_valid = 0; end
-            @(negedge clk);
-            input_valid = 1;
-            input_index = index + cw_n;
-            cw_phase = (input_index[5:0] * 12) % 64;
-            cw_i = $signed(dut.ddc.mixer[cw_phase][17:0]) >>> 3;
-            cw_q = (-$signed(dut.ddc.mixer[cw_phase][35:18])) >>> 3;
-            input_data = {cw_q, cw_i};
+        9: drive_cw(index, value);
+        // Exercise an AXI command while the source, filter jobs, and output
+        // are still live. The producer continues after command execution.
+        10: fork
+          drive_cw(0, 2400);
+          begin
+            repeat(12) begin
+              @(posedge clk);
+              while (!(valid && ready)) @(posedge clk);
+            end
+            write_reg(index[7:0], value, arg);
           end
-          @(negedge clk); input_valid = 0;
-        end
+        join
         default: $fatal(1, "unknown stimulus");
       endcase
     end
     repeat(100) @(negedge clk);
+    if (write_requests != write_executions || write_executions != write_responses)
+      $fatal(1, "unterminated AXI command");
     $display("FINAL %d %d", enabled, irq);
     $finish(0);
   end

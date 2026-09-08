@@ -26,6 +26,24 @@ set cores [get_cells -quiet -hier -filter \
   {REF_NAME =~ *starlink_pss_fft512_bfp18* || ORIG_REF_NAME =~ *starlink_pss_fft512_bfp18*}]
 if {[llength $cores] != 1} { error "shared-XFFT expected exactly one generated transform core" }
 puts $gate_report "generated_cores=1 coarse_and_fine_and_pilot_dma_present=1"
+set mailbox_reset_chains [get_cells -quiet -hier -regexp \
+  {.*transform_service/(input_mailbox|output_mailbox)/.*reset.*sync_reg\[[01]\]$}]
+if {[llength $mailbox_reset_chains]} {
+  error "shared-XFFT mailboxes must consume the common reset-release pair"
+}
+set common_reset_chains [get_cells -quiet -hier -regexp \
+  {.*transform_service/(slow_reset_fast_sync|fast_reset_fast_sync|slow_reset_slow_sync|fast_reset_slow_sync)_reg\[[01]\]$}]
+if {[llength $common_reset_chains] != 8} {
+  error "shared-XFFT requires exactly four two-flop common reset-release chains"
+}
+puts $gate_report "mailbox_local_reset_flops=0 common_service_reset_flops=8"
+set pilot_pacer [get_cells -quiet -hier -filter \
+  {NAME =~ */starlink_pilot_capture/inst/ddc/pacer_memory/* && \
+   (REF_NAME == RAMB18E1 || REF_NAME == RAMB36E1)}]
+if {[llength $pilot_pacer] != 1 || [get_property REF_NAME $pilot_pacer] ne "RAMB18E1"} {
+  error "shared receiver pilot pacer must use exactly one RAMB18, not LUTRAM"
+}
+puts $gate_report "pilot_pacer_ramb18=1"
 foreach {box launch capture source_period destination_period requirement} {
   input_mailbox request_toggle_reg request_sync_reg 10.0 5.0 5.0
   input_mailbox acknowledge_toggle_reg acknowledge_sync_reg 5.0 10.0 10.0

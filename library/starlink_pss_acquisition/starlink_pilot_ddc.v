@@ -98,15 +98,19 @@ module starlink_pilot_ddc #(
     end
   endfunction
 
-  (* ram_style = "block" *) reg [32:0] fifo_memory [0:FIFO_DEPTH-1];
-  reg [32:0] read_data;
+  wire [32:0] read_data;
   reg [63:0] read_index;
   reg [1:0] read_phase;
   reg read_valid;
-  always @(posedge clk) begin
-    if (accept) fifo_memory[write_pointer] <= {input_support_valid, input_q, input_i};
-    if (pop) read_data <= fifo_memory[read_pointer];
-  end
+  // Keep the synchronous RAM read boundary from being absorbed into the
+  // downstream mixer DSP registers. Flattening that boundary made Vivado
+  // reject the requested block RAM and implement this FIFO using LUTRAM.
+  (* keep_hierarchy = "yes" *)
+  starlink_pilot_pacer_memory #(.ADDRESS_WIDTH(FIFO_ADDRESS_BITS)) pacer_memory (
+    .clk(clk), .write_enable(accept), .write_address(write_pointer),
+    .write_data({input_support_valid, input_q, input_i}),
+    .read_enable(pop), .read_address(read_pointer), .read_data(read_data)
+  );
 
   // LUT stores {Q18(-sin), Q18(cos)} with 16 fractional bits.
   (* rom_style = "distributed" *) reg [35:0] mixer [0:63];
@@ -261,5 +265,26 @@ module starlink_pilot_ddc #(
         pace_long <= !pace_long;
       end
     end
+  end
+endmodule
+
+// Storage-only, shared-clock read-first FIFO memory. Ownership, occupancy,
+// source coordinates, health and valid timing remain in starlink_pilot_ddc.
+// No reset touches RAM or the read payload: the caller's valid token fences it.
+module starlink_pilot_pacer_memory #(
+  parameter integer ADDRESS_WIDTH = 7
+) (
+  input wire clk,
+  input wire write_enable,
+  input wire [ADDRESS_WIDTH-1:0] write_address,
+  input wire [32:0] write_data,
+  input wire read_enable,
+  input wire [ADDRESS_WIDTH-1:0] read_address,
+  output reg [32:0] read_data
+);
+  (* ram_style = "block" *) reg [32:0] memory [0:(1 << ADDRESS_WIDTH)-1];
+  always @(posedge clk) begin
+    if (write_enable) memory[write_address] <= write_data;
+    if (read_enable) read_data <= memory[read_address];
   end
 endmodule

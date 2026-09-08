@@ -12,7 +12,8 @@
 module starlink_pss_block_mailbox #(
   parameter integer ADDRESS_WIDTH = 9,
   parameter integer DATA_WIDTH = 36,
-  parameter integer METADATA_WIDTH = 70
+  parameter integer METADATA_WIDTH = 70,
+  parameter integer RESET_RELEASE_EXTERNAL = 0
 ) (
   input wire input_clk,
   input wire input_resetn,
@@ -37,8 +38,19 @@ module starlink_pss_block_mailbox #(
   initial begin
     if (ADDRESS_WIDTH < 2 || ADDRESS_WIDTH > 9 || DATA_WIDTH < 1 || METADATA_WIDTH < 1)
       $fatal(1, "unsupported block mailbox geometry");
+    if (RESET_RELEASE_EXTERNAL != 0 && RESET_RELEASE_EXTERNAL != 1)
+      $fatal(1, "RESET_RELEASE_EXTERNAL must be zero or one");
   end
 
+  wire in_running;
+  wire out_running;
+  generate if (RESET_RELEASE_EXTERNAL) begin : common_reset_release
+    // Caller owns one reset-release pair for the entire dual-clock service.
+    // Each signal already includes BOTH raw reset epochs, asynchronously
+    // asserts and synchronously releases in its respective clock domain.
+    assign in_running = input_resetn;
+    assign out_running = output_resetn;
+  end else begin : local_reset_release
   (* ASYNC_REG = "TRUE" *) reg [1:0] in_reset_in_sync;
   (* ASYNC_REG = "TRUE" *) reg [1:0] out_reset_in_sync;
   (* ASYNC_REG = "TRUE" *) reg [1:0] in_reset_out_sync;
@@ -55,8 +67,9 @@ module starlink_pss_block_mailbox #(
   always @(posedge output_clk or negedge output_resetn)
     if (!output_resetn) out_reset_out_sync <= 0;
     else out_reset_out_sync <= {out_reset_out_sync[0], 1'b1};
-  wire in_running = in_reset_in_sync[1] && out_reset_in_sync[1];
-  wire out_running = in_reset_out_sync[1] && out_reset_out_sync[1];
+  assign in_running = in_reset_in_sync[1] && out_reset_in_sync[1];
+  assign out_running = in_reset_out_sync[1] && out_reset_out_sync[1];
+  end endgenerate
 
   reg request_toggle;
   reg acknowledge_toggle;
@@ -78,6 +91,11 @@ module starlink_pss_block_mailbox #(
     input_last == (write_position == LAST_POSITION) &&
     (write_position == 0 || input_metadata == metadata_in_hold);
   assign input_ready = in_running && !input_fault && request_toggle == acknowledge_sync[1];
+  // For the FIRST word, framing validity is exactly position zero / no TLAST;
+  // the previous held metadata is irrelevant. Do not put the wide per-block
+  // equality comparator on the 70/75 metadata register clock enables.
+  wire metadata_load = input_accept && write_position == 0 &&
+                       input_position == 0 && !input_last;
 
   always @(posedge input_clk) begin
     if (!in_running) begin
@@ -88,7 +106,6 @@ module starlink_pss_block_mailbox #(
       if (!input_framing_valid) begin
         input_fault <= 1;
       end else begin
-        if (write_position == 0) metadata_in_hold <= input_metadata;
         if (write_position == LAST_POSITION) begin
           request_toggle <= !request_toggle;
           write_position <= 0;
@@ -101,6 +118,8 @@ module starlink_pss_block_mailbox #(
     // off the BRAM write-enable path without weakening publication checks.
     if (input_accept)
       payload_memory[write_position] <= input_data;
+    if (metadata_load)
+      metadata_in_hold <= input_metadata;
   end
 
   reg reading;
