@@ -1,17 +1,67 @@
 # Experimental paired-scanner pilot DDC — DO NOT MERGE
 
 This is a building block, not a deployable receiver or a GLRT/PSS detection
-claim. The planned path is canonical 15 MS/s -> pilot mixer -> 31-tap halfband
-/2 -> 255-tap FIR /3 -> 2.5 MS/s single-RX IIO DMA. Only the last stage is
-implemented in RTL here. The complete fixed-point reference lives in the
-firmware superproject's `tests/starlink_oracle/pilot_ddc.py`.
+claim. The implemented path is canonical 15 MS/s -> paced pilot mixer ->
+31-tap halfband /2 -> 255-tap FIR /3 -> 2.5 MS/s. Receiver/IIO DMA integration
+is still pending. The complete fixed-point reference lives in the firmware
+superproject's `tests/starlink_oracle/pilot_ddc.py`.
+
+## Complete `starlink_pilot_ddc` contract
+
+The wrapper accepts consecutive canonical 15 MS/s CI16 samples in the existing
+100 MHz acquisition domain. A bounded 128-entry FIFO absorbs bursts; its reader
+paces samples with alternating minimum 6/7-clock intervals. Idle time does not
+rebase the source index, mixer phase, or decimation phase. The same canonical
+interface is used after the existing 30->15 and 60->30->15 conditioners.
+
+`edge_upper` selects the Q16 oscillator step: +12/64 or -13/64 cycles per
+canonical sample. The oscillator uses the absolute source index, not the time
+at which a FIFO entry is drained. The halfband snapshots its nine folded terms
+before time-sharing two MACs, so the next input cannot change an active window.
+The complete pilot path uses fourteen DSP MAC/multiplier blocks in the measured
+standalone build, including the four mixer multipliers.
+
+The first accepted sample after reset/flush captures edge and `visit_id`.
+Changing either without a flush fails closed, even while the input is idle.
+Flush discards queued/in-flight work and logical histories; the external global
+source counter keeps running. Every emitted result carries that captured visit,
+its newest canonical index, and its support-valid flag. Results select absolute
+indexes divisible by six. Subtract 269 canonical samples for the signal center;
+do not subtract the earlier 30/60 conditioner delays a second time, because
+those conditioners already emit center-coordinate indexes.
+
+The initial modulo-three phase is computed with small byte reductions, avoiding
+a generic wide divider. The integrated tests cover arbitrary initial phases
+and high 64-bit indexes. Counter wrap is not supported during a recording.
+
+There is no ADC backpressure or output `ready`. Downstream DMA/FIFO logic must
+report its own losses and apply RF guard validity. A consumer samples output
+transfers on the rising edge; `output_valid` includes a combinational fail-closed
+qualifier for the current fault/flush condition. Tests sample actual transfers,
+not signals midway through the next stimulus cycle.
+
+Sticky fault bits (all halt this pilot branch until explicit flush):
+
+- 0: ingress source-index discontinuity or exhausted uint64 counter.
+- 1: ingress FIFO overflow.
+- 2: edge/visit changed without a flush.
+- 3: explicit upstream sample gap.
+- 4: halfband job overrun.
+- 5/6/7: final FIR index/phase/job-overrun fault respectively.
+
+Accepted/emitted sample counters (uint64), saturation-event count (uint32),
+FIFO high-water mark, and sticky faults survive a flush and clear on reset.
+Counters saturate rather than wrap; a saturated counter is a lower bound, not
+an exact total. Saturation events count I/Q clipping at all three arithmetic
+stages. Intentional flush discards must be attributed by the hop controller;
+the arithmetic core alone is not a continuity receipt.
 
 ## `starlink_pilot_fir3` contract
 
 - One 100 MHz clock. CI16 input at 7.5 MS/s; CI16 output at 2.5 MS/s.
 - Input beats must be at least 13 core clocks apart. This supports the nominal
-  13/13/14-clock pattern and a small pacing margin. A future FIFO/pacer must
-  enforce this at the bursty acquisition tap without backpressuring the ADC.
+  13/13/14-clock pattern and a small pacing margin. The complete wrapper's
+  FIFO/pacer enforces this without backpressuring the ADC.
 - `input_index` is the absolute, even canonical 15 MS/s index, advancing by
   two per accepted beat. `input_phase` is `(input_index / 2) mod 3`. The caller
   supplies the absolute initial phase; this core checks its subsequent 0/1/2
@@ -70,7 +120,10 @@ From the firmware superproject, with NumPy/pytest and Icarus installed:
 
 ```sh
 python -m pytest -q tests/starlink_oracle/test_pilot_fir3_rtl.py
+python -m pytest -q tests/starlink_oracle/test_pilot_ddc_rtl.py
 bash hdl/library/starlink_pss_acquisition/run_pilot_fir3_ooc.sh
+bash hdl/library/starlink_pss_acquisition/run_pilot_ddc_ooc.sh
+bash hdl/library/starlink_pss_acquisition/run_pilot_ddc_dwell.sh
 ```
 
 The RTL suite fails explicitly if Icarus is missing. It checks coefficient
@@ -79,6 +132,16 @@ convolution, all three initial phases, indexes above 2^63, repeated RAM ring
 wraps, minimum-rate and jittered pacing, impulses, clipped steps, flushes in
 the arithmetic pipeline (including the output boundary), source/phase faults,
 overspeed, and validity contamination by an interior invalid sample.
+
+The complete-DDC suite adds 52 tests: both edges, all six initial phases,
+burst/idle pacing, FIFO overflow, visit changes, queued/pipeline flushes, support
+contamination, and exact whole-chain replay with the existing 30/60 conditioners.
+Analytic tones at -100/0/+100 kHz residual CFO verify frequency and delay mapping
+independently of the integer replay comparison. The separate full-dwell run
+accepts 1,800,540 canonical samples and emits 300,090 results, including exactly
+300,000 supported samples (120 ms) after 90 startup-invalid results. It verifies
+CW gain/phase, all indexes, visit tags, counts and zero overflow/clipping; it is
+not a 120 ms RF or IIO test.
 
 The Vivado 2022.2 experiment targets `xc7z010clg400-1`. Its gate covers resource
 budgets and **standalone register-to-register** routed setup/hold timing only.
@@ -90,6 +153,7 @@ Unexpected methodology categories, unrouted nets, or missing timing paths fail.
 This experiment cannot be substituted for a full-shell route with real
 upstream/downstream paths, PSS, the remaining DDC, and DMA.
 
-Next gates: complete mixer/halfband/pacer RTL; compose 15/30/60 source-rate
-references with full pilot/PSS frames; complete receiver route; then .18
-single-frequency paired IIO capture. No radio has been deployed with this core.
+Next gates: complete receiver/DMA/IIO integration and full-shell route; then .18
+single-frequency paired capture. Runtime lower/upper selection in the existing
+PSS conditioner/template banks and shared hop fencing also remain to be added.
+No radio has been deployed with this core.
