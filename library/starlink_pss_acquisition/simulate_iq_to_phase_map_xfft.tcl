@@ -2,9 +2,12 @@
 # Usage: vivado -mode batch -source simulate_iq_to_phase_map_xfft.tcl \
 #        -tclargs OUTPUT VECTOR_DIRECTORY
 
-if {$argc != 2} {
-  error "expected absolute output and vector directories"
+if {$argc < 2 || $argc > 3} {
+  error "expected absolute output and vector directories, optional USE_SHARED_XFFT=0|1"
 }
+set use_shared_xfft 0
+if {$argc == 3} { set use_shared_xfft [lindex $argv 2] }
+if {$use_shared_xfft ni {0 1}} { error "USE_SHARED_XFFT must be 0 or 1" }
 if {[version -short] ne "2022.2"} {
   error "this evidence gate requires Vivado 2022.2, got [version -short]"
 }
@@ -14,6 +17,7 @@ set output_dir [file normalize [lindex $argv 0]]
 set vector_dir [file normalize [lindex $argv 1]]
 set project_dir [file join $output_dir project]
 set project_name starlink_pss_iq_to_phase_map_xfft_sim
+if {$use_shared_xfft && [file exists $output_dir]} { error "refusing to overwrite shared map evidence" }
 file mkdir $output_dir
 
 foreach required_file {
@@ -91,6 +95,9 @@ set rtl_sources [list \
   starlink_pss_score_lanes.v \
   starlink_pss_candidate_score_path.v \
   starlink_pss_iq_to_score.v \
+  starlink_pss_iq_to_score_shared.v \
+  starlink_pss_shared_xfft_service.v \
+  starlink_pss_block_mailbox.v \
   starlink_pss_score_phase_tagger.v \
   starlink_pss_phase_map_bank.v \
   starlink_pss_phase_map.v \
@@ -111,6 +118,7 @@ foreach vector_file [glob [file join $vector_dir *.mem]] {
 set_property file_type {Memory Initialization Files} \
   [get_files -of_objects [get_filesets sim_1] *.mem]
 set_property top tb_starlink_pss_iq_to_phase_map_xfft [get_filesets sim_1]
+set_property generic "USE_SHARED_XFFT=$use_shared_xfft" [get_filesets sim_1]
 set_property xsim.simulate.runtime {all} [get_filesets sim_1]
 
 launch_simulation -simset sim_1 -mode behavioral

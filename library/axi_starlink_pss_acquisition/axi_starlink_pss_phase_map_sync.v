@@ -17,6 +17,7 @@ module axi_starlink_pss_phase_map_sync #(
   parameter integer TILE_FRAMES = 64,
   parameter integer MAP_WIDTH = 16,
   parameter integer INPUT_RATE_MSPS = 15,
+  parameter integer USE_SHARED_XFFT = 0,
   parameter [30:0] COEFFICIENT_ENERGY = 31'd1073742825
 ) (
   input  wire                          map_clk,
@@ -95,10 +96,19 @@ module axi_starlink_pss_phase_map_sync #(
 
   localparam [31:0] IDENTIFICATION = 32'h5053_4d41;
   localparam integer DDC_ENABLED = INPUT_RATE_MSPS != 15;
-  localparam [31:0] VERSION = (INPUT_RATE_MSPS == 60) ?
+  initial begin
+    if (USE_SHARED_XFFT != 0 && USE_SHARED_XFFT != 1)
+      $fatal(1, "USE_SHARED_XFFT must be zero or one");
+    if (USE_SHARED_XFFT && INPUT_RATE_MSPS != 15)
+      $fatal(1, "shared-XFFT ABI 1.5 is currently restricted to 15 MS/s");
+  end
+  // ABI 1.5 adds shared transform capability bit 8 and service-fault health
+  // bit 14. Dedicated forward/inverse health bits retain their old meanings.
+  // Old kernel/host readers must reject this version until explicitly updated.
+  localparam [31:0] VERSION = USE_SHARED_XFFT ? 32'h0001_0005 : (INPUT_RATE_MSPS == 60) ?
       32'h0001_0004 :
       ((INPUT_RATE_MSPS == 30) ? 32'h0001_0002 : 32'h0001_0001);
-  localparam [31:0] CAPABILITIES = (INPUT_RATE_MSPS == 60) ?
+  localparam [31:0] CAPABILITIES = USE_SHARED_XFFT ? 32'h0000_013f : (INPUT_RATE_MSPS == 60) ?
       32'h0000_00ff : (DDC_ENABLED ? 32'h0000_007f : 32'h0000_003f);
   // ABI 1.1/1.2 values remain exact. ABI 1.4 advertises two cascaded stages,
   // total decimation four, and coherent 64-bit DDC observation counters.

@@ -4,7 +4,9 @@ The candidate removes a second transform core, not either PSS detection stage.
 `starlink_pss_iq_to_score_shared` keeps ingress, overlap scheduling, energy,
 kernel multiplication and normalized scoring at 100 MHz. Only the generated
 XFFT and its adapter run at 200 MHz. Pilot IQ and full-rate refinement are not
-changed. **No receiver profile selects this candidate yet.** The default
+changed. An explicit `STARLINK_PSS_SHARED_XFFT=1` selector now integrates the
+candidate ONLY in the `paired-pilot` 15 MS/s build. It is not deployable until
+full fit/timing/CDC and matched software qualify. The default
 `starlink_pss_iq_to_score` still owns the qualified pair of dedicated FFTs.
 
 ## Ownership and numerical contract
@@ -30,10 +32,13 @@ changed. **No receiver profile selects this candidate yet.** The default
   inverse block. It retains the original energy/exponent/scoring checks. An
   independent FFT reset during active acquisition latches global quarantine;
   deasserting reset alone cannot erase it. Disable/flush is required to recover.
-- In this unselected experimental composition, the existing forward-fault
-  output represents a shared-service error; it does not identify which
-  direction failed. Production health/identity contracts have NOT been changed.
-  Resolve and version that interpretation before deployment.
+- Inside the shared composition, the forward-fault wire represents a
+  service-wide error; it does not identify direction. The integrated health
+  mapper explicitly publishes that cause in bit 14, NOT forward bit 4 or
+  inverse bit 7. The opt-in wrapper advertises PSMA ABI 1.5 and capability bit
+  8 (`0x13f` total). All default rate-dependent ABIs remain unchanged. Current
+  kernel/host readers intentionally reject 1.5 until explicitly updated; no
+  production software has been silently made compatible.
 
 ## Measured evidence, 2026-09-08
 
@@ -83,13 +88,42 @@ its positive bench PASS marker; a runner completion line alone is insufficient.
 - `simulate_shared_xfft_mailbox.tcl OUTPUT VECTOR_DIRECTORY 64`
 - `simulate_iq_to_score_shared.tcl OUTPUT numeric VECTOR_DIRECTORY`
 - `simulate_iq_to_score_shared.tcl OUTPUT capacity`
+- `simulate_iq_to_score_shared.tcl OUTPUT capacity 4096` (122 ms source span;
+  started but NOT completed/qualified at this checkpoint)
 - Firmware pytest: `tests/starlink_oracle/test_block_mailbox_rtl.py`
 
-Next: opt-in wrapper/IP/block-design integration using the actual 200 MHz
-clock, scoped ownership/held-bus timing constraints, explicit reset and health
-identity, and fresh complete paired-receiver placement/routing/timing. Preserve
+The opt-in wrapper/IP/block-design integration uses the existing PS FCLK1
+200 MHz clock and local reset-release synchronizers. Declarative packaged XDC
+constrains the four ownership crossings, service fault, and both held metadata
+buses; the initial Tcl-loop XDC was rejected by the synthesis parser and is
+not valid timing evidence. `projects/pluto/shared_xfft_impl_gate.tcl` checks
+the actual 10/5 ns endpoint clocks, all surviving metadata endpoints and their
+timing requirements before placement. It retains CDC/exception reports without
+blanket clock-group waivers. It is NOT a route/timing qualification. The held
+metadata CDC-15 diagnostics and reset fan-out CDC-11 diagnostics must still be
+reviewed against the integrated reset/publication protocol before deployment.
+
+The shared phase-map replay also matches 1341 scores and 447 exact map entries
+with a reduced three-by-447 test geometry. A service fault after partial tile
+accumulation aborts the tile, publishes no partial map, and latches health bit
+14 without directional bits. The default dedicated-core map replay also
+passes. This small test does not qualify production 64x20000 geometry or dwell
+sensitivity. Reproduce using `simulate_iq_to_phase_map_xfft.tcl OUTPUT VECTORS 1`
+(use final argument 0 for the default regression).
+
+Next: finish fresh complete paired-receiver placement/routing/timing. Preserve
 both PSS stages and exact pilot samples. Do not count standalone savings as a
 whole-design fit. Then qualify the matched DMA/IIO image on .18 before deploying
 .17 through serial-locked PPU network flashing. Same-observation live blind host
 GLRT AND qualified FPGA PSS timing lock remain mandatory, followed by the
 120 ms/eight-target/300 s and 30/60 MS/s gates. No radio was touched here.
+
+Full integrated builds at this checkpoint remain **placement failures**. The
+correctly packaged/clock-audited threshold-4 build synthesizes to 13546 LUTs,
+18856 FFs, 48.5 BRAM tiles and 48 DSPs; placement requires 2372 currently
+unplaced slices where 2361 remain available (11 short). Threshold 8 reduces
+control sets from 449 to 373 but needs 2385 versus 2363 available (22 short),
+so it is not adopted. Threshold 4 remains default. The earlier Tcl-XDC attempt
+was 17 short and cannot be used as properly constrained timing evidence.
+No route, bitstream, IIO capture or live GLRT/FPGA lock is qualified by these
+builds. See the firmware integration checkpoint report for source/evidence pins.

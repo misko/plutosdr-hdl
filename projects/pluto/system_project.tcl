@@ -85,5 +85,11 @@ if {[info exists ::env(STARLINK_PSS_RATE_MSPS)] &&
   set_property strategy Performance_ExplorePostRoutePhysOpt [get_runs impl_1]
 }
 
+if {[info exists ::env(STARLINK_PSS_SHARED_XFFT)] &&
+    $::env(STARLINK_PSS_SHARED_XFFT) eq "1"} {
+  set_property STEPS.INIT_DESIGN.TCL.POST \
+    [file normalize shared_xfft_impl_gate.tcl] [get_runs impl_1]
+}
+
 adi_project_run pluto
 source $ad_hdl_dir/library/axi_ad9361/axi_ad9361_delay.tcl

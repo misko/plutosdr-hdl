@@ -17,10 +17,13 @@ module starlink_pss_iq_to_phase_map #(
   parameter integer MAP_WIDTH = 16,
   parameter integer MAP_SEGMENT_ADDRESS_WIDTH = 11,
   parameter integer MAP_SEGMENT_COUNT = 10,
-  parameter integer MAP_SEGMENT_INDEX_WIDTH = 4
+  parameter integer MAP_SEGMENT_INDEX_WIDTH = 4,
+  parameter integer USE_SHARED_XFFT = 0
 ) (
   input  wire                          clk,
   input  wire                          resetn,
+  input  wire                          fft_clk,
+  input  wire                          fft_resetn,
   input  wire                          enable,
   input  wire                          flush,
 
@@ -102,6 +105,41 @@ module starlink_pss_iq_to_phase_map #(
       scheduler_index_error_pulse || scheduler_overflow_pulse ||
       detector_fault;
 
+  generate if (USE_SHARED_XFFT) begin : shared_transform
+  starlink_pss_iq_to_score_shared #(
+    .KERNEL_ROM_FILE   (KERNEL_ROM_FILE),
+    .COEFFICIENT_ENERGY(COEFFICIENT_ENERGY)
+  ) iq_to_score (
+    .fft_clk                             (fft_clk),
+    .fft_resetn                          (fft_resetn),
+    .clk                                 (clk),
+    .resetn                              (resetn),
+    .enable                              (enable),
+    .flush                               (flush),
+    .sample_valid                        (sample_valid),
+    .sample_gap                          (sample_gap),
+    .sample_i                            (sample_i),
+    .sample_q                            (sample_q),
+    .sample_index                        (sample_index),
+    .score_valid                         (raw_score_valid),
+    .score_ready                         (1'b1),
+    .score_value                         (raw_score_value),
+    .score_start_index                   (raw_score_start_index),
+    .score_denominator_zero              (raw_score_denominator_zero),
+    .detector_fault                      (detector_fault),
+    .scheduler_gap_pulse                 (scheduler_gap_pulse),
+    .scheduler_index_error_pulse         (scheduler_index_error_pulse),
+    .scheduler_overflow_pulse            (scheduler_overflow_pulse),
+    .forward_fft_fault                   (forward_fft_fault),
+    .kernel_join_fault                   (kernel_join_fault),
+    .product_overflow_fault              (product_overflow_fault),
+    .inverse_fft_fault                   (inverse_fft_fault),
+    .forward_exponent_fault              (forward_exponent_fault),
+    .candidate_path_fault                (candidate_path_fault),
+    .candidate_fifo_stored_count         (candidate_fifo_stored_count),
+    .candidate_fifo_maximum_stored_count (candidate_fifo_maximum_stored_count)
+  );
+  end else begin : dedicated_transforms
   starlink_pss_iq_to_score #(
     .KERNEL_ROM_FILE   (KERNEL_ROM_FILE),
     .COEFFICIENT_ENERGY(COEFFICIENT_ENERGY)
@@ -133,6 +171,7 @@ module starlink_pss_iq_to_phase_map #(
     .candidate_fifo_stored_count         (candidate_fifo_stored_count),
     .candidate_fifo_maximum_stored_count (candidate_fifo_maximum_stored_count)
   );
+  end endgenerate
 
   starlink_pss_score_phase_tagger #(
     .PHASE_BINS       (PHASE_BINS),
@@ -222,7 +261,9 @@ module starlink_pss_iq_to_phase_map #(
     .map_release_error_count      (map_release_error_count)
   );
 
-  starlink_pss_acquisition_health acquisition_health (
+  starlink_pss_acquisition_health #(
+    .USE_SHARED_XFFT(USE_SHARED_XFFT)
+  ) acquisition_health (
     .clk                                  (clk),
     .resetn                               (resetn),
     .detector_fault                       (detector_fault),

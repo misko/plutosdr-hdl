@@ -53,6 +53,9 @@ adi_ip_files axi_starlink_pss_acquisition [list \
   "$acq_dir/starlink_pss_score_lanes.v" \
   "$acq_dir/starlink_pss_candidate_score_path.v" \
   "$acq_dir/starlink_pss_iq_to_score.v" \
+  "$acq_dir/starlink_pss_iq_to_score_shared.v" \
+  "$acq_dir/starlink_pss_shared_xfft_service.v" \
+  "$acq_dir/starlink_pss_block_mailbox.v" \
   "$acq_dir/starlink_pss_score_phase_tagger.v" \
   "$acq_dir/starlink_pss_phase_map_bank.v" \
   "$acq_dir/starlink_pss_phase_map.v" \
@@ -65,7 +68,12 @@ adi_ip_files axi_starlink_pss_acquisition [list \
   "axi_starlink_pss_phase_map_sync.v" \
   "axi_starlink_pss_acquisition.v" \
   "axi_starlink_pss_acquisition_constr.xdc" \
-  "$acq_dir/starlink_pss_sample_cdc_constr.xdc" ]
+  "$acq_dir/starlink_pss_sample_cdc_constr.xdc" \
+  "$acq_dir/starlink_pss_shared_xfft_constr.xdc" ]
+
+# Uses actual design clocks, after their definitions; never an assumed OOC
+# target frequency or a blanket 100/200 MHz asynchronous clock-group waiver.
+set_property PROCESSING_ORDER LATE [get_files starlink_pss_shared_xfft_constr.xdc]
 
 adi_ip_properties axi_starlink_pss_acquisition
 ipx::remove_bus_interface canonical [ipx::current_core]
@@ -84,6 +92,14 @@ set_property value ACTIVE_HIGH $sample_reset_polarity
 set sample_associated_reset [ipx::add_bus_parameter ASSOCIATED_RESET \
   $sample_clock_intf]
 set_property value sample_reset $sample_associated_reset
+
+set fft_clock_intf [ipx::infer_bus_interface fft_clk \
+  xilinx.com:signal:clock_rtl:1.0 [ipx::current_core]]
+set fft_reset_intf [ipx::infer_bus_interface fft_resetn \
+  xilinx.com:signal:reset_rtl:1.0 [ipx::current_core]]
+set_property value ACTIVE_LOW [ipx::add_bus_parameter POLARITY $fft_reset_intf]
+set_property value fft_resetn [ipx::add_bus_parameter ASSOCIATED_RESET $fft_clock_intf]
+set_property value 200000000 [ipx::add_bus_parameter FREQ_HZ $fft_clock_intf]
 
 set axi_clock_intf [ipx::infer_bus_interface s_axi_aclk \
   xilinx.com:signal:clock_rtl:1.0 [ipx::current_core]]
@@ -114,6 +130,8 @@ set_property -dict [list \
   -of_objects [ipx::current_core]]
 
 ipx::create_xgui_files [ipx::current_core]
+set_property -dict [list value_validation_type list value_validation_list "0 1"] \
+  [ipx::get_user_parameters USE_SHARED_XFFT -of_objects [ipx::current_core]]
 set_property -dict [list value_validation_type list value_validation_list "0 1"] \
   [ipx::get_user_parameters ENABLE_PILOT_TAP -of_objects [ipx::current_core]]
 ipx::save_core [ipx::current_core]

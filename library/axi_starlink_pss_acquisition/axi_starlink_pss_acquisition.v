@@ -12,9 +12,12 @@
 module axi_starlink_pss_acquisition #(
   parameter integer SAMPLE_FIFO_ADDRESS_WIDTH = 7,
   parameter integer INPUT_RATE_MSPS = 15,
-  parameter integer ENABLE_PILOT_TAP = 0
+  parameter integer ENABLE_PILOT_TAP = 0,
+  parameter integer USE_SHARED_XFFT = 0
 ) (
   input  wire                 sample_clk,
+  input  wire                 fft_clk,
+  input  wire                 fft_resetn,
   input  wire                 sample_reset,
   input  wire                 sample_strobe,
   input  wire                 sample_enable,
@@ -294,9 +297,12 @@ module axi_starlink_pss_acquisition #(
   endgenerate
 
   starlink_pss_iq_to_phase_map #(
+    .USE_SHARED_XFFT   (USE_SHARED_XFFT),
     .KERNEL_ROM_FILE   (ACQUISITION_KERNEL_ROM_FILE),
     .COEFFICIENT_ENERGY(ACQUISITION_COEFFICIENT_ENERGY)
   ) acquisition (
+    .fft_clk                              (fft_clk),
+    .fft_resetn                           (fft_resetn),
     .clk                                  (s_axi_aclk),
     .resetn                               (s_axi_aresetn),
     .enable                               (acquisition_enable),
@@ -355,6 +361,7 @@ module axi_starlink_pss_acquisition #(
   );
 
   axi_starlink_pss_phase_map_sync #(
+    .USE_SHARED_XFFT    (USE_SHARED_XFFT),
     .INPUT_RATE_MSPS    (INPUT_RATE_MSPS),
     .COEFFICIENT_ENERGY(ACQUISITION_COEFFICIENT_ENERGY)
   ) phase_map_control (

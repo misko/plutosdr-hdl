@@ -7,7 +7,8 @@
 `timescale 1ns/1ps
 
 module starlink_pss_acquisition_health #(
-  parameter integer COUNTER_WIDTH = 32
+  parameter integer COUNTER_WIDTH = 32,
+  parameter integer USE_SHARED_XFFT = 0
 ) (
   input  wire          clk,
   input  wire          resetn,
@@ -38,7 +39,10 @@ module starlink_pss_acquisition_health #(
   localparam integer HEALTH_SCHEDULER_GAP = 1;
   localparam integer HEALTH_SCHEDULER_INDEX_ERROR = 2;
   localparam integer HEALTH_SCHEDULER_OVERFLOW = 3;
-  localparam integer HEALTH_FORWARD_FFT = 4;
+  // Shared composition supplies a service-wide fault on the internal forward
+  // wire. Never label it direction-specific in the published health snapshot.
+  // Bit 14 is advertised ONLY by the new shared-XFFT PSMA ABI 1.5.
+  localparam integer HEALTH_FORWARD_FFT = USE_SHARED_XFFT ? 14 : 4;
   localparam integer HEALTH_KERNEL_JOIN = 5;
   localparam integer HEALTH_PRODUCT_OVERFLOW = 6;
   localparam integer HEALTH_INVERSE_FFT = 7;

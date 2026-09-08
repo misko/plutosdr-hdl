@@ -1,14 +1,17 @@
 # Complete coarse pipeline with the actual 100/200/100 MHz transform island.
 # Numerical and canonical 15 MS/s capacity evidence, not receiver fit/deployment.
-# Usage: ... -tclargs OUTPUT capacity|numeric ?VECTOR_DIRECTORY?
-if {$argc < 2 || $argc > 3} { error "expected OUTPUT capacity|numeric ?VECTORS?" }
+# Usage: ... -tclargs OUTPUT numeric VECTORS | OUTPUT capacity ?64|4096?
+if {$argc < 2 || $argc > 3} { error "expected OUTPUT numeric VECTORS or OUTPUT capacity ?64|4096?" }
 if {[version -short] ne "2022.2"} { error "requires Vivado 2022.2" }
 set script_dir [file dirname [file normalize [info script]]]
 set output_dir [file normalize [lindex $argv 0]]
 set mode [lindex $argv 1]
-if {$mode ni {capacity numeric} || (($mode eq "numeric") != ($argc == 3))} {
+if {$mode ni {capacity numeric} || ($mode eq "numeric" && $argc != 3)} {
   error "numeric mode requires vectors; capacity does not"
 }
+set capacity_blocks 64
+if {$mode eq "capacity" && $argc == 3} { set capacity_blocks [lindex $argv 2] }
+if {$capacity_blocks ni {64 4096}} { error "capacity supports 64 or 4096 blocks" }
 if {[file exists $output_dir]} { error "refusing to overwrite pipeline evidence" }
 file mkdir $output_dir
 set bench_name tb_starlink_pss_iq_to_score_xfft
@@ -27,7 +30,11 @@ set bench [string map [list \
   {dut.forward_adapter.protocol_fault} {dut.transform_service.adapter.protocol_fault} \
 ] $bench]
 if {$mode eq "capacity"} {
-  set bench [string map [list {        $finish;} {        $fatal(1, "shared pipeline fault");}] $bench]
+  set bench [string map [list \
+    {        $finish;} {        $fatal(1, "shared pipeline fault");} \
+    {localparam integer BLOCK_COUNT = 64;} "localparam integer BLOCK_COUNT = $capacity_blocks;" \
+    {cycle_count > 1000000} {cycle_count > BLOCK_COUNT * 4000 + 100000} \
+  ] $bench]
 } else {
   # The global latch persists while leaf faults are cleared by the common
   # quarantine reset. Allow the explicit cross-clock reset/fault synchronizers;

@@ -21,8 +21,13 @@ export STARLINK_PSS_RATE_MSPS
 STARLINK_PSS_PROFILE ?= full
 export STARLINK_PSS_PROFILE
 
+# Experimental single 200 MHz transform island; defaults remain unchanged.
+STARLINK_PSS_SHARED_XFFT ?= 0
+export STARLINK_PSS_SHARED_XFFT
+
 M_DEPS += ../../library/common/ad_iobuf.v
 M_DEPS += ../../library/axi_ad9361/axi_ad9361_delay.tcl
+M_DEPS += shared_xfft_impl_gate.tcl
 
 LIB_DEPS += axi_ad9361
 LIB_DEPS += axi_dmac

@@ -1,17 +1,18 @@
 `timescale 1ns/1ps
 
 module tb_axi_starlink_pss_phase_map_sync_rate #(
-  parameter integer INPUT_RATE_MSPS = 15
+  parameter integer INPUT_RATE_MSPS = 15,
+  parameter integer USE_SHARED_XFFT = 0
 );
 
   localparam [30:0] COEFFICIENT_ENERGY =
       (INPUT_RATE_MSPS == 60) ? 31'd1073765335 :
       ((INPUT_RATE_MSPS == 30) ? 31'd1073744004 : 31'd1073742825);
   localparam integer DDC_ENABLED = INPUT_RATE_MSPS != 15;
-  localparam [31:0] EXPECTED_VERSION = (INPUT_RATE_MSPS == 60) ?
+  localparam [31:0] EXPECTED_VERSION = USE_SHARED_XFFT ? 32'h0001_0005 : (INPUT_RATE_MSPS == 60) ?
       32'h0001_0004 :
       ((INPUT_RATE_MSPS == 30) ? 32'h0001_0002 : 32'h0001_0001);
-  localparam [31:0] EXPECTED_CAPABILITIES = (INPUT_RATE_MSPS == 60) ?
+  localparam [31:0] EXPECTED_CAPABILITIES = USE_SHARED_XFFT ? 32'h0000_013f : (INPUT_RATE_MSPS == 60) ?
       32'h0000_00ff : (DDC_ENABLED ? 32'h0000_007f : 32'h0000_003f);
   localparam [31:0] EXPECTED_DDC_CONFIG = (INPUT_RATE_MSPS == 60) ?
       32'h020f_0403 :
@@ -54,6 +55,7 @@ module tb_axi_starlink_pss_phase_map_sync_rate #(
   wire irq;
 
   axi_starlink_pss_phase_map_sync #(
+    .USE_SHARED_XFFT    (USE_SHARED_XFFT),
     .INPUT_RATE_MSPS    (INPUT_RATE_MSPS),
     .COEFFICIENT_ENERGY(COEFFICIENT_ENERGY)
   ) dut (
@@ -81,7 +83,7 @@ module tb_axi_starlink_pss_phase_map_sync_rate #(
     .map_arithmetic_overflow_count        (32'd0),
     .map_read_error_count                 (32'd0),
     .map_release_error_count              (32'd0),
-    .detector_health_flags                (32'd0),
+    .detector_health_flags                (USE_SHARED_XFFT ? 32'h0000_4001 : 32'd0),
     .ingress_overflow_sticky              (1'b0),
     .ingress_dropped_sample_count         (32'd0),
     .ingress_fifo_level                   (16'd0),
@@ -235,11 +237,11 @@ module tb_axi_starlink_pss_phase_map_sync_rate #(
 
     axi_write(8'h30, 32'd1);
     repeat (3) @(posedge clk);
-    expect_register(8'h88, DDC_ENABLED ? 32'h0000_2000 : 32'd0);
+    expect_register(8'h88, USE_SHARED_XFFT ? 32'h0000_4001 : (DDC_ENABLED ? 32'h0000_2000 : 32'd0));
 
     $display("PSMA_RATE_PASS rate=%0d version=%0d.%0d ddc=%0d energy=%0d",
              INPUT_RATE_MSPS, 1,
-             INPUT_RATE_MSPS == 60 ? 4 : (INPUT_RATE_MSPS == 30 ? 2 : 1),
+             USE_SHARED_XFFT ? 5 : (INPUT_RATE_MSPS == 60 ? 4 : (INPUT_RATE_MSPS == 30 ? 2 : 1)),
              DDC_ENABLED, COEFFICIENT_ENERGY);
     $finish;
   end

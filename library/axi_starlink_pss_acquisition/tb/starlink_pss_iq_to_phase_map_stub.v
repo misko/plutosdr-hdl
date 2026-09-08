@@ -4,6 +4,7 @@
 // rate adapter, and AXI control. The XFFT pipeline has separate bit-accurate
 // Vivado simulations.
 module starlink_pss_iq_to_phase_map #(
+  parameter integer USE_SHARED_XFFT = 0,
   parameter KERNEL_ROM_FILE = "",
   parameter [30:0] COEFFICIENT_ENERGY = 31'd1,
   parameter integer PHASE_BINS = 20000,
@@ -17,6 +18,8 @@ module starlink_pss_iq_to_phase_map #(
 ) (
   input  wire                         clk,
   input  wire                         resetn,
+  input  wire                         fft_clk,
+  input  wire                         fft_resetn,
   input  wire                         enable,
   input  wire                         flush,
   input  wire                         sample_valid,

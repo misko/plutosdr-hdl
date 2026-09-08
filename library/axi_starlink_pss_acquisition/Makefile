@@ -26,6 +26,9 @@ GENERIC_DEPS += $(ACQ_DIR)/starlink_pss_score_divider_radix4.v
 GENERIC_DEPS += $(ACQ_DIR)/starlink_pss_score_lanes.v
 GENERIC_DEPS += $(ACQ_DIR)/starlink_pss_candidate_score_path.v
 GENERIC_DEPS += $(ACQ_DIR)/starlink_pss_iq_to_score.v
+GENERIC_DEPS += $(ACQ_DIR)/starlink_pss_iq_to_score_shared.v
+GENERIC_DEPS += $(ACQ_DIR)/starlink_pss_shared_xfft_service.v
+GENERIC_DEPS += $(ACQ_DIR)/starlink_pss_block_mailbox.v
 GENERIC_DEPS += $(ACQ_DIR)/starlink_pss_score_phase_tagger.v
 GENERIC_DEPS += $(ACQ_DIR)/starlink_pss_phase_map_bank.v
 GENERIC_DEPS += $(ACQ_DIR)/starlink_pss_phase_map.v
@@ -41,5 +44,6 @@ GENERIC_DEPS += axi_starlink_pss_acquisition.v
 XILINX_DEPS += axi_starlink_pss_acquisition_ip.tcl
 XILINX_DEPS += axi_starlink_pss_acquisition_constr.xdc
 XILINX_DEPS += $(ACQ_DIR)/starlink_pss_sample_cdc_constr.xdc
+XILINX_DEPS += $(ACQ_DIR)/starlink_pss_shared_xfft_constr.xdc
 
 include ../scripts/library.mk

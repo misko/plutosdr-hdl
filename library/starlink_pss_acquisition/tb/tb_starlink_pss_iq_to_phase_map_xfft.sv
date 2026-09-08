@@ -1,6 +1,8 @@
 `timescale 1ns/1ps
 
-module tb_starlink_pss_iq_to_phase_map_xfft;
+module tb_starlink_pss_iq_to_phase_map_xfft #(
+  parameter integer USE_SHARED_XFFT = 0
+);
 
   localparam integer SAMPLE_COUNT = 1406;
   localparam integer BLOCK_COUNT = 3;
@@ -10,6 +12,8 @@ module tb_starlink_pss_iq_to_phase_map_xfft;
   localparam [63:0] FIRST_SAMPLE_INDEX = 64'd1000000;
 
   reg clk = 1'b0;
+  reg fft_clk = 1'b0;
+  initial begin #1.3; forever #2.5 fft_clk = !fft_clk; end
   reg resetn = 1'b0;
   reg enable = 1'b0;
   reg flush = 1'b0;
@@ -78,10 +82,14 @@ module tb_starlink_pss_iq_to_phase_map_xfft;
   integer expected_map_value;
   integer largest_map_value = 0;
   integer largest_map_phase = 0;
+  reg expected_fault_window = 0;
+  reg start_fault_test = 0;
+  reg fault_test_done = 0;
 
   always #5 clk = ~clk;
 
   starlink_pss_iq_to_phase_map #(
+    .USE_SHARED_XFFT         (USE_SHARED_XFFT),
     .PHASE_BINS              (PHASE_BINS),
     .PHASE_INDEX_WIDTH       (PHASE_INDEX_WIDTH),
     .TILE_FRAMES             (BLOCK_COUNT),
@@ -91,6 +99,8 @@ module tb_starlink_pss_iq_to_phase_map_xfft;
     .MAP_SEGMENT_COUNT       (1),
     .MAP_SEGMENT_INDEX_WIDTH (1)
   ) dut (
+    .fft_clk                              (fft_clk),
+    .fft_resetn                           (resetn),
     .clk                                  (clk),
     .resetn                               (resetn),
     .enable                               (enable),
@@ -185,7 +195,7 @@ module tb_starlink_pss_iq_to_phase_map_xfft;
     if (cycle_count > 200000)
       fail("simulation watchdog expired");
 
-    if (resetn && enable) begin
+    if (resetn && enable && !expected_fault_window) begin
       if (detector_fault || scheduler_gap_pulse ||
           scheduler_index_error_pulse || scheduler_overflow_pulse ||
           forward_fft_fault || kernel_join_fault ||
@@ -209,6 +219,29 @@ module tb_starlink_pss_iq_to_phase_map_xfft;
       end
     end
   end
+
+  // The selected shared hierarchy is deliberately absent from default builds.
+  // Inject AFTER a new tile has accepted scores, proving quarantine aborts a
+  // partial map and publishes the service-wide cause, not a directional fault.
+  generate if (USE_SHARED_XFFT) begin : shared_fault_test
+    initial begin
+      wait (start_fault_test);
+      wait (accepted_score_count > SCORE_COUNT + 100);
+      @(negedge clk);
+      force dut.shared_transform.iq_to_score.transform_service.adapter.protocol_fault = 1'b1;
+      repeat (20) @(negedge clk);
+      release dut.shared_transform.iq_to_score.transform_service.adapter.protocol_fault;
+      repeat (20) @(negedge clk);
+      if (!detector_fault || score_valid || map_ready_mask != 0 || map_publish_count != 1)
+        fail("shared fault published a partial map or failed quarantine");
+      if (!detector_health_flags[14] || detector_health_flags[4] ||
+          detector_health_flags[7] || detector_fault_count != 1 ||
+          discontinuity_abort_count == 0)
+        fail("shared fault health identity or partial-tile abort incorrect");
+      $display("SHARED_PHASE_MAP_FAULT_PASS partial_tile_aborted=1 no_partial_publication=1 service_health_bit=14 detector_episodes=1");
+      fault_test_done = 1;
+    end
+  end endgenerate
 
   initial begin
     $readmemh("samples_ci16.mem", input_samples);
@@ -285,6 +318,36 @@ module tb_starlink_pss_iq_to_phase_map_xfft;
              PHASE_BINS, largest_map_phase, largest_map_value,
              PHASE_BINS * 2, candidate_fifo_maximum_stored_count,
              detector_health_flags);
+    if (USE_SHARED_XFFT) begin
+      @(negedge clk);
+      expected_fault_window = 1;
+      map_release_bank = 0;
+      map_release = 1;
+      enable = 0;
+      flush = 1;
+      repeat (2) @(negedge clk);
+      map_release = 0;
+      flush = 0;
+      enable = 1;
+      repeat (20) @(negedge clk);
+      start_fault_test = 1;
+      for (drive_index = 0; drive_index < 600;) begin
+        @(negedge clk);
+        sample_valid = 0;
+        cadence_phase = cadence_phase + 15;
+        if (cadence_phase >= 100) begin
+          cadence_phase = cadence_phase - 100;
+          sample_i = input_samples[drive_index][15:0];
+          sample_q = input_samples[drive_index][31:16];
+          sample_index = FIRST_SAMPLE_INDEX + 2000 + drive_index;
+          sample_valid = 1;
+          drive_index = drive_index + 1;
+        end
+      end
+      @(negedge clk);
+      sample_valid = 0;
+      wait (fault_test_done);
+    end
     $finish;
   end
 

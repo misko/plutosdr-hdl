@@ -1,6 +1,8 @@
 `timescale 1ns/1ps
 
-module tb_starlink_pss_acquisition_health;
+module tb_starlink_pss_acquisition_health #(
+  parameter integer USE_SHARED_XFFT = 0
+);
 
   localparam integer COUNTER_WIDTH = 3;
 
@@ -33,6 +35,7 @@ module tb_starlink_pss_acquisition_health;
   always #5 clk = ~clk;
 
   starlink_pss_acquisition_health #(
+    .USE_SHARED_XFFT(USE_SHARED_XFFT),
     .COUNTER_WIDTH(COUNTER_WIDTH)
   ) dut (
     .clk                                  (clk),
@@ -162,7 +165,7 @@ module tb_starlink_pss_acquisition_health;
     if (score_phase_index_discontinuity_count != 2 ||
         score_denominator_zero_count != 4)
       fail("score health counts are wrong");
-    if (detector_health_flags != 32'h0000_0fff)
+    if (detector_health_flags != (USE_SHARED_XFFT ? 32'h0000_4fef : 32'h0000_0fff))
       fail("sticky cause flags are incomplete");
 
     @(negedge clk);
@@ -174,7 +177,7 @@ module tb_starlink_pss_acquisition_health;
         score_denominator_zero_count != 0 || detector_health_flags != 0)
       fail("reset did not clear the health epoch");
 
-    $display("ACQUISITION_HEALTH_PASS saturation=1 detector_episodes=2 sticky_causes=12 reset_epoch=1");
+    $display("ACQUISITION_HEALTH_PASS saturation=1 detector_episodes=2 sticky_causes=12 reset_epoch=1 shared_xfft=%0d", USE_SHARED_XFFT);
     $finish;
   end
 
