@@ -31,7 +31,9 @@ for fragment, label in (
     (".sample_valid                         (acquisition_sample_valid)", "adapted valid"),
     (".sample_index                         (acquisition_sample_index)", "adapted index"),
     (".input_valid            (ingress_sample_valid)", "post-CDC DDC placement"),
-    (".enable                 (acquisition_enable)", "common enable"),
+    (".enable                 (conditioner_enable)", "shared conditioning enable"),
+    ("acquisition_enable || (ENABLE_PILOT_TAP && pilot_enable)", "opt-in pilot keepalive"),
+    ("parameter integer ENABLE_PILOT_TAP = 0", "historical profiles unchanged"),
     (".flush                  (acquisition_flush)", "common flush"),
 ):
     require(WRAPPER, fragment, label)

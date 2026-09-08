@@ -16,8 +16,10 @@ interface is used after the existing 30->15 and 60->30->15 conditioners.
 
 `edge_upper` selects the Q16 oscillator step: +12/64 or -13/64 cycles per
 canonical sample. The oscillator uses the absolute source index, not the time
-at which a FIFO entry is drained. The halfband snapshots its nine folded terms
-before time-sharing two MACs, so the next input cannot change an active window.
+at which a FIFO entry is drained. The halfband stores even/odd phases in small
+RAM rings and shares one pair-adder per IQ lane before its two MACs. The even
+window remains intact throughout a job; the odd center is captured at job start
+because the next odd input can overwrite its ring slot before the last row.
 The complete pilot path uses fourteen DSP MAC/multiplier blocks in the measured
 standalone build, including the four mixer multipliers.
 

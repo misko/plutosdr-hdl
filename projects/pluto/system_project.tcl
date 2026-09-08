@@ -38,6 +38,10 @@ if {$ADI_USE_OOC_SYNTHESIS == 1} {
   if {[llength $tracker_synth_run] == 1} {
     lappend pss_synth_runs $tracker_synth_run
   }
+  set pilot_synth_run [get_runs -quiet system_starlink_pilot_capture_0_synth_1]
+  if {[llength $pilot_synth_run] == 1} {
+    lappend pss_synth_runs $pilot_synth_run
+  }
   foreach pss_synth_run $pss_synth_runs {
     set_property strategy Flow_AreaOptimized_high $pss_synth_run
     set_property STEPS.SYNTH_DESIGN.ARGS.CONTROL_SET_OPT_THRESHOLD \
@@ -52,7 +56,7 @@ adi_project_files pluto [list \
   "$ad_hdl_dir/library/common/ad_iobuf.v"]
 
 if {[info exists ::env(STARLINK_PSS_PROFILE)] &&
-    $::env(STARLINK_PSS_PROFILE) eq "detector-only"} {
+    $::env(STARLINK_PSS_PROFILE) in {detector-only paired-pilot}} {
   # Match the detector-only block design, whose expansion AXI SPI and IIC
   # interfaces are deliberately absent.  This define changes only the shell
   # connections to those optional header pins; PS7 SPI0 still controls AD9361.

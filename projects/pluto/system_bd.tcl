@@ -19,7 +19,11 @@ if {[lsearch $ip_repo_list $quantulum_ip_repo_path] == -1} {
 # and omit them only from this explicitly selected, non-mainline profile.
 set starlink_pss_detector_only [expr {
   [info exists ::env(STARLINK_PSS_PROFILE)] &&
-  $::env(STARLINK_PSS_PROFILE) eq "detector-only"
+  $::env(STARLINK_PSS_PROFILE) in {detector-only paired-pilot}
+}]
+set starlink_pilot_enabled [expr {
+  [info exists ::env(STARLINK_PSS_PROFILE)] &&
+  $::env(STARLINK_PSS_PROFILE) eq "paired-pilot"
 }]
 
 create_bd_intf_port -mode Master -vlnv xilinx.com:interface:ddrx_rtl:1.0 ddr
@@ -243,18 +247,18 @@ set starlink_pss_profile full
 if {[info exists ::env(STARLINK_PSS_PROFILE)]} {
   set starlink_pss_profile $::env(STARLINK_PSS_PROFILE)
 }
-if {$starlink_pss_profile ni {full detector-only acquisition-only acquisition-injection}} {
-  error "STARLINK_PSS_PROFILE must be full, detector-only, acquisition-only, or acquisition-injection, got $starlink_pss_profile"
+if {$starlink_pss_profile ni {full detector-only paired-pilot acquisition-only acquisition-injection}} {
+  error "Unsupported STARLINK_PSS_PROFILE: $starlink_pss_profile"
 }
 if {$starlink_pss_profile eq "acquisition-injection" &&
     $starlink_pss_rate_msps != 15} {
   error "STARLINK_PSS_PROFILE=acquisition-injection is qualified only at 15 MS/s"
 }
 set starlink_pss_tracker_enabled [expr {
-  $starlink_pss_profile in {full detector-only}
+  $starlink_pss_profile in {full detector-only paired-pilot}
 }]
 set starlink_pss_rx_dma_enabled [expr {
-  $starlink_pss_profile ne "detector-only"
+  $starlink_pss_profile ni {detector-only paired-pilot}
 }]
 puts "STARLINK_PSS_BUILD_PROFILE rate_msps=$starlink_pss_rate_msps profile=$starlink_pss_profile"
 set starlink_pss_minimum_lead_samples [expr {
@@ -277,6 +281,22 @@ if {$starlink_pss_rx_dma_enabled} {
   ad_ip_instance util_cpack2 cpack
   ad_ip_instance util_cpack2_timestamp cpack_timestamp
 }
+if {$starlink_pilot_enabled} {
+  # CI16 AXIS only AFTER 15->2.5 MS/s pilot filtering. No raw RX DDR path.
+  ad_ip_instance axi_starlink_pilot_capture starlink_pilot_capture
+  ad_ip_parameter starlink_pilot_capture CONFIG.INPUT_RATE_MSPS $starlink_pss_rate_msps
+  ad_ip_instance axi_dmac starlink_pilot_dma
+  ad_ip_parameter starlink_pilot_dma CONFIG.DMA_TYPE_SRC 1
+  ad_ip_parameter starlink_pilot_dma CONFIG.DMA_TYPE_DEST 0
+  ad_ip_parameter starlink_pilot_dma CONFIG.DMA_DATA_WIDTH_SRC 32
+  ad_ip_parameter starlink_pilot_dma CONFIG.DMA_DATA_WIDTH_DEST 64
+  ad_ip_parameter starlink_pilot_dma CONFIG.CYCLIC 0
+  ad_ip_parameter starlink_pilot_dma CONFIG.AXI_SLICE_SRC 0
+  ad_ip_parameter starlink_pilot_dma CONFIG.AXI_SLICE_DEST 0
+  ad_ip_parameter starlink_pilot_dma CONFIG.DMA_2D_TRANSFER 0
+  ad_ip_parameter starlink_pilot_dma CONFIG.SYNC_TRANSFER_START false
+  ad_ip_parameter starlink_pilot_dma CONFIG.DMA_LENGTH_WIDTH 24
+}
 ad_ip_instance c_counter_binary counter_timestamp
 ad_ip_parameter counter_timestamp CONFIG.Output_Width 64
 ad_ip_parameter counter_timestamp CONFIG.CE true
@@ -284,6 +304,17 @@ ad_ip_parameter counter_timestamp CONFIG.CE true
 ad_ip_instance axi_starlink_pss_acquisition starlink_pss_acquisition
 ad_ip_parameter starlink_pss_acquisition CONFIG.SAMPLE_FIFO_ADDRESS_WIDTH 7
 ad_ip_parameter starlink_pss_acquisition CONFIG.INPUT_RATE_MSPS $starlink_pss_rate_msps
+ad_ip_parameter starlink_pss_acquisition CONFIG.ENABLE_PILOT_TAP $starlink_pilot_enabled
+if {$starlink_pilot_enabled} {
+  ad_connect starlink_pilot_capture/pilot_enable starlink_pss_acquisition/pilot_enable
+  foreach signal {valid gap flush i q index} {
+    ad_connect starlink_pss_acquisition/canonical_$signal starlink_pilot_capture/canonical_$signal
+  }
+  ad_connect starlink_pilot_capture/m_axis starlink_pilot_dma/s_axis
+  ad_connect sys_cpu_clk starlink_pilot_dma/s_axis_aclk
+} else {
+  ad_connect GND starlink_pss_acquisition/pilot_enable
+}
 if {$starlink_pss_tracker_enabled} {
   ad_ip_instance axi_starlink_pss_tracker starlink_pss_tracker
   ad_ip_parameter starlink_pss_tracker CONFIG.RATE_MSPS $starlink_pss_rate_msps
@@ -479,6 +510,10 @@ ad_cpu_interconnect 0x79040000 starlink_pss_acquisition
 if {$starlink_pss_rx_dma_enabled} {
   ad_cpu_interconnect 0x7C400000 axi_ad9361_adc_dma
 }
+if {$starlink_pilot_enabled} {
+  ad_cpu_interconnect 0x79050000 starlink_pilot_capture
+  ad_cpu_interconnect 0x7C400000 starlink_pilot_dma
+}
 if {!$starlink_pss_detector_only} {
   ad_cpu_interconnect 0x7C430000 axi_spi
 }
@@ -494,11 +529,23 @@ if {$starlink_pss_rx_dma_enabled} {
   ad_connect sys_cpu_clk axi_ad9361_adc_dma/m_dest_axi_aclk
   ad_connect sys_cpu_resetn axi_ad9361_adc_dma/m_dest_axi_aresetn
 }
+if {$starlink_pilot_enabled} {
+  ad_connect starlink_pilot_dma/m_dest_axi sys_ps7/S_AXI_HP1
+  create_bd_addr_seg -range 0x20000000 -offset 0x00000000 \
+    [get_bd_addr_spaces starlink_pilot_dma/m_dest_axi] \
+    [get_bd_addr_segs sys_ps7/S_AXI_HP1/HP1_DDR_LOWOCM] SEG_pilot_HP1_DDR_LOWOCM
+  ad_connect sys_cpu_clk starlink_pilot_dma/m_dest_axi_aclk
+  ad_connect sys_cpu_resetn starlink_pilot_dma/m_dest_axi_aresetn
+}
 
 # interrupts
 
 if {$starlink_pss_rx_dma_enabled} {
   ad_cpu_interrupt ps-13 mb-13 axi_ad9361_adc_dma/irq
+}
+if {$starlink_pilot_enabled} {
+  ad_cpu_interrupt ps-13 mb-13 starlink_pilot_dma/irq
+  ad_cpu_interrupt ps-11 mb-11 starlink_pilot_capture/irq
 }
 if {$starlink_pss_tracker_enabled} {
   ad_cpu_interrupt ps-12 mb-12 starlink_pss_tracker/irq

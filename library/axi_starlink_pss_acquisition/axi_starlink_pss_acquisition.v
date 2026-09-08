@@ -11,7 +11,8 @@
 
 module axi_starlink_pss_acquisition #(
   parameter integer SAMPLE_FIFO_ADDRESS_WIDTH = 7,
-  parameter integer INPUT_RATE_MSPS = 15
+  parameter integer INPUT_RATE_MSPS = 15,
+  parameter integer ENABLE_PILOT_TAP = 0
 ) (
   input  wire                 sample_clk,
   input  wire                 sample_reset,
@@ -21,6 +22,16 @@ module axi_starlink_pss_acquisition #(
   input  wire signed [15:0]   sample_i,
   input  wire signed [15:0]   sample_q,
   input  wire [63:0]          sample_index,
+
+  // Optional canonical tap, entirely in s_axi_aclk. Unconnected new inputs
+  // have no effect in historical/default profiles (ENABLE_PILOT_TAP=0).
+  input  wire                 pilot_enable,
+  output wire                 canonical_valid,
+  output wire                 canonical_gap,
+  output wire                 canonical_flush,
+  output wire signed [15:0]    canonical_i,
+  output wire signed [15:0]    canonical_q,
+  output wire [63:0]           canonical_index,
 
   output wire                 irq,
 
@@ -98,6 +109,7 @@ module axi_starlink_pss_acquisition #(
 
   wire acquisition_enable;
   wire acquisition_flush;
+  wire conditioner_enable = acquisition_enable || (ENABLE_PILOT_TAP && pilot_enable);
   wire [1:0] map_ready_mask;
   wire [31:0] map_generation_0;
   wire [31:0] map_generation_1;
@@ -135,6 +147,12 @@ module axi_starlink_pss_acquisition #(
   wire signed [15:0] acquisition_sample_i;
   wire signed [15:0] acquisition_sample_q;
   wire [63:0] acquisition_sample_index;
+  assign canonical_valid = ENABLE_PILOT_TAP && acquisition_sample_valid;
+  assign canonical_gap = ENABLE_PILOT_TAP && (acquisition_sample_gap || ingress_overflow_sticky);
+  assign canonical_flush = ENABLE_PILOT_TAP && acquisition_flush;
+  assign canonical_i = acquisition_sample_i;
+  assign canonical_q = acquisition_sample_q;
+  assign canonical_index = acquisition_sample_index;
   wire [63:0] ddc_accepted_sample_count;
   wire [63:0] ddc_emitted_sample_count;
   wire [31:0] ddc_discontinuity_count;
@@ -172,7 +190,7 @@ module axi_starlink_pss_acquisition #(
       ) acquisition_ddc (
         .clk                    (s_axi_aclk),
         .resetn                 (s_axi_aresetn),
-        .enable                 (acquisition_enable),
+        .enable                 (conditioner_enable),
         .flush                  (acquisition_flush),
         .input_valid            (ingress_sample_valid),
         .input_gap              (ingress_sample_gap),
@@ -218,7 +236,7 @@ module axi_starlink_pss_acquisition #(
       ) acquisition_ddc_60_to_30 (
         .clk                    (s_axi_aclk),
         .resetn                 (s_axi_aresetn),
-        .enable                 (acquisition_enable),
+        .enable                 (conditioner_enable),
         .flush                  (acquisition_flush),
         .input_valid            (ingress_sample_valid),
         .input_gap              (ingress_sample_gap),
@@ -243,7 +261,7 @@ module axi_starlink_pss_acquisition #(
       ) acquisition_ddc_30_to_15 (
         .clk                    (s_axi_aclk),
         .resetn                 (s_axi_aresetn),
-        .enable                 (acquisition_enable),
+        .enable                 (conditioner_enable),
         .flush                  (acquisition_flush),
         .input_valid            (stage_30_valid),
         .input_gap              (stage_30_gap),

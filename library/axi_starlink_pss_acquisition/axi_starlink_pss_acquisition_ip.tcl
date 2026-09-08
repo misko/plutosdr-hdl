@@ -68,6 +68,7 @@ adi_ip_files axi_starlink_pss_acquisition [list \
   "$acq_dir/starlink_pss_sample_cdc_constr.xdc" ]
 
 adi_ip_properties axi_starlink_pss_acquisition
+ipx::remove_bus_interface canonical [ipx::current_core]
 set_property display_name "Experimental 15/30/60 MS/s Continuous PSS Acquisition" \
   [ipx::current_core]
 set_property description \
@@ -113,4 +114,6 @@ set_property -dict [list \
   -of_objects [ipx::current_core]]
 
 ipx::create_xgui_files [ipx::current_core]
+set_property -dict [list value_validation_type list value_validation_list "0 1"] \
+  [ipx::get_user_parameters ENABLE_PILOT_TAP -of_objects [ipx::current_core]]
 ipx::save_core [ipx::current_core]

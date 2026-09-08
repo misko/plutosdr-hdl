@@ -48,6 +48,13 @@ for rate in 15 30 60; do
     -o "build/acquisition_rate${rate}.vvp" \
     "${common_wrapper_sources[@]}"
   vvp "build/acquisition_rate${rate}.vvp"
+  iverilog -g2012 -Wall \
+    -s tb_axi_starlink_pss_acquisition_rate \
+    -Ptb_axi_starlink_pss_acquisition_rate.INPUT_RATE_MSPS="$rate" \
+    -Ptb_axi_starlink_pss_acquisition_rate.PILOT_ONLY=1 \
+    -o "build/pilot_tap_rate${rate}.vvp" \
+    "${common_wrapper_sources[@]}"
+  vvp "build/pilot_tap_rate${rate}.vvp"
 done
 
 iverilog -g2012 -Wall \

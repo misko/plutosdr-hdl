@@ -1,7 +1,8 @@
 `timescale 1ns/1ps
 
 module tb_axi_starlink_pss_acquisition_rate #(
-  parameter integer INPUT_RATE_MSPS = 15
+  parameter integer INPUT_RATE_MSPS = 15,
+  parameter integer PILOT_ONLY = 0
 );
 
   localparam integer INPUT_COUNT = 500;
@@ -20,6 +21,10 @@ module tb_axi_starlink_pss_acquisition_rate #(
   reg signed [15:0] sample_q = 16'sd0;
   reg [63:0] sample_index = 64'd0;
   wire irq;
+  reg pilot_enable = PILOT_ONLY;
+  wire canonical_valid, canonical_gap, canonical_flush;
+  wire signed [15:0] canonical_i, canonical_q;
+  wire [63:0] canonical_index;
 
   reg s_axi_aresetn = 1'b0;
   reg s_axi_awvalid = 1'b0;
@@ -46,7 +51,8 @@ module tb_axi_starlink_pss_acquisition_rate #(
 
   axi_starlink_pss_acquisition #(
     .SAMPLE_FIFO_ADDRESS_WIDTH(7),
-    .INPUT_RATE_MSPS          (INPUT_RATE_MSPS)
+    .INPUT_RATE_MSPS          (INPUT_RATE_MSPS),
+    .ENABLE_PILOT_TAP         (PILOT_ONLY)
   ) dut (
     .sample_clk     (sample_clk),
     .sample_reset   (sample_reset),
@@ -56,6 +62,9 @@ module tb_axi_starlink_pss_acquisition_rate #(
     .sample_i       (sample_i),
     .sample_q       (sample_q),
     .sample_index   (sample_index),
+    .pilot_enable(pilot_enable), .canonical_valid(canonical_valid),
+    .canonical_gap(canonical_gap), .canonical_flush(canonical_flush),
+    .canonical_i(canonical_i), .canonical_q(canonical_q), .canonical_index(canonical_index),
     .irq            (irq),
     .s_axi_aclk     (s_axi_aclk),
     .s_axi_aresetn  (s_axi_aresetn),
@@ -152,7 +161,13 @@ module tb_axi_starlink_pss_acquisition_rate #(
   integer observed_outputs = 0;
   reg [96:0] expected_word;
   always @(negedge s_axi_aclk) begin
+    if (s_axi_aresetn && !PILOT_ONLY && canonical_valid)
+      fail("default profile unexpectedly exports a pilot tap");
     if (s_axi_aresetn && dut.acquisition_sample_valid) begin
+      if (PILOT_ONLY && {canonical_valid, canonical_gap, canonical_index, canonical_q, canonical_i} !==
+          {1'b1, dut.acquisition_sample_gap, dut.acquisition_sample_index,
+           dut.acquisition_sample_q, dut.acquisition_sample_i})
+        fail("public canonical tap differs from shared conditioning");
       if (DDC_ENABLED) begin
         if (observed_outputs >= summary_memory[0])
           fail("unexpected extra DDC output");
@@ -196,9 +211,13 @@ module tb_axi_starlink_pss_acquisition_rate #(
     @(negedge sample_clk);
     sample_reset = 1'b0;
     repeat (6) @(posedge sample_clk);
-    axi_write(8'h14, 32'd1);
-    if (!dut.acquisition_enable)
-      fail("AXI control did not enable acquisition");
+    if (!PILOT_ONLY) begin
+      axi_write(8'h14, 32'd1);
+      if (!dut.acquisition_enable)
+        fail("AXI control did not enable acquisition");
+    end else if (dut.acquisition_enable || !dut.conditioner_enable) begin
+      fail("pilot-only conditioning requires map acquisition to remain disabled");
+    end
 
     sample_enable = 1'b1;
     for (input_number = 0; input_number < INPUT_COUNT;
@@ -250,9 +269,9 @@ module tb_axi_starlink_pss_acquisition_rate #(
     if (register_value != 0)
       fail("DDC emitted high counter register mismatch");
 
-    $display("ACQUISITION_RATE_PASS rate=%0d inputs=%0d outputs=%0d ddc=%0d drops=0",
+    $display("ACQUISITION_RATE_PASS rate=%0d inputs=%0d outputs=%0d ddc=%0d drops=0 pilot_only=%0d",
              INPUT_RATE_MSPS, INPUT_COUNT, observed_outputs,
-             DDC_ENABLED);
+             DDC_ENABLED, PILOT_ONLY);
     $finish;
   end
 

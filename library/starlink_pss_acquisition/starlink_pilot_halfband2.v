@@ -24,12 +24,19 @@ module starlink_pilot_halfband2 #(
   output reg sticky_overrun,
   output reg halted
 );
-  reg signed [15:0] history_i [0:29];
-  reg signed [15:0] history_q [0:29];
+  // A halfband job consumes the 16 even samples plus one delayed odd sample.
+  // Keep those phases in small RAMs, not 960 history FFs and 18 parallel
+  // pair-adders. The even ring cannot be overwritten during a >=13-clock job;
+  // the odd center is captured at start because the next odd input can arrive
+  // before row 8 is issued. Arithmetic and external latency remain unchanged.
+  (* ram_style = "distributed" *) reg [31:0] even_memory [0:15];
+  (* ram_style = "distributed" *) reg [31:0] odd_memory [0:7];
+  reg [3:0] even_pointer, job_pointer;
+  reg [2:0] odd_pointer;
+  reg [4:0] job_history;
+  reg signed [15:0] center_i, center_q;
   reg [4:0] history_count;
   reg [4:0] support_count;
-  reg signed [16:0] snapshot_i [0:8];
-  reg signed [16:0] snapshot_q [0:8];
   (* rom_style = "distributed" *) reg signed [17:0] coefficient [0:8];
   initial $readmemh(COEFFICIENT_FILE, coefficient);
   reg busy, issuing;
@@ -43,42 +50,25 @@ module starlink_pilot_halfband2 #(
   wire start = run && wanted;
   wire issue = run && issuing;
 
-  genvar term;
-  generate for (term = 0; term < 8; term = term + 1) begin : g_pair
-    wire signed [15:0] a_i;
-    wire signed [15:0] a_q;
-    wire signed [15:0] b_i = history_count >= (30 - 2*term) ? history_i[29 - 2*term] : 16'sd0;
-    wire signed [15:0] b_q = history_count >= (30 - 2*term) ? history_q[29 - 2*term] : 16'sd0;
-    if (term == 0) begin : g_current
-      assign a_i = input_i;
-      assign a_q = input_q;
-    end else begin : g_delayed
-      assign a_i = history_count >= 2*term ? history_i[2*term-1] : 16'sd0;
-      assign a_q = history_count >= 2*term ? history_q[2*term-1] : 16'sd0;
-    end
-    always @(posedge clk) begin
-      if (start) begin
-        snapshot_i[term] <= $signed({a_i[15], a_i}) + $signed({b_i[15], b_i});
-        snapshot_q[term] <= $signed({a_q[15], a_q}) + $signed({b_q[15], b_q});
-      end
-    end
-  end endgenerate
-
-  integer h;
   always @(posedge clk) begin
     if (run && input_valid) begin
-      history_i[0] <= input_i;
-      history_q[0] <= input_q;
-      for (h = 1; h < 30; h = h + 1) begin
-        history_i[h] <= history_i[h-1];
-        history_q[h] <= history_q[h-1];
-      end
+      if (input_index[0]) odd_memory[odd_pointer] <= {input_q, input_i};
+      else even_memory[even_pointer] <= {input_q, input_i};
     end
     if (start) begin
-      snapshot_i[8] <= history_count >= 15 ? $signed(history_i[14]) : 17'sd0;
-      snapshot_q[8] <= history_count >= 15 ? $signed(history_q[14]) : 17'sd0;
+      center_i <= history_count >= 15 ? $signed(odd_memory[odd_pointer][15:0]) : 16'sd0;
+      center_q <= history_count >= 15 ? $signed(odd_memory[odd_pointer][31:16]) : 16'sd0;
     end
   end
+
+  wire [3:0] address_a = job_pointer - row;
+  wire [3:0] address_b = job_pointer - 4'd15 + row;
+  wire [4:0] tap_a = {row, 1'b0};
+  wire [4:0] tap_b = 5'd30 - tap_a;
+  wire signed [15:0] a_i = job_history >= tap_a ? $signed(even_memory[address_a][15:0]) : 16'sd0;
+  wire signed [15:0] a_q = job_history >= tap_a ? $signed(even_memory[address_a][31:16]) : 16'sd0;
+  wire signed [15:0] b_i = job_history >= tap_b ? $signed(even_memory[address_b][15:0]) : 16'sd0;
+  wire signed [15:0] b_q = job_history >= tap_b ? $signed(even_memory[address_b][31:16]) : 16'sd0;
 
   reg signed [16:0] pair_i, pair_q;
   reg signed [17:0] coefficient_read;
@@ -88,8 +78,8 @@ module starlink_pilot_halfband2 #(
   reg product_valid, product_first, product_last;
   reg quantize_valid;
   always @(posedge clk) begin
-    pair_i <= snapshot_i[row];
-    pair_q <= snapshot_q[row];
+    pair_i <= row == 8 ? $signed(center_i) : $signed({a_i[15], a_i}) + $signed({b_i[15], b_i});
+    pair_q <= row == 8 ? $signed(center_q) : $signed({a_q[15], a_q}) + $signed({b_q[15], b_q});
     coefficient_read <= coefficient[row];
     product_i <= pair_i * coefficient_read;
     product_q <= pair_q * coefficient_read;
@@ -140,6 +130,10 @@ module starlink_pilot_halfband2 #(
       sticky_overrun <= 1;
     end
     if (!run) begin
+      even_pointer <= 0;
+      odd_pointer <= 0;
+      job_pointer <= 0;
+      job_history <= 0;
       history_count <= 0;
       support_count <= 0;
       busy <= 0;
@@ -167,11 +161,15 @@ module starlink_pilot_halfband2 #(
       output_valid <= quantize_valid;
       if (product_valid && product_last) busy <= 0;
       if (input_valid) begin
+        if (input_index[0]) odd_pointer <= odd_pointer + 1'b1;
+        else even_pointer <= even_pointer + 1'b1;
         if (history_count < 30) history_count <= history_count + 1'b1;
         if (!input_support_valid) support_count <= 0;
         else if (support_count < 30) support_count <= support_count + 1'b1;
       end
       if (start) begin
+        job_pointer <= even_pointer;
+        job_history <= history_count;
         busy <= 1;
         issuing <= 1;
         row <= 0;
