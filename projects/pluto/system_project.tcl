@@ -10,6 +10,16 @@ adi_project_create pluto 0 {} "xc7z010clg400-1"
 # checkpoints as fixed islands.
 set top_synth_run [get_runs synth_1]
 set control_set_threshold 4
+if {[info exists ::env(STARLINK_PSS_CONTROL_SET_THRESHOLD)]} {
+  if {![info exists ::env(STARLINK_PSS_PROFILE)] ||
+      $::env(STARLINK_PSS_PROFILE) ne "paired-pilot"} {
+    error "control-set experiment is restricted to the paired-pilot profile"
+  }
+  if {$::env(STARLINK_PSS_CONTROL_SET_THRESHOLD) ni {4 8 16}} {
+    error "paired-pilot control-set threshold must be 4, 8, or 16"
+  }
+  set control_set_threshold $::env(STARLINK_PSS_CONTROL_SET_THRESHOLD)
+}
 set_property strategy Flow_AreaOptimized_high $top_synth_run
 set_property STEPS.SYNTH_DESIGN.ARGS.CONTROL_SET_OPT_THRESHOLD \
   $control_set_threshold \

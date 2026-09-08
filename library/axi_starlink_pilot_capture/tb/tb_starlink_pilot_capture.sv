@@ -2,6 +2,7 @@
 `timescale 1ns/1ps
 module tb_starlink_pilot_capture;
   parameter integer SOURCE_RATE_MSPS = 15;
+  parameter integer WATCHDOG_CYCLES = 3000000;
   reg clk = 0;
   always #5 clk = !clk;
   reg resetn = 0, awvalid = 0, wvalid = 0, arvalid = 0;
@@ -65,7 +66,8 @@ module tb_starlink_pilot_capture;
       @(negedge clk);
     end
   endtask
-  integer fd, rc, delay_cycles, op, arg;
+  integer fd, rc, delay_cycles, op, arg, cw_n, cw_gap, cw_phase;
+  reg signed [15:0] cw_i, cw_q;
   reg [63:0] index;
   reg [31:0] value;
   initial begin
@@ -89,6 +91,22 @@ module tb_starlink_pilot_capture;
         6: begin input_flush = 1; @(negedge clk); input_flush = 0; end
         7: ;
         8: begin resetn = 0; repeat(4) @(negedge clk); resetn = 1; end
+        // Procedural canonical 15 MS/s CW, avoiding a multi-million-line
+        // stimulus file for the exact 120 ms supported-output capture gate.
+        9: begin
+          for (cw_n = 0; cw_n < value; cw_n = cw_n + 1) begin
+            cw_gap = cw_n % 3 == 0 ? 6 : 7;
+            repeat(cw_gap-1) begin @(negedge clk); input_valid = 0; end
+            @(negedge clk);
+            input_valid = 1;
+            input_index = index + cw_n;
+            cw_phase = (input_index[5:0] * 12) % 64;
+            cw_i = $signed(dut.ddc.mixer[cw_phase][17:0]) >>> 3;
+            cw_q = (-$signed(dut.ddc.mixer[cw_phase][35:18])) >>> 3;
+            input_data = {cw_q, cw_i};
+          end
+          @(negedge clk); input_valid = 0;
+        end
         default: $fatal(1, "unknown stimulus");
       endcase
     end
@@ -97,7 +115,7 @@ module tb_starlink_pilot_capture;
     $finish(0);
   end
   initial begin
-    repeat(3000000) @(posedge clk);
+    repeat(WATCHDOG_CYCLES) @(posedge clk);
     $fatal(1, "watchdog");
   end
 endmodule

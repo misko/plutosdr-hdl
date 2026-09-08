@@ -135,20 +135,18 @@ module starlink_pilot_ddc #(
   end
   function automatic [16:0] quantize_q16;
     input signed [34:0] value;
-    reg [34:0] magnitude;
-    reg [19:0] rounded;
+    reg signed [19:0] rounded;
+    reg increment;
     begin
-      magnitude = value[34] ? -value : value;
-      rounded = {1'b0, magnitude[34:16]} +
-          ((magnitude[15:0] > 16'h8000) ||
-           ((magnitude[15:0] == 16'h8000) && magnitude[16]));
-      if (value[34]) begin
-        if (rounded > 32768) quantize_q16 = {1'b1, 16'h8000};
-        else quantize_q16 = {1'b0, -rounded[15:0]};
-      end else begin
-        if (rounded > 32767) quantize_q16 = {1'b1, 16'h7fff};
-        else quantize_q16 = {1'b0, rounded[15:0]};
-      end
+      // Arithmetic truncation is floor even for negative two's-complement
+      // values. Add one above a half, or at a half with an odd floor. This is
+      // exact signed ties-to-even without two wide magnitude/sign negations.
+      increment = (value[15:0] > 16'h8000) ||
+          ((value[15:0] == 16'h8000) && value[16]);
+      rounded = $signed({value[34], value[34:16]}) + $signed({1'b0, increment});
+      if (rounded < -20'sd32768) quantize_q16 = {1'b1, 16'h8000};
+      else if (rounded > 20'sd32767) quantize_q16 = {1'b1, 16'h7fff};
+      else quantize_q16 = {1'b0, rounded[15:0]};
     end
   endfunction
   wire [16:0] quantized_i = quantize_q16(sum_i);

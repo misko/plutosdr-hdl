@@ -149,23 +149,18 @@ module starlink_pilot_fir3 #(
     end
   end endgenerate
 
-  // {saturated, CI16}; signed magnitude, nearest with ties to even.
+  // {saturated, CI16}; signed floor plus a nearest/ties-to-even increment.
   function automatic [16:0] quantize_q17;
     input signed [43:0] value;
-    reg [43:0] magnitude;
-    reg [27:0] rounded;
+    reg signed [27:0] rounded;
+    reg increment;
     begin
-      magnitude = value[43] ? -value : value;
-      rounded = {1'b0, magnitude[43:17]} +
-          ((magnitude[16:0] > 17'h10000) ||
-           ((magnitude[16:0] == 17'h10000) && magnitude[17]));
-      if (value[43]) begin
-        if (rounded > 32768) quantize_q17 = {1'b1, 16'h8000};
-        else quantize_q17 = {1'b0, -rounded[15:0]};
-      end else begin
-        if (rounded > 32767) quantize_q17 = {1'b1, 16'h7fff};
-        else quantize_q17 = {1'b0, rounded[15:0]};
-      end
+      increment = (value[16:0] > 17'h10000) ||
+          ((value[16:0] == 17'h10000) && value[17]);
+      rounded = $signed({value[43], value[43:17]}) + $signed({1'b0, increment});
+      if (rounded < -28'sd32768) quantize_q17 = {1'b1, 16'h8000};
+      else if (rounded > 28'sd32767) quantize_q17 = {1'b1, 16'h7fff};
+      else quantize_q17 = {1'b0, rounded[15:0]};
     end
   endfunction
   wire [16:0] quantized_i = quantize_q17(total_i);

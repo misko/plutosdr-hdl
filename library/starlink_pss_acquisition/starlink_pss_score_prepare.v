@@ -51,16 +51,12 @@ module starlink_pss_score_prepare #(
   reg [CORRELATION_POWER_BITS-1:0] product_square_i;
   (* use_dsp = "yes" *)
   reg [CORRELATION_POWER_BITS-1:0] product_square_q;
-  (* use_dsp = "no" *) reg [RATIO_BITS-1:0] product_denominator;
   reg [4:0] product_forward_exponent;
   reg [4:0] product_inverse_exponent;
-  reg [63:0] product_start_index;
 
   reg sum_valid;
   reg [CORRELATION_POWER_BITS-1:0] sum_correlation_power;
-  reg [RATIO_BITS-1:0] sum_denominator;
   reg [6:0] sum_power_shift;
-  reg [63:0] sum_start_index;
 
   wire output_stage_ready;
   wire sum_stage_ready;
@@ -72,15 +68,19 @@ module starlink_pss_score_prepare #(
   wire numerator_overflow;
   wire [RATIO_BITS-1:0] shifted_correlation_power;
 
-  // Deliberately do not reload the output register on the same edge that its
-  // prior item is consumed.  The upstream 512-entry result FIFO absorbs this
-  // harmless bubble, while the registered valid bit cuts the divider's ready
-  // logic out of the wide shift/saturation register-enable cone.
+  // One job owns the denominator and start-index output bank throughout all
+  // three arithmetic stages and any output stall. No need to carry two extra
+  // copies of those 133 unchanged bits through elastic registers. At no stall,
+  // admission every four clocks sustains 25 M candidates/s at 100 MHz, above
+  // the canonical 15 M/s stream; the 512-entry raw FIFO absorbs dense bursts.
+  // Ready depends only on registered occupancy, not the divider's ready cone.
   assign output_stage_ready = !output_valid;
-  assign sum_stage_ready = !sum_valid || output_stage_ready;
-  assign product_stage_ready = !product_valid || sum_stage_ready;
+  assign sum_stage_ready = !sum_valid;
+  assign product_stage_ready = !product_valid && !sum_valid && !output_valid;
   assign input_ready = resetn && !flush && product_stage_ready;
   assign input_accept = input_valid && input_ready;
+  (* use_dsp = "no" *) wire [RATIO_BITS-1:0] input_energy_product =
+      input_sample_energy * COEFFICIENT_ENERGY;
 
   assign extended_correlation_power =
     {{POWER_EXTENSION_BITS{1'b0}}, sum_correlation_power};
@@ -107,15 +107,11 @@ module starlink_pss_score_prepare #(
       product_valid <= 1'b0;
       product_square_i <= 0;
       product_square_q <= 0;
-      product_denominator <= 0;
       product_forward_exponent <= 0;
       product_inverse_exponent <= 0;
-      product_start_index <= 0;
       sum_valid <= 1'b0;
       sum_correlation_power <= 0;
-      sum_denominator <= 0;
       sum_power_shift <= 0;
-      sum_start_index <= 0;
       output_valid <= 1'b0;
       output_numerator <= 0;
       output_denominator <= 0;
@@ -127,11 +123,14 @@ module starlink_pss_score_prepare #(
       completed_pulse <= 1'b0;
       numerator_saturation_pulse <= 1'b0;
       denominator_zero_pulse <= 1'b0;
+
     end else begin
       accepted_pulse <= input_accept;
       completed_pulse <= 1'b0;
       numerator_saturation_pulse <= 1'b0;
       denominator_zero_pulse <= 1'b0;
+      product_valid <= input_accept;
+      sum_valid <= product_valid;
 
       if (output_valid && output_ready)
         output_valid <= 1'b0;
@@ -142,41 +141,35 @@ module starlink_pss_score_prepare #(
           output_numerator <= numerator_overflow ?
                               {RATIO_BITS{1'b1}} :
                               shifted_correlation_power;
-          output_denominator <= sum_denominator;
           output_power_shift <= sum_power_shift;
-          output_start_index <= sum_start_index;
           output_numerator_saturated <= numerator_overflow;
-          output_denominator_zero <= sum_denominator == 0;
+          output_denominator_zero <= output_denominator == 0;
           completed_pulse <= 1'b1;
           numerator_saturation_pulse <= numerator_overflow;
-          denominator_zero_pulse <= sum_denominator == 0;
+          denominator_zero_pulse <= output_denominator == 0;
         end
       end
 
       if (sum_stage_ready) begin
-        sum_valid <= product_valid;
         if (product_valid) begin
           sum_correlation_power <= product_square_i + product_square_q;
-          sum_denominator <= product_denominator;
           sum_power_shift <=
             ({2'b00, product_forward_exponent} +
              {2'b00, product_inverse_exponent} +
              BASE_CORRELATION_SHIFT) << 1;
-          sum_start_index <= product_start_index;
         end
       end
 
       if (product_stage_ready) begin
-        product_valid <= input_accept;
         if (input_accept) begin
           product_square_i <=
             $signed(input_correlation_i) * $signed(input_correlation_i);
           product_square_q <=
             $signed(input_correlation_q) * $signed(input_correlation_q);
-          product_denominator <= input_sample_energy * COEFFICIENT_ENERGY;
+          output_denominator <= input_energy_product;
           product_forward_exponent <= input_forward_exponent;
           product_inverse_exponent <= input_inverse_exponent;
-          product_start_index <= input_start_index;
+          output_start_index <= input_start_index;
         end
       end
     end
