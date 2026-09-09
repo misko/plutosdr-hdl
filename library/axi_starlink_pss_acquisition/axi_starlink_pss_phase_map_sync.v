@@ -18,6 +18,7 @@ module axi_starlink_pss_phase_map_sync #(
   parameter integer MAP_WIDTH = 16,
   parameter integer INPUT_RATE_MSPS = 15,
   parameter integer USE_SHARED_XFFT = 0,
+  parameter integer ENABLE_BOUNDARY_STOP = 0,
   parameter [30:0] COEFFICIENT_ENERGY = 31'd1073742825
 ) (
   input  wire                          map_clk,
@@ -91,12 +92,31 @@ module axi_starlink_pss_phase_map_sync #(
   output wire [31:0]                   s_axi_rdata,
   input  wire                          s_axi_rready,
   input  wire [2:0]                    s_axi_awprot,
-  input  wire [2:0]                    s_axi_arprot
+  input  wire [2:0]                    s_axi_arprot,
+
+  // Same-clock core handshake. Request && ready is the actual admission
+  // fence edge, not merely an AXI write acknowledgment or a queued command.
+  output wire                          stop_request,
+  input  wire                          stop_ready,
+  input  wire                          stop_pending,
+  input  wire                          stop_ack,
+  input  wire                          stop_done,
+  input  wire                          stop_complete,
+  input  wire                          stop_failed,
+  input  wire [5:0]                    stop_failure_reason,
+  input  wire                          stop_has_map,
+  input  wire [31:0]                   stop_generation,
+  input  wire [63:0]                   stop_start_index,
+  input  wire [63:0]                   stop_end_index
 );
 
   localparam [31:0] IDENTIFICATION = 32'h5053_4d41;
   localparam integer DDC_ENABLED = INPUT_RATE_MSPS != 15;
   initial begin
+    if (ENABLE_BOUNDARY_STOP != 0 && ENABLE_BOUNDARY_STOP != 1)
+      $fatal(1, "ENABLE_BOUNDARY_STOP must be zero or one");
+    if (ENABLE_BOUNDARY_STOP && (USE_SHARED_XFFT != 1 || INPUT_RATE_MSPS != 15))
+      $fatal(1, "boundary-stop ABI 1.6 requires shared 15 MS/s");
     if (USE_SHARED_XFFT != 0 && USE_SHARED_XFFT != 1)
       $fatal(1, "USE_SHARED_XFFT must be zero or one");
     if (USE_SHARED_XFFT && INPUT_RATE_MSPS != 15)
@@ -105,10 +125,12 @@ module axi_starlink_pss_phase_map_sync #(
   // ABI 1.5 adds shared transform capability bit 8 and service-fault health
   // bit 14. Dedicated forward/inverse health bits retain their old meanings.
   // Old kernel/host readers must reject this version until explicitly updated.
-  localparam [31:0] VERSION = USE_SHARED_XFFT ? 32'h0001_0005 : (INPUT_RATE_MSPS == 60) ?
+  localparam [31:0] VERSION = ENABLE_BOUNDARY_STOP ? 32'h0001_0006 :
+      USE_SHARED_XFFT ? 32'h0001_0005 : (INPUT_RATE_MSPS == 60) ?
       32'h0001_0004 :
       ((INPUT_RATE_MSPS == 30) ? 32'h0001_0002 : 32'h0001_0001);
-  localparam [31:0] CAPABILITIES = USE_SHARED_XFFT ? 32'h0000_013f : (INPUT_RATE_MSPS == 60) ?
+  localparam [31:0] CAPABILITIES = ENABLE_BOUNDARY_STOP ? 32'h0000_033f :
+      USE_SHARED_XFFT ? 32'h0000_013f : (INPUT_RATE_MSPS == 60) ?
       32'h0000_00ff : (DDC_ENABLED ? 32'h0000_007f : 32'h0000_003f);
   // ABI 1.1/1.2 values remain exact. ABI 1.4 advertises two cascaded stages,
   // total decimation four, and coherent 64-bit DDC observation counters.
@@ -188,6 +210,8 @@ module axi_starlink_pss_phase_map_sync #(
   localparam [5:0] REG_DDC_SATURATION = 6'h3b;
   localparam [5:0] REG_DDC_ACCEPTED_HI = 6'h3c;
   localparam [5:0] REG_DDC_EMITTED_HI = 6'h3d;
+  localparam [5:0] REG_STOP_TICKET = 6'h3e;
+  localparam [5:0] REG_STOP_WORD = 6'h3f;
 
   localparam integer HEALTH_INGRESS_OVERFLOW = 12;
   localparam integer HEALTH_DDC_SATURATION = 13;
@@ -258,6 +282,85 @@ module axi_starlink_pss_phase_map_sync #(
   reg register_read_pending;
   reg [31:0] register_read_data;
 
+  reg [3:0] stop_word_select;
+  reg stop_staged;
+  reg [31:0] stop_staged_ticket;
+  reg [31:0] stop_accepted_ticket;
+  reg stop_active;
+  reg stop_terminal_valid;
+  reg stop_terminal_complete;
+  reg stop_terminal_has_map;
+  reg [31:0] stop_terminal_ticket;
+  reg [31:0] stop_terminal_generation;
+  reg [63:0] stop_terminal_start;
+  reg [63:0] stop_terminal_end;
+  reg [5:0] stop_failure_latched;
+  reg [2:0] stop_command_status;
+
+  wire control_write_now = up_wreq && up_waddr == REG_CONTROL && up_wstrb[0];
+  wire control_abort_now = control_write_now && (!up_wdata[0] || up_wdata[1]);
+  // Fatal shared-service mask is deliberately unchanged; denominator zero
+  // (bit 11/count) is diagnostic. These are live observations, not a single
+  // atomic RF/health snapshot. PSMA snapshots remain independently available.
+  wire stop_upstream_fault_now = |(snapshot_health_flags & 32'h0000_57ff) ||
+      |ingress_dropped_sample_count || |scheduler_gap_count ||
+      |scheduler_index_error_count || |scheduler_overflow_count ||
+      |detector_fault_count || |score_phase_index_discontinuity_count;
+  wire stop_map_fault_now = |discarded_score_count || |discontinuity_abort_count ||
+      |map_overrun_count || |score_protocol_error_count ||
+      |map_arithmetic_overflow_count || |map_read_error_count ||
+      |map_release_error_count;
+  wire stop_bridge_fault_now = |bridge_read_error_count ||
+      |bridge_release_error_count || |snapshot_request_overrun_count ||
+      (read_pending && map_read_error) ||
+      (release_pending && !map_ready_mask[map_release_bank]) ||
+      (up_wreq && up_waddr == REG_MAP_RELEASE && up_wstrb[0] && up_wdata[0] &&
+       (read_pending || release_pending)) ||
+      (up_wreq && up_waddr == REG_SNAPSHOT_CONTROL && up_wstrb[0] && up_wdata[0] &&
+       snapshot_pending) ||
+      (up_rreq && up_raddr == REG_MAP_DATA && !register_read_pending &&
+       !read_pending && release_pending);
+  wire [5:0] stop_hardware_fault_now =
+      {3'd0, stop_bridge_fault_now, stop_map_fault_now, stop_upstream_fault_now};
+  wire stop_observing = stop_active || stop_terminal_valid;
+  wire [5:0] stop_fault_now = stop_hardware_fault_now |
+      ((stop_observing && stop_failed) ? stop_failure_reason : 6'd0) |
+      ((stop_active && control_abort_now) ? 6'b001000 : 6'd0);
+  wire [5:0] stop_visible_failure = stop_failure_latched |
+      (stop_observing ? stop_fault_now : 6'd0);
+  assign stop_request = ENABLE_BOUNDARY_STOP && core_resetn && stop_staged &&
+      control_enable && !acquisition_flush && !control_abort_now &&
+      !(|stop_hardware_fault_now) && stop_ready;
+
+  wire [31:0] stop_state_word = {26'd0,
+      acquisition_enable,
+      (stop_terminal_valid && stop_terminal_has_map),
+      (|stop_visible_failure),
+      (stop_terminal_valid && stop_terminal_complete),
+      stop_terminal_valid,
+      (stop_staged || stop_active)};
+
+  function automatic [31:0] stop_window_value;
+    input [3:0] word_index;
+    begin
+      case (word_index)
+        0: stop_window_value = 32'h5053_5354;
+        1: stop_window_value = 32'h0001_000c;
+        2: stop_window_value = stop_state_word;
+        3: stop_window_value = stop_accepted_ticket;
+        4: stop_window_value = stop_terminal_ticket;
+        5: stop_window_value = stop_terminal_generation;
+        6: stop_window_value = stop_terminal_start[31:0];
+        7: stop_window_value = stop_terminal_start[63:32];
+        8: stop_window_value = stop_terminal_end[31:0];
+        9: stop_window_value = stop_terminal_end[63:32];
+        10: stop_window_value = {26'd0, stop_visible_failure};
+        11: stop_window_value = {29'd0, stop_command_status};
+        default: stop_window_value = 32'd0;
+      endcase
+    end
+  endfunction
+
   wire [31:0] up_write_mask = {
     {8{up_wstrb[3]}}, {8{up_wstrb[2]}},
     {8{up_wstrb[1]}}, {8{up_wstrb[0]}}
@@ -298,6 +401,8 @@ module axi_starlink_pss_phase_map_sync #(
         REG_CAPABILITIES: register_value = CAPABILITIES;
         REG_CONTROL: register_value = {31'd0, control_enable};
         REG_STATUS: register_value = status_word;
+        REG_STOP_TICKET: register_value = ENABLE_BOUNDARY_STOP ? stop_accepted_ticket : 32'd0;
+        REG_STOP_WORD: register_value = ENABLE_BOUNDARY_STOP ? stop_window_value(stop_word_select) : 32'd0;
         REG_MAP_SELECT: register_value = {31'd0, selected_map_bank};
         REG_MAP_INDEX: register_value = selected_map_index;
         REG_COMMAND_STATUS: register_value = command_status_word;
@@ -432,6 +537,20 @@ module axi_starlink_pss_phase_map_sync #(
       snapshot_request_overrun_count <= 32'd0;
       register_read_pending <= 1'b0;
       register_read_data <= 32'd0;
+      stop_word_select <= 4'd0;
+      stop_staged <= 1'b0;
+      stop_staged_ticket <= 32'd0;
+      stop_accepted_ticket <= 32'd0;
+      stop_active <= 1'b0;
+      stop_terminal_valid <= 1'b0;
+      stop_terminal_complete <= 1'b0;
+      stop_terminal_has_map <= 1'b0;
+      stop_terminal_ticket <= 32'd0;
+      stop_terminal_generation <= 32'd0;
+      stop_terminal_start <= 64'd0;
+      stop_terminal_end <= 64'd0;
+      stop_failure_latched <= 6'd0;
+      stop_command_status <= 3'd0;
     end else begin
       up_wack <= up_wreq;
       up_rack <= 1'b0;
@@ -553,6 +672,85 @@ module axi_starlink_pss_phase_map_sync #(
           default: begin
           end
         endcase
+      end
+
+      if (ENABLE_BOUNDARY_STOP) begin
+        // CONTROL still applies its enable/flush bits above. A pending
+        // operation's fault/terminal retirement below wins a coincident
+        // enable write; its flush pulse is never suppressed. Re-enable with
+        // a subsequent CONTROL write after observing terminal status.
+        if (control_write_now && up_wdata[0] && !control_enable)
+          stop_terminal_valid <= 1'b0;
+        if (stop_observing && |stop_fault_now)
+          stop_failure_latched <= stop_failure_latched | stop_fault_now;
+        if (stop_active && (|stop_hardware_fault_now || stop_failed))
+          control_enable <= 1'b0;
+        if (stop_active && stop_ack && stop_done) begin
+          stop_active <= 1'b0;
+          stop_terminal_valid <= 1'b1;
+          stop_terminal_complete <= stop_complete;
+          stop_terminal_has_map <= stop_has_map;
+          stop_terminal_ticket <= stop_accepted_ticket;
+          stop_terminal_generation <= stop_generation;
+          stop_terminal_start <= stop_start_index;
+          stop_terminal_end <= stop_end_index;
+          control_enable <= 1'b0;
+        end
+
+        if (stop_staged) begin
+          stop_staged <= 1'b0;
+          if (stop_request) begin
+            // Same edge as the ready core applies its first-score fence.
+            stop_accepted_ticket <= stop_staged_ticket;
+            stop_active <= 1'b1;
+            stop_terminal_valid <= 1'b0;
+            stop_failure_latched <= 6'd0;
+            stop_command_status <= 3'd0;
+          end else if (|stop_hardware_fault_now) begin
+            stop_command_status <= 3'd5;
+          end else if (!control_enable || acquisition_flush || control_abort_now || !stop_ready) begin
+            stop_command_status <= 3'd4;
+          end else begin
+            stop_command_status <= 3'd3;
+          end
+        end
+
+        if (up_wreq && up_waddr == REG_STOP_WORD) begin
+          if (up_wstrb == 4'hf && up_wdata < 12)
+            stop_word_select <= up_wdata[3:0];
+          else
+            stop_command_status <= 3'd1;
+        end
+        if (up_wreq && up_waddr == REG_STOP_TICKET) begin
+          if (up_wstrb != 4'hf) begin
+            stop_command_status <= 3'd1;
+          end else if (up_wdata == 0) begin
+            stop_command_status <= 3'd2;
+          end else if (stop_staged && up_wdata == stop_staged_ticket) begin
+            // A same-edge retry must not overwrite a rejected staged
+            // operation with an apparently successful idempotent status.
+            if (stop_request)
+              stop_command_status <= 3'd0;
+            else if (|stop_hardware_fault_now)
+              stop_command_status <= 3'd5;
+            else
+              stop_command_status <= 3'd4;
+          end else if (up_wdata == stop_accepted_ticket) begin
+            stop_command_status <= 3'd0;
+          end else if (stop_staged || stop_active || stop_pending) begin
+            stop_command_status <= 3'd3;
+          end else if ((&stop_accepted_ticket) || up_wdata != stop_accepted_ticket + 1'b1) begin
+            stop_command_status <= 3'd2;
+          end else if (|stop_hardware_fault_now) begin
+            stop_command_status <= 3'd5;
+          end else if (!control_enable || acquisition_flush || !stop_ready) begin
+            stop_command_status <= 3'd4;
+          end else begin
+            stop_staged <= 1'b1;
+            stop_staged_ticket <= up_wdata;
+            stop_command_status <= 3'd0;
+          end
+        end
       end
 
       if (register_read_pending) begin

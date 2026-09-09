@@ -6,6 +6,7 @@
 module starlink_pss_iq_to_phase_map #(
   parameter integer USE_SHARED_XFFT = 0,
   parameter integer USE_REALTIME_XFFT = 0,
+  parameter integer ENABLE_BOUNDARY_STOP = 0,
   parameter KERNEL_ROM_FILE = "",
   parameter [30:0] COEFFICIENT_ENERGY = 31'd1,
   parameter integer PHASE_BINS = 20000,
@@ -73,8 +74,28 @@ module starlink_pss_iq_to_phase_map #(
   output wire [31:0]                  score_protocol_error_count,
   output wire [31:0]                  map_arithmetic_overflow_count,
   output wire [31:0]                  map_read_error_count,
-  output wire [31:0]                  map_release_error_count
+  output wire [31:0]                  map_release_error_count,
+  input  wire                         stop_request,
+  output wire                         stop_ready, stop_pending, stop_ack, stop_done,
+  output wire                         stop_complete, stop_failed, stop_has_map,
+  output wire [5:0]                   stop_failure_reason,
+  output wire [31:0]                  stop_generation,
+  output wire [63:0]                  stop_start_index, stop_end_index
 );
+
+  // This legacy interface stub must never qualify enabled stop behavior.
+  initial if (ENABLE_BOUNDARY_STOP) $fatal(1, "legacy acquisition stub has no stop engine");
+  assign stop_ready = 1'b0;
+  assign stop_pending = 1'b0;
+  assign stop_ack = 1'b0;
+  assign stop_done = 1'b0;
+  assign stop_complete = 1'b0;
+  assign stop_failed = 1'b0;
+  assign stop_has_map = 1'b0;
+  assign stop_failure_reason = 6'd0;
+  assign stop_generation = 32'd0;
+  assign stop_start_index = 64'd0;
+  assign stop_end_index = 64'd0;
 
   assign map_ready_mask = 2'd0;
   assign map_generation_0 = 32'd0;
@@ -123,7 +144,7 @@ module starlink_pss_iq_to_phase_map #(
     TILE_FRAME_WIDTH, MAP_SEGMENT_ADDRESS_WIDTH, MAP_SEGMENT_COUNT,
     MAP_SEGMENT_INDEX_WIDTH, clk, resetn, enable, flush, sample_valid,
     sample_gap, sample_i, sample_q, sample_index, map_read_bank,
-    map_read_index, map_release, map_release_bank
+    map_read_index, map_release, map_release_bank, stop_request
   };
 
 endmodule

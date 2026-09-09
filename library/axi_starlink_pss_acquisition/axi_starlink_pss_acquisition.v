@@ -14,7 +14,8 @@ module axi_starlink_pss_acquisition #(
   parameter integer INPUT_RATE_MSPS = 15,
   parameter integer ENABLE_PILOT_TAP = 0,
   parameter integer USE_SHARED_XFFT = 0,
-  parameter integer USE_REALTIME_XFFT = 0
+  parameter integer USE_REALTIME_XFFT = 0,
+  parameter integer ENABLE_BOUNDARY_STOP = 0
 ) (
   input  wire                 sample_clk,
   input  wire                 fft_clk,
@@ -113,6 +114,11 @@ module axi_starlink_pss_acquisition #(
 
   wire acquisition_enable;
   wire acquisition_flush;
+  wire stop_request, stop_ready, stop_pending, stop_ack, stop_done;
+  wire stop_complete, stop_failed, stop_has_map;
+  wire [5:0] stop_failure_reason;
+  wire [31:0] stop_generation;
+  wire [63:0] stop_start_index, stop_end_index;
   wire conditioner_enable = acquisition_enable || (ENABLE_PILOT_TAP && pilot_enable);
   wire [1:0] map_ready_mask;
   wire [31:0] map_generation_0;
@@ -173,6 +179,10 @@ module axi_starlink_pss_acquisition #(
       ((INPUT_RATE_MSPS == 30) ? 31'd1073744004 : 31'd1073742825);
 
   initial begin
+    if (ENABLE_BOUNDARY_STOP != 0 && ENABLE_BOUNDARY_STOP != 1)
+      $fatal(1, "ENABLE_BOUNDARY_STOP must be zero or one");
+    if (ENABLE_BOUNDARY_STOP && (USE_SHARED_XFFT != 1 || INPUT_RATE_MSPS != 15))
+      $fatal(1, "boundary stop requires shared 15 MS/s");
     if (USE_REALTIME_XFFT != 0 && USE_REALTIME_XFFT != 1)
       $fatal(1, "USE_REALTIME_XFFT must be zero or one");
     if (USE_REALTIME_XFFT &&
@@ -309,6 +319,7 @@ module axi_starlink_pss_acquisition #(
   endgenerate
 
   starlink_pss_iq_to_phase_map #(
+    .ENABLE_BOUNDARY_STOP(ENABLE_BOUNDARY_STOP),
     .USE_SHARED_XFFT   (USE_SHARED_XFFT),
     .USE_REALTIME_XFFT (USE_REALTIME_XFFT),
     .KERNEL_ROM_FILE   (ACQUISITION_KERNEL_ROM_FILE),
@@ -370,10 +381,23 @@ module axi_starlink_pss_acquisition #(
     .score_protocol_error_count           (score_protocol_error_count),
     .map_arithmetic_overflow_count        (map_arithmetic_overflow_count),
     .map_read_error_count                 (map_read_error_count),
-    .map_release_error_count              (map_release_error_count)
+    .map_release_error_count              (map_release_error_count),
+    .stop_request                         (stop_request),
+    .stop_ready                           (stop_ready),
+    .stop_pending                         (stop_pending),
+    .stop_ack                             (stop_ack),
+    .stop_done                            (stop_done),
+    .stop_complete                        (stop_complete),
+    .stop_failed                          (stop_failed),
+    .stop_failure_reason                  (stop_failure_reason),
+    .stop_has_map                         (stop_has_map),
+    .stop_generation                      (stop_generation),
+    .stop_start_index                     (stop_start_index),
+    .stop_end_index                       (stop_end_index)
   );
 
   axi_starlink_pss_phase_map_sync #(
+    .ENABLE_BOUNDARY_STOP(ENABLE_BOUNDARY_STOP),
     .USE_SHARED_XFFT    (USE_SHARED_XFFT),
     .INPUT_RATE_MSPS    (INPUT_RATE_MSPS),
     .COEFFICIENT_ENERGY(ACQUISITION_COEFFICIENT_ENERGY)
@@ -421,6 +445,18 @@ module axi_starlink_pss_acquisition #(
     .ddc_saturation_event_count           (ddc_saturation_event_count),
     .acquisition_enable                   (acquisition_enable),
     .acquisition_flush                    (acquisition_flush),
+    .stop_request                         (stop_request),
+    .stop_ready                           (stop_ready),
+    .stop_pending                         (stop_pending),
+    .stop_ack                             (stop_ack),
+    .stop_done                            (stop_done),
+    .stop_complete                        (stop_complete),
+    .stop_failed                          (stop_failed),
+    .stop_failure_reason                  (stop_failure_reason),
+    .stop_has_map                         (stop_has_map),
+    .stop_generation                      (stop_generation),
+    .stop_start_index                     (stop_start_index),
+    .stop_end_index                       (stop_end_index),
     .irq                                  (irq),
     .s_axi_aclk                           (s_axi_aclk),
     .s_axi_aresetn                        (s_axi_aresetn),

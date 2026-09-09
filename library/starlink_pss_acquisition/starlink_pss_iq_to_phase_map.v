@@ -19,7 +19,8 @@ module starlink_pss_iq_to_phase_map #(
   parameter integer MAP_SEGMENT_COUNT = 10,
   parameter integer MAP_SEGMENT_INDEX_WIDTH = 4,
   parameter integer USE_SHARED_XFFT = 0,
-  parameter integer USE_REALTIME_XFFT = 0
+  parameter integer USE_REALTIME_XFFT = 0,
+  parameter integer ENABLE_BOUNDARY_STOP = 0
 ) (
   input  wire                          clk,
   input  wire                          resetn,
@@ -84,7 +85,20 @@ module starlink_pss_iq_to_phase_map #(
   output wire [31:0]                   score_protocol_error_count,
   output wire [31:0]                   map_arithmetic_overflow_count,
   output wire [31:0]                   map_read_error_count,
-  output wire [31:0]                   map_release_error_count
+  output wire [31:0]                   map_release_error_count,
+
+  input  wire                          stop_request,
+  output wire                          stop_ready,
+  output wire                          stop_pending,
+  output wire                          stop_ack,
+  output wire                          stop_done,
+  output wire                          stop_complete,
+  output wire                          stop_failed,
+  output wire [5:0]                    stop_failure_reason,
+  output wire                          stop_has_map,
+  output wire [31:0]                   stop_generation,
+  output wire [63:0]                   stop_start_index,
+  output wire [63:0]                   stop_end_index
 );
 
   wire raw_score_valid;
@@ -102,6 +116,10 @@ module starlink_pss_iq_to_phase_map #(
   reg map_stream_discontinuity;
 
   initial begin
+    if (ENABLE_BOUNDARY_STOP != 0 && ENABLE_BOUNDARY_STOP != 1)
+      $fatal(1, "ENABLE_BOUNDARY_STOP must be zero or one");
+    if (ENABLE_BOUNDARY_STOP && USE_SHARED_XFFT != 1)
+      $fatal(1, "boundary stop requires the explicit shared composition");
     if (USE_REALTIME_XFFT != 0 && USE_REALTIME_XFFT != 1)
       $fatal(1, "USE_REALTIME_XFFT must be zero or one");
     if (USE_REALTIME_XFFT && USE_SHARED_XFFT != 1)
@@ -109,6 +127,10 @@ module starlink_pss_iq_to_phase_map #(
   end
 
   assign map_enable = enable && !flush && !detector_fault;
+  // Conservative ready excludes the core's rearm edge itself.  A controller
+  // drives a request only when ready, so both sides observe exactly the same
+  // acceptance edge, including flush/detector-fault changes before that edge.
+  assign stop_ready = ENABLE_BOUNDARY_STOP && map_enable && !stop_pending && !stop_done;
   assign source_discontinuity = sample_gap || scheduler_gap_pulse ||
       scheduler_index_error_pulse || scheduler_overflow_pulse ||
       detector_fault;
@@ -236,7 +258,8 @@ module starlink_pss_iq_to_phase_map #(
     .MAP_WIDTH               (MAP_WIDTH),
     .MAP_SEGMENT_ADDRESS_WIDTH(MAP_SEGMENT_ADDRESS_WIDTH),
     .MAP_SEGMENT_COUNT       (MAP_SEGMENT_COUNT),
-    .MAP_SEGMENT_INDEX_WIDTH (MAP_SEGMENT_INDEX_WIDTH)
+    .MAP_SEGMENT_INDEX_WIDTH (MAP_SEGMENT_INDEX_WIDTH),
+    .ENABLE_BOUNDARY_STOP    (ENABLE_BOUNDARY_STOP)
   ) phase_map (
     .clk                          (clk),
     .resetn                       (resetn),
@@ -267,7 +290,18 @@ module starlink_pss_iq_to_phase_map #(
     .score_protocol_error_count   (score_protocol_error_count),
     .map_arithmetic_overflow_count(map_arithmetic_overflow_count),
     .map_read_error_count         (map_read_error_count),
-    .map_release_error_count      (map_release_error_count)
+    .map_release_error_count      (map_release_error_count),
+    .stop_request                 (stop_request),
+    .stop_pending                 (stop_pending),
+    .stop_ack                     (stop_ack),
+    .stop_done                    (stop_done),
+    .stop_complete                (stop_complete),
+    .stop_failed                  (stop_failed),
+    .stop_failure_reason          (stop_failure_reason),
+    .stop_has_map                 (stop_has_map),
+    .stop_generation              (stop_generation),
+    .stop_start_index             (stop_start_index),
+    .stop_end_index               (stop_end_index)
   );
 
   starlink_pss_acquisition_health #(

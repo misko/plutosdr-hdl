@@ -144,4 +144,6 @@ set_property -dict [list value_validation_type list value_validation_list "0 1"]
   [ipx::get_user_parameters USE_REALTIME_XFFT -of_objects [ipx::current_core]]
 set_property -dict [list value_validation_type list value_validation_list "0 1"] \
   [ipx::get_user_parameters ENABLE_PILOT_TAP -of_objects [ipx::current_core]]
+set_property -dict [list value_validation_type list value_validation_list "0 1"] \
+  [ipx::get_user_parameters ENABLE_BOUNDARY_STOP -of_objects [ipx::current_core]]
 ipx::save_core [ipx::current_core]
