@@ -13,7 +13,8 @@ module axi_starlink_pss_tracker #(
   parameter integer COMMAND_FIFO_ADDRESS_WIDTH = 3,
   parameter [63:0] MINIMUM_LEAD_SAMPLES =
       64'd64 * (RATE_MSPS / 15),
-  parameter integer ENABLE_INJECTION = 1
+  parameter integer ENABLE_INJECTION = 1,
+  parameter integer USE_DSP_REDUCER = (RATE_MSPS == 60)
 ) (
   input  wire                 sample_clk,
   input  wire                 sample_reset,
@@ -954,6 +955,7 @@ module axi_starlink_pss_tracker #(
 
   starlink_pss_reduced_tracking_core #(
     .RATE_MULTIPLIER           (RATE_MULTIPLIER),
+    .USE_DSP_REDUCER           (USE_DSP_REDUCER),
     .COMMAND_FIFO_ADDRESS_WIDTH (COMMAND_FIFO_ADDRESS_WIDTH),
     .MINIMUM_LEAD_SAMPLES       (MINIMUM_LEAD_SAMPLES)
   ) i_core (

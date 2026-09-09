@@ -24,6 +24,17 @@ set gate_report [open shared_xfft_init_gate.txt w]
 puts $gate_report "scope=complete_receiver_structure_and_constraints_ONLY_not_fit_or_timing"
 pss_shared_one {.*transform_service/shared_xfft$}
 pss_shared_one {.*starlink_pss_tracker/inst$}
+# Check the actual selected arithmetic, not only an IP parameter/readback.
+# The existing unsigned 77x38 exact multiplier uses ten DSP48E1 primitives;
+# the three correlator DSPs are outside this reducer subtree.
+set tracker_reducer_dsps [get_cells -quiet -hier -filter \
+  {NAME =~ *starlink_pss_tracker* && NAME =~ *g_dsp_exact_reducer* && REF_NAME == DSP48E1}]
+set tracker_serial_reducer [get_cells -quiet -hier -regexp \
+  {.*starlink_pss_tracker/inst/.*g_slice_exact_reducer.*}]
+if {[llength $tracker_reducer_dsps] != 10 || [llength $tracker_serial_reducer]} {
+  error "shared receiver requires the exact ten-DSP tracker reducer and no serial reducer"
+}
+puts $gate_report "tracker_exact_reducer_dsp48e1=10 serial_reducer_present=0"
 pss_shared_one {.*starlink_pilot_capture/inst$}
 pss_shared_one {.*starlink_pilot_dma/inst$}
 set cores [get_cells -quiet -hier -filter \

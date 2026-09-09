@@ -13,7 +13,10 @@
 module starlink_pss_reduced_tracking_core #(
   parameter integer RATE_MULTIPLIER = 1,
   parameter integer COMMAND_FIFO_ADDRESS_WIDTH = 3,
-  parameter [63:0] MINIMUM_LEAD_SAMPLES = 64'd64 * RATE_MULTIPLIER
+  parameter [63:0] MINIMUM_LEAD_SAMPLES = 64'd64 * RATE_MULTIPLIER,
+  // Preserve legacy defaults; the shared paired receiver can trade spare DSPs
+  // for slice logic. Both implementations use the same exact TRACK_ONE score.
+  parameter integer USE_DSP_REDUCER = (RATE_MULTIPLIER == 4)
 ) (
   input  wire                i_control_clk,
   input  wire                i_sample_clk,
@@ -217,7 +220,10 @@ module starlink_pss_reduced_tracking_core #(
   wire [68:0] reduced_result_score_denominator;
 
   generate
-    if (RATE_MULTIPLIER == 4) begin : g_dsp_exact_reducer
+    if ((USE_DSP_REDUCER != 0) && (USE_DSP_REDUCER != 1)) begin : g_invalid_reducer_choice
+      initial $fatal(1, "USE_DSP_REDUCER must be 0 or 1");
+    end
+    if (USE_DSP_REDUCER) begin : g_dsp_exact_reducer
       starlink_pss_exact_track_reducer #(
         .RATE_MULTIPLIER (RATE_MULTIPLIER)
       ) i_exact_reducer (

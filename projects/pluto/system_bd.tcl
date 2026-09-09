@@ -326,6 +326,18 @@ if {$starlink_pss_tracker_enabled} {
   ad_ip_parameter starlink_pss_tracker CONFIG.COMMAND_FIFO_ADDRESS_WIDTH 3
   ad_ip_parameter starlink_pss_tracker CONFIG.MINIMUM_LEAD_SAMPLES $starlink_pss_minimum_lead_samples
   ad_ip_parameter starlink_pss_tracker CONFIG.ENABLE_INJECTION 0
+  # The shared paired image has spare DSPs but is slice-packing limited. Reuse
+  # the existing exact DSP reducer here; other profiles retain their defaults.
+  set starlink_pss_dsp_reducer [expr {
+    $starlink_pss_shared_xfft || $starlink_pss_rate_msps == 60
+  }]
+  ad_ip_parameter starlink_pss_tracker CONFIG.USE_DSP_REDUCER $starlink_pss_dsp_reducer
+  set starlink_pss_dsp_readback [get_property CONFIG.USE_DSP_REDUCER \
+    [get_bd_cells starlink_pss_tracker]]
+  if {$starlink_pss_dsp_readback ne $starlink_pss_dsp_reducer} {
+    error "tracker reducer IP readback mismatch: requested=$starlink_pss_dsp_reducer actual=$starlink_pss_dsp_readback"
+  }
+  puts "STARLINK_PSS_TRACKER_DSP_IP_READBACK actual=$starlink_pss_dsp_readback image_unqualified=1"
   if {$starlink_pss_profile eq "full"} {
     ad_ip_instance util_vector_logic starlink_pss_stream_enable [list \
       C_OPERATION {and} \

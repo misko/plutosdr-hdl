@@ -379,6 +379,16 @@ slack.
 
 ## Complete TRACK_ONE composition
 
+The experimental shared paired receiver can explicitly select
+`USE_DSP_REDUCER=1` at 15 MS/s to reuse the exact DSP-backed reducer already
+used at 60 MS/s. The generic default remains serial at 15/30 and DSP-backed at
+60; other receiver profiles retain that selection. This changes service latency,
+not the exact score, first-wins tie rule, aperture or result packet ABI. Do not
+infer full-receiver timing or sustained throughput from a unit-level test.
+`measure_track_reducer_choice.tcl NEW_OUTPUT FULL_HDL_COMMIT` measures both
+existing alternatives in frozen copies of the complete 15 MS/s tracking core;
+it does not alter runtime sources or qualify receiver placement or CDC.
+
 `starlink_pss_reduced_tracking_core.v` preserves the 65-tuple raw-trace core
 unchanged, drains its four `-32,-31,+31,+32` guard tuples, and connects only
 the frozen `-30..+30` tracking aperture to the exact reducer in single-bank

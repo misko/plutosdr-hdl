@@ -71,5 +71,10 @@ set_property -dict [list \
   value_validation_list "0 1" \
 ] [ipx::get_user_parameters ENABLE_INJECTION -of_objects [ipx::current_core]]
 
+set_property -dict [list \
+  value_validation_type list \
+  value_validation_list "0 1" \
+] [ipx::get_user_parameters USE_DSP_REDUCER -of_objects [ipx::current_core]]
+
 ipx::create_xgui_files [ipx::current_core]
 ipx::save_core [ipx::current_core]
