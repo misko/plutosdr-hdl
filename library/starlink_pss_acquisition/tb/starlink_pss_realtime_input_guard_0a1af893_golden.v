@@ -1,3 +1,5 @@
+// Frozen executable source from 0a1af8933bb7d9bc4f0fa78b3350196e98045cda.
+// Only the module name is changed for differential testing.
 // SPDX-License-Identifier: GPL-2.0
 // ISOLATED EXPERIMENT; no production instantiation or realtime qualification.
 // One reset epoch admits exactly one reserved 512-word input job. The caller
@@ -12,7 +14,7 @@
 // waitstates are legal. Detect a violated demand immediately, even if the
 // caller accidentally withdraws input_enable. Do not wait for vendor halt.
 `timescale 1ns/1ps
-module starlink_pss_realtime_input_guard #(
+module starlink_pss_realtime_input_guard_0a1af893_golden #(
   parameter integer CHECK_INPUT_BLOCK_IDENTITY = 1
 ) (
   input wire clk,
@@ -87,18 +89,9 @@ module starlink_pss_realtime_input_guard #(
         if (certified_input_beat) begin
           input_started <= 1;
           if (certified_input_complete) input_complete <= 1;
+          else expected_position <= expected_position + 1'b1;
         end
       end
-      // This cursor is private, not a delivered-beat certificate. A presented
-      // malformed/duplicate beat may advance it on its fault edge; unchanged
-      // errors_now sets sticky quarantine on that same edge, closing slot_open
-      // before any later certificate or delivery. All public checks still use
-      // the original pre-edge ordinal. Saturate rather than wrap at the final
-      // slot, and purge the private value only through the existing reset.
-      // Keep the ordinal/metadata comparator off this counter's enable path.
-      if (slot_open && input_enable && input_valid && core_input_tready &&
-          expected_position != 511)
-        expected_position <= expected_position + 1'b1;
     end
   end
 endmodule

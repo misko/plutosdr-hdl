@@ -24,6 +24,23 @@ module tb_starlink_pss_shared_realtime_xfft_service;
     .output_position(output_position), .output_last(output_last),
     .output_metadata(output_metadata), .service_fault(service_fault)
   );
+  wire old_checker_ready, old_transport_ready, old_core_input_valid, old_core_input_last;
+  wire old_certified_beat, old_certified_complete, old_input_complete;
+  wire old_input_fault_now, old_input_fault;
+  wire [47:0] old_core_input_data;
+  wire [2:0] old_input_reasons;
+  starlink_pss_realtime_input_guard_0a1af893_golden #(.CHECK_INPUT_BLOCK_IDENTITY(0)) input_shadow (
+    .clk(fft_clk), .resetn(dut.core_aresetn), .job_start(dut.input_job_start),
+    .job_descriptor(dut.engine_metadata), .input_enable(dut.engine_input_enable),
+    .input_valid(dut.fast_input_valid), .input_ready(old_checker_ready),
+    .input_transport_ready(old_transport_ready), .input_data(dut.fast_input_data),
+    .input_position(dut.fast_input_position), .input_last(dut.fast_input_last),
+    .input_metadata(dut.fast_input_metadata), .core_input_tdata(old_core_input_data),
+    .core_input_tvalid(old_core_input_valid), .core_input_tready(dut.core_input_ready),
+    .core_input_tlast(old_core_input_last), .certified_input_beat(old_certified_beat),
+    .certified_input_complete(old_certified_complete), .input_complete(old_input_complete),
+    .fault_now(old_input_fault_now), .protocol_fault(old_input_fault), .fault_reasons(old_input_reasons)
+  );
   // Independent frozen public guard consumes the same actual checker/core
   // pins, but retains the original input-completion fence and all full input
   // fault checks. It does not receive the new retired-input shortcut.
@@ -57,6 +74,15 @@ module tb_starlink_pss_shared_realtime_xfft_service;
     #0.2;
     if (dut.fast_running) begin
       shadow_rows = shadow_rows + 1;
+      if ({dut.checker_ready, dut.input_transport_ready, dut.core_input_data,
+           dut.core_input_valid, dut.core_input_last, dut.certified_input_beat,
+           dut.certified_input_complete, dut.checked_input_complete, dut.input_fault_now,
+           dut.input_guard_fault, dut.input_guard.fault_reasons} !==
+          {old_checker_ready, old_transport_ready, old_core_input_data,
+           old_core_input_valid, old_core_input_last, old_certified_beat,
+           old_certified_complete, old_input_complete, old_input_fault_now,
+           old_input_fault, old_input_reasons})
+        $fatal(1, "INPUT_CURSOR_SERVICE_PUBLIC_MISMATCH");
       if (dut.return_commit_valid !== (old_return_valid && old_return_last))
         $fatal(1, "FINAL_AUTH_SERVICE_MISMATCH");
       if ({dut.job_ready, dut.return_valid, dut.result_busy, dut.result_commit,
@@ -457,6 +483,7 @@ module tb_starlink_pss_shared_realtime_xfft_service;
     if (shadow_rows < 1000 || retired_final_rows < 26 || retired_ack_rows < 26 || idle_input_rows < 26 || duplicate_phase_cases != 2)
       $fatal(1, "RETIRED_SERVICE_SHADOW_COVERAGE_MISSING");
     $display("RETIRED_SERVICE_SHADOW_PASS public_golden=1 original_fence=1 actual_input_checker=1 actual_FFT=1 idle_final_and_ACK_premises=1");
+    $display("INPUT_CURSOR_SERVICE_SHADOW_PASS actual_mailbox_and_core=1 public_pins=1 no_internal_deposits=1");
     $display("RETIRED_SERVICE_DUPLICATE_PASS final=1 ACK=1 same_edge_veto=1 actual_checker_fault=1");
     $display("RETIRED_SERVICE_SHADOW_COUNTS comparisons=%0d final_rows=%0d ACK_rows=%0d idle_rows=%0d", shadow_rows, retired_final_rows, retired_ack_rows, idle_input_rows);
     $display("REALTIME_SERVICE_CANDIDATE_PASS healthy_jobs=26 exact_words=13312 starvation_cases=6 final_veto_cases=3 malformed_bank_cases=2 independent_reset_cases=6 configure_reset_cases=2 partial_input_reset_cases=2 postcommit_ACK_fault_cases=1 CAUSE_FENCE_REVIEW_REQUIRED CAPACITY_AND_PHYSICAL_UNQUALIFIED");
