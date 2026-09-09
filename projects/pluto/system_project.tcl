@@ -1,25 +1,11 @@
+# Reject invalid intent before any ADI project creation or generated files.
+# The block design independently resolves the same policy before its mutations.
+source [file join [file dirname [info script]] starlink_pss_build_options.tcl]
+set pss_build_options [pss_resolve_build_options [array get ::env]]
+
 source ../../scripts/adi_env.tcl
 source $ad_hdl_dir/projects/scripts/adi_project_xilinx.tcl
 source $ad_hdl_dir/projects/scripts/adi_board.tcl
-
-# Reject an invalid realtime selector before creating a receiver project. The
-# block-design policy independently validates the same explicit opt-in.
-set realtime_xfft 0
-if {[info exists ::env(STARLINK_PSS_REALTIME_XFFT)]} {
-  set realtime_xfft $::env(STARLINK_PSS_REALTIME_XFFT)
-}
-if {$realtime_xfft ni {0 1}} {
-  error "STARLINK_PSS_REALTIME_XFFT must be 0 or 1"
-}
-if {$realtime_xfft &&
-    (![info exists ::env(STARLINK_PSS_SHARED_XFFT)] ||
-     $::env(STARLINK_PSS_SHARED_XFFT) ne "1" ||
-     ![info exists ::env(STARLINK_PSS_PROFILE)] ||
-     $::env(STARLINK_PSS_PROFILE) ne "paired-pilot" ||
-     ![info exists ::env(STARLINK_PSS_RATE_MSPS)] ||
-     $::env(STARLINK_PSS_RATE_MSPS) ne "15")} {
-  error "realtime-XFFT implementation requires explicit shared paired-pilot at 15 MS/s"
-}
 
 adi_project_create pluto 0 {} "xc7z010clg400-1"
 

@@ -1,5 +1,14 @@
 # create board design
 
+# Independent admission also protects callers that source the BD directly.
+source [file join [file dirname [info script]] starlink_pss_build_options.tcl]
+set starlink_pss_options [pss_resolve_build_options [array get ::env]]
+set starlink_pss_rate_msps [dict get $starlink_pss_options rate_msps]
+set starlink_pss_profile [dict get $starlink_pss_options profile]
+set starlink_pss_shared_xfft [dict get $starlink_pss_options shared_xfft]
+set starlink_pss_realtime_xfft [dict get $starlink_pss_options realtime_xfft]
+set starlink_pss_boundary_stop [dict get $starlink_pss_options boundary_stop]
+
 # Add custom repo
 set quantulum_ip_repo_path [file normalize [file join [file dirname [info script]] "../../../hdl-quantulum"]]
 set ip_repo_list [get_property IP_REPO_PATHS [current_fileset]]
@@ -236,54 +245,13 @@ ad_ip_parameter axi_ad9361 CONFIG.ADC_DCFILTER_DISABLE 1
 ad_ip_parameter axi_ad9361 CONFIG.ADC_IQCORRECTION_DISABLE 1
 ad_ip_parameter axi_ad9361 CONFIG.ADC_INIT_DELAY 21
 
-set starlink_pss_rate_msps 15
-if {[info exists ::env(STARLINK_PSS_RATE_MSPS)]} {
-  set starlink_pss_rate_msps $::env(STARLINK_PSS_RATE_MSPS)
-}
-if {$starlink_pss_rate_msps ni {15 30 60}} {
-  error "STARLINK_PSS_RATE_MSPS must be 15, 30, or 60, got $starlink_pss_rate_msps"
-}
-set starlink_pss_profile full
-if {[info exists ::env(STARLINK_PSS_PROFILE)]} {
-  set starlink_pss_profile $::env(STARLINK_PSS_PROFILE)
-}
-if {$starlink_pss_profile ni {full detector-only paired-pilot acquisition-only acquisition-injection}} {
-  error "Unsupported STARLINK_PSS_PROFILE: $starlink_pss_profile"
-}
-if {$starlink_pss_profile eq "acquisition-injection" &&
-    $starlink_pss_rate_msps != 15} {
-  error "STARLINK_PSS_PROFILE=acquisition-injection is qualified only at 15 MS/s"
-}
 set starlink_pss_tracker_enabled [expr {
   $starlink_pss_profile in {full detector-only paired-pilot}
 }]
-set starlink_pss_shared_xfft 0
-if {[info exists ::env(STARLINK_PSS_SHARED_XFFT)]} {
-  set starlink_pss_shared_xfft $::env(STARLINK_PSS_SHARED_XFFT)
-}
-if {$starlink_pss_shared_xfft ni {0 1}} {
-  error "STARLINK_PSS_SHARED_XFFT must be 0 or 1"
-}
-if {$starlink_pss_shared_xfft &&
-    ($starlink_pss_profile ne "paired-pilot" || $starlink_pss_rate_msps != 15)} {
-  error "shared-XFFT experiment requires paired-pilot at 15 MS/s"
-}
-set starlink_pss_realtime_xfft 0
-if {[info exists ::env(STARLINK_PSS_REALTIME_XFFT)]} {
-  set starlink_pss_realtime_xfft $::env(STARLINK_PSS_REALTIME_XFFT)
-}
-if {$starlink_pss_realtime_xfft ni {0 1}} {
-  error "STARLINK_PSS_REALTIME_XFFT must be 0 or 1"
-}
-if {$starlink_pss_realtime_xfft &&
-    (!$starlink_pss_shared_xfft || $starlink_pss_profile ne "paired-pilot" ||
-     $starlink_pss_rate_msps != 15)} {
-  error "realtime-XFFT experiment requires explicit shared paired-pilot at 15 MS/s"
-}
 set starlink_pss_rx_dma_enabled [expr {
   $starlink_pss_profile ni {detector-only paired-pilot}
 }]
-puts "STARLINK_PSS_BUILD_PROFILE rate_msps=$starlink_pss_rate_msps profile=$starlink_pss_profile shared_xfft=$starlink_pss_shared_xfft realtime_xfft=$starlink_pss_realtime_xfft"
+puts "STARLINK_PSS_BUILD_PROFILE rate_msps=$starlink_pss_rate_msps profile=$starlink_pss_profile shared_xfft=$starlink_pss_shared_xfft realtime_xfft=$starlink_pss_realtime_xfft boundary_stop=$starlink_pss_boundary_stop"
 set starlink_pss_minimum_lead_samples [expr {
   64 * $starlink_pss_rate_msps / 15
 }]
@@ -330,6 +298,14 @@ ad_ip_parameter starlink_pss_acquisition CONFIG.INPUT_RATE_MSPS $starlink_pss_ra
 ad_ip_parameter starlink_pss_acquisition CONFIG.ENABLE_PILOT_TAP $starlink_pilot_enabled
 ad_ip_parameter starlink_pss_acquisition CONFIG.USE_SHARED_XFFT $starlink_pss_shared_xfft
 ad_ip_parameter starlink_pss_acquisition CONFIG.USE_REALTIME_XFFT $starlink_pss_realtime_xfft
+ad_ip_parameter starlink_pss_acquisition CONFIG.ENABLE_BOUNDARY_STOP $starlink_pss_boundary_stop
+# Parameter intent alone is insufficient: fail if the packaged IP ignores it.
+set starlink_pss_stop_readback [get_property CONFIG.ENABLE_BOUNDARY_STOP \
+  [get_bd_cells starlink_pss_acquisition]]
+if {$starlink_pss_stop_readback ne $starlink_pss_boundary_stop} {
+  error "boundary-stop IP readback mismatch: requested=$starlink_pss_boundary_stop actual=$starlink_pss_stop_readback"
+}
+puts "STARLINK_PSS_BOUNDARY_STOP_IP_READBACK actual=$starlink_pss_stop_readback image_unqualified=1"
 # FCLK1 already supplies the board's 200 MHz IDELAY reference. The island has
 # local async-assert/sync-release reset synchronizers in both clock domains.
 ad_connect sys_200m_clk starlink_pss_acquisition/fft_clk

@@ -29,9 +29,14 @@ export STARLINK_PSS_SHARED_XFFT
 STARLINK_PSS_REALTIME_XFFT ?= 0
 export STARLINK_PSS_REALTIME_XFFT
 
+# Explicit finite map-boundary stop contract; does not imply realtime mode.
+STARLINK_PSS_BOUNDARY_STOP ?= 0
+export STARLINK_PSS_BOUNDARY_STOP
+
 M_DEPS += ../../library/common/ad_iobuf.v
 M_DEPS += ../../library/axi_ad9361/axi_ad9361_delay.tcl
 M_DEPS += shared_xfft_impl_gate.tcl
+M_DEPS += starlink_pss_build_options.tcl
 
 LIB_DEPS += axi_ad9361
 LIB_DEPS += axi_dmac

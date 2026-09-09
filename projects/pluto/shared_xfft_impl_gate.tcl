@@ -1,14 +1,13 @@
 # Runs after INIT_DESIGN, before placement, ONLY for the opt-in paired build.
 # This is a structural/constraint gate, NOT a placement/route/timing pass.
+source [file join [file dirname [info script]] starlink_pss_build_options.tcl]
+set pss_gate_options [pss_resolve_build_options [array get ::env]]
 if {![info exists ::env(STARLINK_PSS_SHARED_XFFT)] ||
     $::env(STARLINK_PSS_SHARED_XFFT) ne "1"} {
   error "shared-XFFT implementation gate requires explicit opt-in"
 }
-set realtime_xfft 0
-if {[info exists ::env(STARLINK_PSS_REALTIME_XFFT)]} {
-  set realtime_xfft $::env(STARLINK_PSS_REALTIME_XFFT)
-}
-if {$realtime_xfft ni {0 1}} { error "STARLINK_PSS_REALTIME_XFFT must be 0 or 1" }
+set realtime_xfft [dict get $pss_gate_options realtime_xfft]
+set boundary_stop [dict get $pss_gate_options boundary_stop]
 proc pss_shared_one {pattern} {
   set cells [get_cells -quiet -hier -regexp $pattern]
   if {[llength $cells] != 1} { error "shared-XFFT expected one endpoint: $pattern got [llength $cells]" }
@@ -37,6 +36,22 @@ if {$is_realtime_core != $realtime_xfft} {
 }
 puts $gate_report "realtime_xfft=$realtime_xfft generated_core=[get_property REF_NAME $cores]"
 puts $gate_report "generated_cores=1 coarse_and_fine_and_pilot_dma_present=1"
+# Look for surviving state from BOTH halves of the stop protocol, not an
+# invented fixed flop count or merely the environment/BD parameter. These
+# ordinary 100 MHz registers remain timed; this adds no exception or waiver.
+foreach {role pattern} {
+  stop_controller {.*starlink_pss_acquisition/inst/phase_map_control/stop_(staged|active|accepted_ticket|terminal_valid|terminal_generation)_reg(\[[0-9]+\])?$}
+  stop_map_fence {.*starlink_pss_acquisition/inst/acquisition/phase_map/stop_(pending|done|complete|failed)_reg$}
+} {
+  set state [get_cells -quiet -hier -regexp $pattern]
+  if {$boundary_stop} {
+    if {![llength $state]} { error "boundary-stop missing synthesized $role state" }
+    pss_shared_period $state 10.0
+  } elseif {[llength $state]} {
+    error "boundary-stop disabled but synthesized $role state is present"
+  }
+  puts $gate_report "$role boundary_stop=$boundary_stop surviving_registers=[llength $state]"
+}
 set mailbox_reset_chains [get_cells -quiet -hier -regexp \
   {.*transform_service/(input_mailbox|output_mailbox)/.*reset.*sync_reg\[[01]\]$}]
 if {[llength $mailbox_reset_chains]} {
