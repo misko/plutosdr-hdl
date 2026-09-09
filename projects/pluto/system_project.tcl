@@ -92,10 +92,11 @@ if {[info exists ::env(STARLINK_PSS_RATE_MSPS)] &&
 
 if {[info exists ::env(STARLINK_PSS_SHARED_XFFT)] &&
     $::env(STARLINK_PSS_SHARED_XFFT) eq "1"} {
-  # The later control-isolation and counter-retirement receivers both fit
-  # with high spread; medium fails packing (13 slices for counter-retirement).
-  # Use that measured placement choice for the current receiver. Placement
-  # success does not imply setup closure: the full timing gate remains required.
+  # High spread fit the older control-isolation/counter-retirement receivers,
+  # but cannot commit all instances after the private input-cursor change.
+  # Medium spread places that exact optimized candidate in 4398/4400 slices.
+  # Promote only the placement choice into a FRESH complete build; the saved
+  # diagnostic checkpoint is not reused and is not timing qualification.
   # Apply it only to the explicitly selected shared paired receiver. This is
   # a fresh implementation, not DCP reuse or a relaxation of any constraint.
   if {![info exists ::env(STARLINK_PSS_PROFILE)] ||
@@ -105,7 +106,7 @@ if {[info exists ::env(STARLINK_PSS_SHARED_XFFT)] &&
     error "shared-XFFT implementation policy requires paired-pilot at 15 MS/s"
   }
   set_property strategy Congestion_SpreadLogic_high [get_runs impl_1]
-  set_property STEPS.PLACE_DESIGN.ARGS.DIRECTIVE AltSpreadLogic_high [get_runs impl_1]
+  set_property STEPS.PLACE_DESIGN.ARGS.DIRECTIVE AltSpreadLogic_medium [get_runs impl_1]
   set_property STEPS.POST_ROUTE_PHYS_OPT_DESIGN.IS_ENABLED true [get_runs impl_1]
   set_property STEPS.POST_ROUTE_PHYS_OPT_DESIGN.ARGS.DIRECTIVE Explore [get_runs impl_1]
   set_property STEPS.INIT_DESIGN.TCL.POST \
