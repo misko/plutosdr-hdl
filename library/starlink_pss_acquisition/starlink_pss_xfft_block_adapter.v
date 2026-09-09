@@ -12,7 +12,8 @@
 module starlink_pss_xfft_block_adapter #(
   parameter integer FORWARD_TRANSFORM = 1,
   parameter integer DATA_WIDTH = 24,
-  parameter integer CHECK_INPUT_BLOCK_IDENTITY = 1
+  parameter integer CHECK_INPUT_BLOCK_IDENTITY = 1,
+  parameter integer RAW_OUTPUT_POSITION_ADVANCE = 0
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -103,6 +104,7 @@ module starlink_pss_xfft_block_adapter #(
   wire fault_event_now;
   wire core_output_accept;
   wire output_state_advance;
+  wire output_position_advance;
 
   initial begin
     if (FORWARD_TRANSFORM != 0 && FORWARD_TRANSFORM != 1)
@@ -112,6 +114,8 @@ module starlink_pss_xfft_block_adapter #(
     if (CHECK_INPUT_BLOCK_IDENTITY != 0 &&
         CHECK_INPUT_BLOCK_IDENTITY != 1)
       $fatal(1, "CHECK_INPUT_BLOCK_IDENTITY must be zero or one");
+    if (RAW_OUTPUT_POSITION_ADVANCE != 0 && RAW_OUTPUT_POSITION_ADVANCE != 1)
+      $fatal(1, "RAW_OUTPUT_POSITION_ADVANCE must be zero or one");
   end
 
   assign adapter_released = resetn && !flush &&
@@ -212,6 +216,22 @@ module starlink_pss_xfft_block_adapter #(
     !core_event_status_channel_halt && !core_tlast_error_now &&
     !(core_event_frame_started && frame_started_seen);
 
+  // Shared-service timing option: this private counter may advance on a raw
+  // beat in the registered output phase. Healthy beats advance exactly as
+  // before. A malformed beat still fails the unchanged checks above and
+  // latches protocol_fault; any speculative position is then unobservable
+  // until reset. In particular, completion and publication do NOT use this
+  // weaker gate. Keep the dedicated-core default fully validation-qualified.
+  assign output_position_advance = RAW_OUTPUT_POSITION_ADVANCE ?
+    (core_output_accept && !protocol_fault && block_inflight && !input_in_progress) :
+    output_state_advance;
+
+  always @(posedge clk) begin
+    if (!resetn || flush) expected_output_position <= 0;
+    else if (output_position_advance)
+      expected_output_position <= expected_output_position + 1'b1;
+  end
+
   assign output_i = core_output_tdata[DATA_WIDTH-1:0];
   assign output_q = core_output_tdata[24 +: DATA_WIDTH];
   assign output_position = core_output_tuser[8:0];
@@ -226,7 +246,6 @@ module starlink_pss_xfft_block_adapter #(
       block_inflight <= 1'b0;
       input_in_progress <= 1'b0;
       expected_input_position <= 0;
-      expected_output_position <= 0;
       active_block_start_index <= 0;
       frame_started_seen <= 1'b0;
       status_seen <= 1'b0;
@@ -301,14 +320,11 @@ module starlink_pss_xfft_block_adapter #(
         end
 
         if (expected_output_position == 9'd511) begin
-          expected_output_position <= 0;
           block_inflight <= 1'b0;
           frame_started_seen <= 1'b0;
           status_seen <= 1'b0;
           output_exponent_seen <= 1'b0;
           output_block_complete_pulse <= 1'b1;
-        end else begin
-          expected_output_position <= expected_output_position + 1'b1;
         end
       end
 

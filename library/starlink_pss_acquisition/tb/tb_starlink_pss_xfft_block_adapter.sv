@@ -2,6 +2,7 @@
 
 module tb_starlink_pss_xfft_block_adapter;
   parameter integer CHECK_IDENTITY = 1;
+  parameter integer RAW_OUTPUT_POSITION_ADVANCE = 0;
 
   reg clk = 1'b0;
   reg resetn = 1'b0;
@@ -82,7 +83,8 @@ module tb_starlink_pss_xfft_block_adapter;
   always #5 clk = ~clk;
 
   starlink_pss_xfft_block_adapter #(
-    .FORWARD_TRANSFORM (1), .CHECK_INPUT_BLOCK_IDENTITY(CHECK_IDENTITY)
+    .FORWARD_TRANSFORM (1), .CHECK_INPUT_BLOCK_IDENTITY(CHECK_IDENTITY),
+    .RAW_OUTPUT_POSITION_ADVANCE(RAW_OUTPUT_POSITION_ADVANCE)
   ) dut (
     .clk                            (clk),
     .resetn                         (resetn),

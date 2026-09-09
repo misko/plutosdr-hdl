@@ -133,7 +133,14 @@ module starlink_pss_shared_xfft_service (
   always @(posedge fft_clk)
     if (!engine_active) engine_metadata <= fast_input_metadata;
   wire slow_output_valid;
-  assign fast_input_ready = engine_active && !engine_input_closed && !fast_fault && adapter_input_ready;
+  // Adapter ready deliberately consumes malformed metadata even when the core
+  // stalls, so it can fault immediately. Mailbox retirement instead requires
+  // core readiness: (metadata_ok ? core_ready : 1) && core_ready simplifies to
+  // core_ready, keeping the metadata comparator off the mailbox feedback path.
+  // The only unmatched adapter acceptance is a malformed stalled word; its
+  // sticky fault quarantines the held mailbox word until explicit reset.
+  assign fast_input_ready = engine_active && !engine_input_closed && !fast_fault &&
+                            adapter_input_ready && core_input_ready;
   assign output_valid = slow_running && slow_output_valid && !service_fault;
 
   starlink_pss_block_mailbox #(
@@ -190,7 +197,8 @@ module starlink_pss_shared_xfft_service (
   wire event_frame, event_last_unexpected, event_last_missing;
   wire event_status_halt, event_input_halt, event_output_halt;
   starlink_pss_xfft_block_adapter #(
-    .DATA_WIDTH(18), .FORWARD_TRANSFORM(1), .CHECK_INPUT_BLOCK_IDENTITY(0)
+    .DATA_WIDTH(18), .FORWARD_TRANSFORM(1), .CHECK_INPUT_BLOCK_IDENTITY(0),
+    .RAW_OUTPUT_POSITION_ADVANCE(1)
   ) adapter (
     .clk(fft_clk), .resetn(fast_running && engine_active), .flush(1'b0),
     .input_valid(fast_input_valid && engine_active && !engine_input_closed && !fast_fault),

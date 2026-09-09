@@ -23,6 +23,9 @@ module tb_starlink_pss_shared_xfft_service;
   integer job, position, fixture, previous_pair_cycle = 0, maximum_pair_cycles = 0;
   integer final_fault_cases = 0, drain_reset_cases = 0, committed_jobs = 0;
   integer transport_fault_cases = 0, raw_only_overruns = 0;
+  integer input_retirement_fault_cases = 0, unmatched_input_accepts = 0;
+  integer speculative_counter_advances = 0;
+  reg [8:0] validated_position_shadow = 0;
   integer idle_input_cycles = 0, idle_return_cycles = 0, config_cycles = 0;
   integer load_cycles = 0, compute_cycles = 0, output_cycles = 0, drain_cycles = 0;
   reg output_phase_seen = 0;
@@ -47,7 +50,27 @@ module tb_starlink_pss_shared_xfft_service;
     end
   endfunction
   always @(posedge fft_clk) begin
+    if (!dut.adapter.resetn) validated_position_shadow <= 0;
+    else begin
+      if (!dut.adapter_fault &&
+          dut.adapter.expected_output_position !== validated_position_shadow)
+        $fatal(1, "shared private position differs from healthy validated shadow");
+      if (dut.adapter.output_position_advance && !dut.adapter.output_state_advance) begin
+        if (!dut.adapter.fault_event_now)
+          $fatal(1, "shared speculative position lacks same-cycle fault");
+        speculative_counter_advances = speculative_counter_advances + 1;
+      end
+      if (dut.adapter.output_state_advance)
+        validated_position_shadow <= validated_position_shadow + 1'b1;
+    end
     if (dut.fast_running && !dut.fast_fault) begin
+      if (dut.fast_input_valid && dut.fast_input_ready && !dut.adapter.input_accept)
+        $fatal(1, "mailbox retired an input not accepted by adapter");
+      if (dut.adapter.input_accept && !(dut.fast_input_valid && dut.fast_input_ready)) begin
+        if (!dut.adapter.input_framing_error_now || dut.core_input_ready)
+          $fatal(1, "unmatched adapter input is not a malformed stalled word");
+        unmatched_input_accepts = unmatched_input_accepts + 1;
+      end
       if (dut.fast_output_valid && !dut.raw_output_accept)
         $fatal(1, "checked output lacked a raw core handshake");
       if (old_validated_overrun && !dut.output_transport_overrun)
@@ -163,6 +186,57 @@ module tb_starlink_pss_shared_xfft_service;
         while (!input_ready) @(posedge clk);
       end
       @(negedge clk); input_valid = 0;
+    end
+  endtask
+  task automatic stalled_malformed_input_job(input integer target, input bit corrupt_last);
+    reg committed_before, acknowledged_before;
+    reg [8:0] address_before, position_before;
+    reg [35:0] payload_before;
+    integer output_before;
+    begin
+      expect_fault = 1;
+      committed_before = dut.output_mailbox.request_toggle;
+      output_before = output_job;
+      fork
+        send_job(output_before);
+        begin
+          wait (dut.fast_input_valid && dut.fast_input_position == target &&
+                dut.adapter.configured && dut.adapter_input_ready);
+          @(negedge fft_clk);
+          force dut.core_input_ready = 1'b0;
+          if (corrupt_last) begin
+            if (target == 511) force dut.fast_input_last = 1'b0;
+            else force dut.fast_input_last = 1'b1;
+          end else force dut.fast_input_position = 9'd510;
+          acknowledged_before = dut.input_mailbox.acknowledge_toggle;
+          address_before = dut.input_mailbox.read_address;
+          position_before = dut.input_mailbox.read_output_position;
+          payload_before = dut.input_mailbox.read_payload;
+          @(posedge fft_clk);
+          if (!dut.adapter.input_framing_error_now || dut.fast_input_ready ||
+              dut.core_input_valid)
+            $fatal(1, "malformed stalled input not consumed only by checker");
+          @(negedge fft_clk);
+          if (!dut.adapter_fault || dut.input_mailbox.acknowledge_toggle !== acknowledged_before ||
+              dut.input_mailbox.read_address !== address_before ||
+              dut.input_mailbox.read_output_position !== position_before ||
+              dut.input_mailbox.read_payload !== payload_before)
+            $fatal(1, "malformed stalled input retired mailbox storage");
+          release dut.core_input_ready;
+          release dut.fast_input_position;
+          release dut.fast_input_last;
+          repeat (12) @(negedge clk);
+          if (!service_fault || output_valid || input_ready || output_job != output_before ||
+              dut.output_mailbox.request_toggle !== committed_before ||
+              dut.input_mailbox.acknowledge_toggle !== acknowledged_before)
+            $fatal(1, "malformed stalled input escaped quarantine target=%0d last=%0d", target, corrupt_last);
+        end
+      join
+      input_retirement_fault_cases = input_retirement_fault_cases + 1;
+      recover(corrupt_last);
+      send_job(output_before);
+      while (output_job != output_before + 1) @(negedge clk);
+      repeat (12) @(negedge clk);
     end
   endtask
   task automatic blocked_return_job(input bit corrupt_metadata);
@@ -324,13 +398,21 @@ module tb_starlink_pss_shared_xfft_service;
     reset_in_drain(1);
     blocked_return_job(0);
     blocked_return_job(1);
-    if (checked_words != (MAIN_JOBS + 12) * 512 || committed_jobs != MAIN_JOBS + 12 ||
+    stalled_malformed_input_job(0, 0);
+    stalled_malformed_input_job(0, 1);
+    stalled_malformed_input_job(255, 0);
+    stalled_malformed_input_job(255, 1);
+    stalled_malformed_input_job(511, 0);
+    stalled_malformed_input_job(511, 1);
+    if (checked_words != (MAIN_JOBS + 18) * 512 || committed_jobs != MAIN_JOBS + 18 ||
         final_fault_cases != 6 || drain_reset_cases != 2 || transport_fault_cases != 2 ||
+        input_retirement_fault_cases != 6 || unmatched_input_accepts != 6 ||
+        speculative_counter_advances == 0 ||
         raw_only_overruns == 0 || output_valid || service_fault)
       $fatal(1, "final service count");
     if (maximum_pair_cycles > 2980) $fatal(1, "saturated service misses nominal pair budget");
     $display("SHARED_XFFT_MAILBOX_PASS jobs=%0d exact_words=%0d max_saturated_pair_cycles=%0d slow_mhz=100 fft_mhz=200 stalls=%0d in_flight_fft_fault=1 framing_fault=1 independent_reset_recovery=2 RECEIVER_UNQUALIFIED",
-             MAIN_JOBS + 12, checked_words, maximum_pair_cycles, OUTPUT_STALL_MODE);
+             MAIN_JOBS + 18, checked_words, maximum_pair_cycles, OUTPUT_STALL_MODE);
     $display("SHARED_XFFT_RETURN_FENCE_PASS final_fault_cases=%0d drain_reset_cases=%0d committed_jobs=%0d metadata_high_bits=1 last_word_drain=1",
              final_fault_cases, drain_reset_cases, committed_jobs);
     $display("SHARED_XFFT_SERVICE_CYCLES main_jobs=%0d output_stall_mode=%0d fast_mhz=200 wait_input=%0d wait_return=%0d config=%0d load=%0d compute=%0d output=%0d drain=%0d",
@@ -338,6 +420,8 @@ module tb_starlink_pss_shared_xfft_service;
              config_cycles, load_cycles, compute_cycles, output_cycles, drain_cycles);
     $display("SHARED_XFFT_TRANSPORT_SPLIT_PASS blocked_return_cases=%0d raw_only_overruns=%0d old_validated_overruns_preserved=1 healthy_closed_state_equivalent=1 active_descriptor_stable=1",
              transport_fault_cases, raw_only_overruns);
+    $display("SHARED_XFFT_COUNTER_RETIREMENT_PASS stalled_malformed_input_cases=%0d unmatched_input_accepts=%0d speculative_counter_advances=%0d healthy_shadow_counter=1 mailbox_ack_held=1 public_completion_fenced=1",
+             input_retirement_fault_cases, unmatched_input_accepts, speculative_counter_advances);
     $finish(0);
   end
 endmodule
