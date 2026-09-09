@@ -1,12 +1,44 @@
 # Bounded future shared-realtime FFT candidate
 
-Status: isolated input/result guards are implemented and unit-tested. The
-complete shared-realtime architecture is **not integrated or qualified**.
-These new modules are not instantiated by the frozen receiver. They do not
-change the nonrealtime receiver, production IP,
-clock constraints, or deployment eligibility. The experimental firmware remains
-do-not-merge. Realtime is a candidate if the current nonrealtime design still
-fails; it is not an assumed solution to whole-chip timing or packing.
+Status: the synthesizable shared-realtime service and its input/result guards
+are implemented and actual-core tested. Full receiver integration, sustained
+capacity and physical timing/CDC are **not qualified**. The original
+nonrealtime implementation remains the default; realtime must be explicitly
+selected and cannot authorize deployment before the remaining gates pass.
+The experimental firmware remains do-not-merge. Realtime is a candidate for
+the current packing/timing failure, not an assumed whole-chip solution.
+
+## Synthesizable persistent service — 2026-09-09
+
+`starlink_pss_shared_realtime_xfft_service.v` now owns admission, configuration
+and the final fence in RTL. Both real mailboxes and the result guard retain a
+common reset epoch; only the FFT/input checker reset between jobs, after actual
+slow output ACK. A prefetched next input survives that per-job reset. Admission
+captures the committed descriptor and sends a registered checker token one fast
+edge later. A separate two-flop sticky source-fault crossing avoids an
+asynchronous slow-domain signal in the fast commit-veto cone.
+
+`build/shared-realtime-service-v3/` passes 26 healthy forward/inverse jobs with
+13312 exact full 36-bit raw and published words, descriptor/exponent/framing
+checks, six missing-demand faults, three same-final-edge vendor vetoes, malformed
+bank metadata at words 10 and 511, and six independent raw-reset cases. Both raw
+reset inputs interrupt configuration before handshake and partial input after
+128 certified deliveries, with successful fresh-epoch recovery. Reset of a
+committed output with a prefetched next bank and a late ACK-drain fault are also
+tested. The source-matched v2 pass remains retained; v1 failed a testbench's
+premature cross-domain fault assertion, corrected without changing service RTL.
+
+The final fence uses checked completion to exclude the documented input
+starvation/framing causes locally, together with independent result checks. It
+does not guess a vendor event delay or prove arbitrary future errors impossible.
+Vendor/local faults remain direct final-edge vetoes and sticky through ACK drain.
+Independent review found no actionable RTL bug in this candidate contract.
+
+The six queued-job latency lane measured a maximum paired-admission interval of
+28.46 us, including slow ACK and per-job reset/configuration, versus the required
+29.80 us canonical block cadence. Six jobs are not sustained-capacity evidence.
+Full score/map replay, current-source >=120 ms capacity and complete receiver
+resources/timing/CDC remain separate gates. No radio was accessed or deployed.
 
 ## Isolated dependencies — 2026-09-09
 
