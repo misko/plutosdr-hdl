@@ -42,7 +42,10 @@ module starlink_pss_transform_fifo #(
 
   localparam integer PAYLOAD_BITS = 79 + 2 * DATA_WIDTH;
 
-  (* ram_style = "distributed" *)
+  // The registered read already matches simple-dual-port block RAM. Spend
+  // spare BRAM here to relieve LUT/FF packing in the complete paired receiver;
+  // keep the output register, occupancy and ready/valid latency unchanged.
+  (* ram_style = "block" *)
   reg [PAYLOAD_BITS-1:0] payload_memory [0:FIFO_DEPTH-1];
   reg [ADDRESS_BITS-1:0] write_pointer;
   reg [ADDRESS_BITS-1:0] read_pointer;

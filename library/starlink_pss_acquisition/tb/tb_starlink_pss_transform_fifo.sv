@@ -1,9 +1,12 @@
 `timescale 1ns/1ps
 
-module tb_starlink_pss_transform_fifo;
+module tb_starlink_pss_transform_fifo #(
+  parameter integer FIFO_DEPTH = 4,
+  parameter integer RESET_CYCLES = 3
+);
 
-  localparam integer FIFO_DEPTH = 4;
   localparam integer TEST_WORDS = 512;
+  localparam integer COUNT_BITS = $clog2(FIFO_DEPTH + 1);
 
   reg clk = 1'b0;
   reg resetn = 1'b0;
@@ -25,8 +28,8 @@ module tb_starlink_pss_transform_fifo;
   wire [4:0] output_block_exponent;
   wire [63:0] output_block_start_index;
   wire output_last;
-  wire [2:0] stored_count;
-  wire [2:0] maximum_stored_count;
+  wire [COUNT_BITS-1:0] stored_count;
+  wire [COUNT_BITS-1:0] maximum_stored_count;
   wire protocol_fault;
 
   integer accepted_count = 0;
@@ -40,10 +43,15 @@ module tb_starlink_pss_transform_fifo;
 
   always #5 clk = ~clk;
 
+`ifdef FIFO_STORAGE_SYNTH_NETLIST
+  // Synthesized default-depth top has no elaboration parameters.
+  starlink_pss_transform_fifo dut (
+`else
   starlink_pss_transform_fifo #(
     .DATA_WIDTH(18),
     .FIFO_DEPTH(FIFO_DEPTH)
   ) dut (
+`endif
     .clk(clk),
     .resetn(resetn),
     .flush(flush),
@@ -142,7 +150,7 @@ module tb_starlink_pss_transform_fifo;
     $dumpfile("build/tb_starlink_pss_transform_fifo.vcd");
     $dumpvars(0, tb_starlink_pss_transform_fifo);
 
-    repeat (3) @(negedge clk);
+    repeat (RESET_CYCLES) @(negedge clk);
     resetn = 1'b1;
     scoreboard_enabled = 1'b1;
     #1;
