@@ -291,6 +291,10 @@ module axi_starlink_pss_phase_map_sync #(
   reg [31:0] bridge_read_error_count;
   reg [31:0] bridge_release_error_count;
   reg [31:0] snapshot_request_overrun_count;
+  // These private counters only saturate or clear together on core reset.
+  // Set their exact nonzero summary on the SAME edge as every increment;
+  // keep the public counts and the combinational current-event veto below.
+  reg bridge_counter_fault;
   reg register_read_pending;
   reg [31:0] register_read_data;
 
@@ -330,8 +334,7 @@ module axi_starlink_pss_phase_map_sync #(
       |map_overrun_count || |score_protocol_error_count ||
       |map_arithmetic_overflow_count || |map_read_error_count ||
       |map_release_error_count);
-  wire stop_bridge_fault_now = |bridge_read_error_count ||
-      |bridge_release_error_count || |snapshot_request_overrun_count ||
+  wire stop_bridge_fault_now = bridge_counter_fault ||
       (read_pending && map_read_error) ||
       (release_pending && !map_ready_mask[map_release_bank]) ||
       (up_wreq && up_waddr == REG_MAP_RELEASE && up_wstrb[0] && up_wdata[0] &&
@@ -555,6 +558,7 @@ module axi_starlink_pss_phase_map_sync #(
       bridge_read_error_count <= 32'd0;
       bridge_release_error_count <= 32'd0;
       snapshot_request_overrun_count <= 32'd0;
+      bridge_counter_fault <= 1'b0;
       register_read_pending <= 1'b0;
       register_read_data <= 32'd0;
       stop_word_select <= 4'd0;
@@ -586,8 +590,8 @@ module axi_starlink_pss_phase_map_sync #(
         read_pending <= 1'b0;
         read_last_error <= map_read_error;
         if (map_read_error) begin
-          bridge_read_error_count <= increment_saturating_32(
-              bridge_read_error_count);
+          {bridge_counter_fault, bridge_read_error_count} <=
+              {1'b1, increment_saturating_32(bridge_read_error_count)};
         end else if (selected_map_bank == map_read_bank &&
                      selected_map_index == map_read_index &&
                      map_read_index != LAST_PHASE) begin
@@ -602,8 +606,8 @@ module axi_starlink_pss_phase_map_sync #(
           release_last_error <= 1'b0;
         end else begin
           release_last_error <= 1'b1;
-          bridge_release_error_count <= increment_saturating_32(
-              bridge_release_error_count);
+          {bridge_counter_fault, bridge_release_error_count} <=
+              {1'b1, increment_saturating_32(bridge_release_error_count)};
         end
       end
 
@@ -673,8 +677,8 @@ module axi_starlink_pss_phase_map_sync #(
                 release_last_error <= 1'b0;
               end else begin
                 release_last_error <= 1'b1;
-                bridge_release_error_count <= increment_saturating_32(
-                    bridge_release_error_count);
+                {bridge_counter_fault, bridge_release_error_count} <=
+                    {1'b1, increment_saturating_32(bridge_release_error_count)};
               end
             end
           end
@@ -684,8 +688,8 @@ module axi_starlink_pss_phase_map_sync #(
                 snapshot_pending <= 1'b1;
                 snapshot_valid <= 1'b0;
               end else begin
-                snapshot_request_overrun_count <= increment_saturating_32(
-                    snapshot_request_overrun_count);
+                {bridge_counter_fault, snapshot_request_overrun_count} <=
+                    {1'b1, increment_saturating_32(snapshot_request_overrun_count)};
               end
             end
           end
@@ -791,8 +795,8 @@ module axi_starlink_pss_phase_map_sync #(
             register_read_data <= 32'd0;
             register_read_pending <= 1'b1;
             read_last_error <= 1'b1;
-            bridge_read_error_count <= increment_saturating_32(
-                bridge_read_error_count);
+            {bridge_counter_fault, bridge_read_error_count} <=
+                {1'b1, increment_saturating_32(bridge_read_error_count)};
           end
         end else begin
           register_read_data <= register_value(up_raddr);
