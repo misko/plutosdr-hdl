@@ -57,6 +57,10 @@ module starlink_pss_phase_map #(
   output reg  [31:0]                    map_arithmetic_overflow_count,
   output reg  [31:0]                    map_read_error_count,
   output reg  [31:0]                    map_release_error_count,
+  // Same-clock/reset nonzero summary of the seven map error counters below.
+  // Each error increment sets this bit in the very same nonblocking assignment.
+  // Counters saturate and clear only on reset; arithmetic overflow is invariant zero.
+  output reg                            map_counter_fault,
 
   // Optional core-only publication fence, not a ticket/full-health/RF ABI.
   // Request while enabled; pending/done requests are ignored.  Terminal
@@ -194,10 +198,7 @@ module starlink_pss_phase_map #(
   wire fill_sequence_error = state == STATE_FILL &&
       (stream_discontinuity || (score_valid &&
        (score_phase != expected_phase || score_start_index != expected_score_index)));
-  wire local_map_fault = |discarded_score_count || |discontinuity_abort_count ||
-      |map_overrun_count || |score_protocol_error_count ||
-      |map_arithmetic_overflow_count || |map_read_error_count ||
-      |map_release_error_count || fill_sequence_error ||
+  wire local_map_fault = map_counter_fault || fill_sequence_error ||
       (read_pending && !read_pending_allowed) ||
       (map_read_request && !read_allowed_now) || release_error_now;
   // Bits match the proposed summary, without implementing its PSMA ABI:
@@ -358,6 +359,7 @@ module starlink_pss_phase_map #(
       map_arithmetic_overflow_count <= 32'd0;
       map_read_error_count <= 32'd0;
       map_release_error_count <= 32'd0;
+      map_counter_fault <= 1'b0;
       stop_enable_delayed <= 1'b0;
       stop_tile_aborted <= 1'b0;
       last_published_valid <= 1'b0;
@@ -435,8 +437,8 @@ module starlink_pss_phase_map #(
               bank_read_data_1 : bank_read_data_0;
         end else begin
           map_read_error <= 1'b1;
-          map_read_error_count <=
-              increment_saturating_32(map_read_error_count);
+          {map_counter_fault, map_read_error_count} <=
+              {1'b1, increment_saturating_32(map_read_error_count)};
         end
       end
       read_pending <= map_read_request;
@@ -476,8 +478,8 @@ module starlink_pss_phase_map #(
           clear_active_1 <= 1'b1;
           clear_address_1 <= {PHASE_INDEX_WIDTH{1'b0}};
         end else begin
-          map_release_error_count <=
-              increment_saturating_32(map_release_error_count);
+          {map_counter_fault, map_release_error_count} <=
+              {1'b1, increment_saturating_32(map_release_error_count)};
         end
       end
 
@@ -495,8 +497,8 @@ module starlink_pss_phase_map #(
         state <= STATE_WAIT_BANK;
       end else if (!acquisition_enable && state != STATE_DRAIN) begin
         if (state == STATE_FILL) begin
-          discontinuity_abort_count <=
-              increment_saturating_32(discontinuity_abort_count);
+          {map_counter_fault, discontinuity_abort_count} <=
+              {1'b1, increment_saturating_32(discontinuity_abort_count)};
           if (!fill_bank) begin
             clean_0 <= 1'b0;
             clear_active_0 <= 1'b1;
@@ -516,8 +518,8 @@ module starlink_pss_phase_map #(
         end
         state <= STATE_WAIT_BANK;
         if (score_valid)
-          discarded_score_count <=
-              increment_saturating_32(discarded_score_count);
+          {map_counter_fault, discarded_score_count} <=
+              {1'b1, increment_saturating_32(discarded_score_count)};
       end else begin
         case (state)
           STATE_WAIT_BANK: begin
@@ -531,8 +533,8 @@ module starlink_pss_phase_map #(
               state <= STATE_WAIT_FRAME;
             end
             if (score_valid)
-              discarded_score_count <=
-                  increment_saturating_32(discarded_score_count);
+              {map_counter_fault, discarded_score_count} <=
+                  {1'b1, increment_saturating_32(discarded_score_count)};
           end
 
           STATE_WAIT_FRAME: begin
@@ -550,8 +552,8 @@ module starlink_pss_phase_map #(
                     increment_saturating_32(accepted_score_count);
                 state <= STATE_FILL;
               end else begin
-                discarded_score_count <=
-                    increment_saturating_32(discarded_score_count);
+                {map_counter_fault, discarded_score_count} <=
+                    {1'b1, increment_saturating_32(discarded_score_count)};
               end
             end
           end
@@ -561,11 +563,11 @@ module starlink_pss_phase_map #(
                 (score_valid &&
                  (score_phase != expected_phase ||
                   score_start_index != expected_score_index))) begin
-              discontinuity_abort_count <=
-                  increment_saturating_32(discontinuity_abort_count);
+              {map_counter_fault, discontinuity_abort_count} <=
+                  {1'b1, increment_saturating_32(discontinuity_abort_count)};
               if (score_valid && !stream_discontinuity)
-                score_protocol_error_count <=
-                    increment_saturating_32(score_protocol_error_count);
+                {map_counter_fault, score_protocol_error_count} <=
+                    {1'b1, increment_saturating_32(score_protocol_error_count)};
               if (!fill_bank) begin
                 clean_0 <= 1'b0;
                 clear_active_0 <= 1'b1;
@@ -577,8 +579,8 @@ module starlink_pss_phase_map #(
               end
               state <= STATE_WAIT_BANK;
               if (score_valid)
-                discarded_score_count <=
-                    increment_saturating_32(discarded_score_count);
+                {map_counter_fault, discarded_score_count} <=
+                    {1'b1, increment_saturating_32(discarded_score_count)};
             end else if (score_valid) begin
               update_pending <= 1'b1;
               update_bank <= fill_bank;
@@ -638,17 +640,17 @@ module starlink_pss_phase_map #(
                 end else begin
                   state <= STATE_WAIT_FRAME;
                   if (score_valid)
-                    discarded_score_count <=
-                        increment_saturating_32(discarded_score_count);
+                    {map_counter_fault, discarded_score_count} <=
+                        {1'b1, increment_saturating_32(discarded_score_count)};
                 end
               end else begin
                 state <= STATE_WAIT_BANK;
                 if (acquisition_enable)
-                  map_overrun_count <=
-                      increment_saturating_32(map_overrun_count);
+                  {map_counter_fault, map_overrun_count} <=
+                      {1'b1, increment_saturating_32(map_overrun_count)};
                 if (score_valid)
-                  discarded_score_count <=
-                      increment_saturating_32(discarded_score_count);
+                  {map_counter_fault, discarded_score_count} <=
+                      {1'b1, increment_saturating_32(discarded_score_count)};
               end
             end else begin
               generation_1 <= increment_saturating_32(map_publish_count);
@@ -673,17 +675,17 @@ module starlink_pss_phase_map #(
                 end else begin
                   state <= STATE_WAIT_FRAME;
                   if (score_valid)
-                    discarded_score_count <=
-                        increment_saturating_32(discarded_score_count);
+                    {map_counter_fault, discarded_score_count} <=
+                        {1'b1, increment_saturating_32(discarded_score_count)};
                 end
               end else begin
                 state <= STATE_WAIT_BANK;
                 if (acquisition_enable)
-                  map_overrun_count <=
-                      increment_saturating_32(map_overrun_count);
+                  {map_counter_fault, map_overrun_count} <=
+                      {1'b1, increment_saturating_32(map_overrun_count)};
                 if (score_valid)
-                  discarded_score_count <=
-                      increment_saturating_32(discarded_score_count);
+                  {map_counter_fault, discarded_score_count} <=
+                      {1'b1, increment_saturating_32(discarded_score_count)};
               end
             end
           end

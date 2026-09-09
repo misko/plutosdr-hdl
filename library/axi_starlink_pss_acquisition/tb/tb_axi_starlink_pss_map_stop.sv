@@ -6,7 +6,8 @@ module tb_axi_starlink_pss_map_stop #(
   parameter integer ENABLE_BOUNDARY_STOP = 1,
   parameter integer USE_SHARED_XFFT = 1,
   parameter integer INPUT_RATE_MSPS = 15,
-  parameter integer HEALTH_COUNTERS_FROM_FLAGS = 0
+  parameter integer HEALTH_COUNTERS_FROM_FLAGS = 0,
+  parameter integer MAP_COUNTERS_FROM_FLAG = 0
 );
   localparam integer BINS = 8, FRAMES = 4, TOTAL = BINS * FRAMES;
   localparam [63:0] BASE = 64'h00000001fffffff0;
@@ -28,6 +29,10 @@ module tb_axi_starlink_pss_map_stop #(
   wire [31:0] accepted_score_count, discarded_score_count, discontinuity_abort_count;
   wire [31:0] map_publish_count, map_overrun_count, score_protocol_error_count;
   wire [31:0] map_arithmetic_overflow_count, map_read_error_count, map_release_error_count;
+  wire map_counter_fault;
+  reg [31:0] independent_map_counts [0:6];
+  reg independent_map_summary = 0;
+  wire controller_map_counter_fault = MAP_COUNTERS_FROM_FLAG ? map_counter_fault : independent_map_summary;
   wire stop_request, stop_pending, stop_ack, stop_done, stop_complete, stop_failed, stop_has_map;
   wire [5:0] stop_failure_reason;
   wire [31:0] stop_generation;
@@ -99,9 +104,18 @@ module tb_axi_starlink_pss_map_stop #(
     .PHASE_BINS(BINS), .PHASE_INDEX_WIDTH(3), .TILE_FRAMES(FRAMES),
     .INPUT_RATE_MSPS(INPUT_RATE_MSPS), .USE_SHARED_XFFT(USE_SHARED_XFFT),
     .ENABLE_BOUNDARY_STOP(ENABLE_BOUNDARY_STOP),
-    .HEALTH_COUNTERS_FROM_FLAGS(HEALTH_COUNTERS_FROM_FLAGS)
+    .HEALTH_COUNTERS_FROM_FLAGS(HEALTH_COUNTERS_FROM_FLAGS),
+    .MAP_COUNTERS_FROM_FLAG(MAP_COUNTERS_FROM_FLAG)
   ) control (.map_clk(clk), .map_reset(!resetn), .s_axi_aclk(clk),
              .s_axi_aresetn(resetn), .s_axi_awprot(3'd0), .s_axi_arprot(3'd0),
+             .map_counter_fault(controller_map_counter_fault),
+             .discarded_score_count(discarded_score_count | independent_map_counts[0]),
+             .discontinuity_abort_count(discontinuity_abort_count | independent_map_counts[1]),
+             .map_overrun_count(map_overrun_count | independent_map_counts[2]),
+             .score_protocol_error_count(score_protocol_error_count | independent_map_counts[3]),
+             .map_arithmetic_overflow_count(map_arithmetic_overflow_count | independent_map_counts[4]),
+             .map_read_error_count(map_read_error_count | independent_map_counts[5]),
+             .map_release_error_count(map_release_error_count | independent_map_counts[6]),
              .detector_health_flags(controller_health_flags), .*);
 
   task automatic fail(input string message);
@@ -162,6 +176,9 @@ module tb_axi_starlink_pss_map_stop #(
     detector_health_flags = 0; ingress_overflow_sticky = 0;
     ingress_dropped_sample_count = 0; score_denominator_zero_count = 0;
     health_events = 0;
+    independent_map_summary = 0;
+    for (integer counter = 0; counter < 7; counter = counter + 1)
+      independent_map_counts[counter] = 0;
     for (integer counter = 0; counter < 5; counter = counter + 1)
       independent_counts[counter] = 0;
     idle(5); resetn = 1; idle(5);
@@ -218,7 +235,7 @@ module tb_axi_starlink_pss_map_stop #(
     end
   end
 
-  integer before_count, before_flush, kind;
+  integer before_count, before_flush, kind, counter_bit;
   reg [31:0] value;
   initial begin
     boot();
@@ -377,6 +394,42 @@ module tb_axi_starlink_pss_map_stop #(
       axi_write(8'hf8, 1, 4'hf); expect_word(11, 5); expect_register(8'hf8, 0);
       boot(); detector_health_flags = 32'h800; score_denominator_zero_count = 9;
       axi_write(8'hf8, 1, 4'hf); expect_terminal(1, 0, 0, 32'h06);
+
+      // Real map sequencing errors set the producer summary on the same edge
+      // as their existing counters. Check admission and in-flight retirement.
+      boot(); score(BASE, 0); score(BASE + 2, 2); idle(4);
+      if (!map_counter_fault || discarded_score_count == 0 || discontinuity_abort_count == 0)
+        fail("real malformed map did not retain counters and summary");
+      axi_write(8'hf8, 1, 4'hf); expect_word(11, 5); expect_register(8'hf8, 0);
+      boot(); score(BASE, 0); axi_write(8'hf8, 1, 4'hf); score(BASE + 2, 2);
+      expect_terminal(1, 0, 0, 32'h0a);
+      axi_write(8'hfc, 10, 4'hf); axi_read(8'hfc, value);
+      if (!value[1] || !map_counter_fault || discontinuity_abort_count == 0)
+        fail("real map fault lost terminal reason or counters");
+
+      // Generic callers do not promise the producer contract. Every bit of
+      // every independent counter remains fatal with no corresponding flag.
+      // Conversely, an unused summary input (including X/Z) must be ignored.
+      if (!MAP_COUNTERS_FROM_FLAG) begin
+        for (kind = 0; kind < 7; kind = kind + 1) begin
+          for (counter_bit = 0; counter_bit < 32; counter_bit = counter_bit + 1) begin
+            boot(); independent_map_counts[kind] = 32'd1 << counter_bit;
+            axi_write(8'hf8, 1, 4'hf); expect_word(11, 5); expect_register(8'hf8, 0);
+          end
+        end
+        for (kind = 0; kind < 4; kind = kind + 1) begin
+          boot();
+          case (kind)
+            0: independent_map_summary = 0;
+            1: independent_map_summary = 1;
+            2: independent_map_summary = 1'bx;
+            3: independent_map_summary = 1'bz;
+          endcase
+          axi_write(8'hf8, 1, 4'hf); expect_terminal(1, 0, 0, 32'h06);
+        end
+      end
+      $display("PSMA_MAP_SUMMARY_PASS summary=%0d real_map_faults=2 generic_counter_bits=%0d unused_flag_states=%0d",
+               MAP_COUNTERS_FROM_FLAG, MAP_COUNTERS_FROM_FLAG ? 0 : 224, MAP_COUNTERS_FROM_FLAG ? 0 : 4);
 
       // Exercise the actual same-epoch producer, not just a manually asserted
       // flag: before admission, after acceptance, and on terminal retirement.

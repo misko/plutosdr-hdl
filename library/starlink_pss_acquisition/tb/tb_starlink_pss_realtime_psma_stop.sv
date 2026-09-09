@@ -41,6 +41,7 @@ module tb_starlink_pss_realtime_psma_stop;
   wire [31:0] accepted_score_count, discarded_score_count, discontinuity_abort_count;
   wire [31:0] map_publish_count, map_overrun_count, score_protocol_error_count;
   wire [31:0] map_arithmetic_overflow_count, map_read_error_count, map_release_error_count;
+  wire map_counter_fault;
   wire [31:0] detector_health_flags, scheduler_gap_count, scheduler_index_error_count;
   wire [31:0] scheduler_overflow_count, detector_fault_count;
   wire [31:0] score_phase_index_discontinuity_count, score_denominator_zero_count;
@@ -71,7 +72,8 @@ module tb_starlink_pss_realtime_psma_stop;
   ) dut (.fft_resetn(resetn), .enable(acquisition_enable), .flush(acquisition_flush), .*);
   axi_starlink_pss_phase_map_sync #(
     .PHASE_BINS(BINS), .PHASE_INDEX_WIDTH(9), .TILE_FRAMES(2),
-    .INPUT_RATE_MSPS(15), .USE_SHARED_XFFT(1), .ENABLE_BOUNDARY_STOP(1)
+    .INPUT_RATE_MSPS(15), .USE_SHARED_XFFT(1), .ENABLE_BOUNDARY_STOP(1),
+    .HEALTH_COUNTERS_FROM_FLAGS(1), .MAP_COUNTERS_FROM_FLAG(1)
   ) control (.map_clk(clk), .map_reset(!resetn), .s_axi_aclk(clk),
              .s_axi_aresetn(resetn), .s_axi_awprot(3'd0), .s_axi_arprot(3'd0), .*);
 

@@ -144,6 +144,7 @@ module axi_starlink_pss_acquisition #(
   wire [31:0] score_denominator_zero_count;
   wire [31:0] accepted_score_count;
   wire [31:0] discarded_score_count;
+  wire map_counter_fault;
   wire [31:0] discontinuity_abort_count;
   wire [31:0] map_publish_count;
   wire [31:0] map_overrun_count;
@@ -382,6 +383,7 @@ module axi_starlink_pss_acquisition #(
     .map_arithmetic_overflow_count        (map_arithmetic_overflow_count),
     .map_read_error_count                 (map_read_error_count),
     .map_release_error_count              (map_release_error_count),
+    .map_counter_fault                    (map_counter_fault),
     .stop_request                         (stop_request),
     .stop_ready                           (stop_ready),
     .stop_pending                         (stop_pending),
@@ -401,6 +403,9 @@ module axi_starlink_pss_acquisition #(
     // acquisition_health supplies these flags/counters on this same AXI
     // clock/reset. Do not enable this shortcut for independent health inputs.
     .HEALTH_COUNTERS_FROM_FLAGS(ENABLE_BOUNDARY_STOP),
+    // The real phase_map sets its sticky summary atomically with each
+    // saturating error counter and clears both only under the common reset.
+    .MAP_COUNTERS_FROM_FLAG   (ENABLE_BOUNDARY_STOP),
     .USE_SHARED_XFFT    (USE_SHARED_XFFT),
     .INPUT_RATE_MSPS    (INPUT_RATE_MSPS),
     .COEFFICIENT_ENERGY(ACQUISITION_COEFFICIENT_ENERGY)
@@ -429,6 +434,7 @@ module axi_starlink_pss_acquisition #(
     .map_arithmetic_overflow_count        (map_arithmetic_overflow_count),
     .map_read_error_count                 (map_read_error_count),
     .map_release_error_count              (map_release_error_count),
+    .map_counter_fault                    (map_counter_fault),
     .detector_health_flags                (detector_health_flags),
     .ingress_overflow_sticky              (ingress_overflow_sticky),
     .ingress_dropped_sample_count         (ingress_dropped_sample_count),

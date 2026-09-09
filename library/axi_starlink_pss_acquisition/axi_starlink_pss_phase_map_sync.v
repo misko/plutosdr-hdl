@@ -23,6 +23,9 @@ module axi_starlink_pss_phase_map_sync #(
   // same-reset starlink_pss_acquisition_health producer. Independent public
   // counter inputs retain conservative checks by default.
   parameter integer HEALTH_COUNTERS_FROM_FLAGS = 0,
+  // Opt in only for the same-clock/reset map producer's exact sticky summary.
+  // Independent generic counter inputs keep their conservative checks.
+  parameter integer MAP_COUNTERS_FROM_FLAG = 0,
   parameter [30:0] COEFFICIENT_ENERGY = 31'd1073742825
 ) (
   input  wire                          map_clk,
@@ -53,6 +56,7 @@ module axi_starlink_pss_phase_map_sync #(
   input  wire [31:0]                   map_arithmetic_overflow_count,
   input  wire [31:0]                   map_read_error_count,
   input  wire [31:0]                   map_release_error_count,
+  input  wire                          map_counter_fault,
 
   input  wire [31:0]                   detector_health_flags,
   input  wire                          ingress_overflow_sticky,
@@ -117,6 +121,8 @@ module axi_starlink_pss_phase_map_sync #(
   localparam [31:0] IDENTIFICATION = 32'h5053_4d41;
   localparam integer DDC_ENABLED = INPUT_RATE_MSPS != 15;
   initial begin
+    if (MAP_COUNTERS_FROM_FLAG != 0 && MAP_COUNTERS_FROM_FLAG != 1)
+      $fatal(1, "MAP_COUNTERS_FROM_FLAG must be zero or one");
     if (HEALTH_COUNTERS_FROM_FLAGS != 0 && HEALTH_COUNTERS_FROM_FLAGS != 1)
       $fatal(1, "HEALTH_COUNTERS_FROM_FLAGS must be zero or one");
     if (ENABLE_BOUNDARY_STOP != 0 && ENABLE_BOUNDARY_STOP != 1)
@@ -319,10 +325,11 @@ module axi_starlink_pss_phase_map_sync #(
        |score_phase_index_discontinuity_count);
   wire stop_upstream_fault_now = |(snapshot_health_flags & 32'h0000_57ff) ||
       |ingress_dropped_sample_count || stop_detector_counter_fault;
-  wire stop_map_fault_now = |discarded_score_count || |discontinuity_abort_count ||
+  wire stop_map_fault_now = MAP_COUNTERS_FROM_FLAG ? map_counter_fault :
+      (|discarded_score_count || |discontinuity_abort_count ||
       |map_overrun_count || |score_protocol_error_count ||
       |map_arithmetic_overflow_count || |map_read_error_count ||
-      |map_release_error_count;
+      |map_release_error_count);
   wire stop_bridge_fault_now = |bridge_read_error_count ||
       |bridge_release_error_count || |snapshot_request_overrun_count ||
       (read_pending && map_read_error) ||

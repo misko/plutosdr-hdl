@@ -30,6 +30,7 @@ module tb_starlink_pss_phase_map_stop_production;
   wire [31:0] accepted_score_count, discarded_score_count, discontinuity_abort_count;
   wire [31:0] map_publish_count, map_overrun_count, score_protocol_error_count;
   wire [31:0] map_arithmetic_overflow_count, map_read_error_count, map_release_error_count;
+  wire map_counter_fault;
   wire stop_pending, stop_ack, stop_done, stop_complete, stop_failed, stop_has_map;
   wire [5:0] stop_failure_reason;
   wire [31:0] stop_generation;
