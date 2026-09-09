@@ -1,18 +1,26 @@
 # Measure the EXISTING radix-4 burst arithmetic at 100/200 MHz before choosing
 # a time-shared forward/inverse service. This does not qualify its future CDC,
 # job scheduler, I/O placement, or full receiver. No detector profile changes.
-# Usage: vivado -mode batch -source measure_shared_xfft_clock.tcl -tclargs OUTPUT ?MHZ? ?actual-synth?
+# Usage: vivado -mode batch -source measure_shared_xfft_clock.tcl -tclargs OUTPUT ?MHZ? ?actual-synth? ?shared-realtime?
 # The additive actual-synth probe changes ONLY its fresh generated OOC clock,
 # before synthesis. The default retains the historical generated-clock probe.
-if {$argc < 1 || $argc > 3} { error "expected output directory, optional MHz and actual-synth" }
+# shared-realtime is a standalone protocol/physical feasibility experiment,
+# NOT the production service or evidence of numerical/handshake equivalence.
+if {$argc < 1 || $argc > 4} { error "expected output directory, optional MHz, actual-synth and shared-realtime" }
 if {[version -short] ne "2022.2"} { error "requires Vivado 2022.2" }
 set output_dir [file normalize [lindex $argv 0]]
 set clock_mhz [expr {$argc >= 2 ? [lindex $argv 1] : 200}]
 if {$clock_mhz ni {100 200}} { error "clock probe is restricted to 100/200 MHz" }
-set actual_synthesis_clock [expr {$argc == 3}]
+set actual_synthesis_clock [expr {$argc >= 3}]
+set shared_realtime_probe [expr {$argc == 4}]
 if {$actual_synthesis_clock && [lindex $argv 2] ne "actual-synth"} {
   error "the only optional synthesis-clock probe is actual-synth"
 }
+if {$shared_realtime_probe &&
+    ([lindex $argv 3] ne "shared-realtime" || $clock_mhz != 200)} {
+  error "shared-realtime feasibility requires actual-synth at 200 MHz"
+}
+set throttle_scheme [expr {$shared_realtime_probe ? "realtime" : "nonrealtime"}]
 if {$actual_synthesis_clock && [file exists $output_dir]} {
   error "actual-synth requires a fresh output directory; no previous evidence may be overwritten"
 }
@@ -33,7 +41,7 @@ set_property -dict [list \
   CONFIG.data_format {fixed_point} CONFIG.input_width {18} \
   CONFIG.phase_factor_width {16} CONFIG.scaling_options {block_floating_point} \
   CONFIG.rounding_modes {convergent_rounding} CONFIG.aresetn {true} \
-  CONFIG.xk_index {true} CONFIG.throttle_scheme {nonrealtime} \
+  CONFIG.xk_index {true} CONFIG.throttle_scheme $throttle_scheme \
   CONFIG.output_ordering {natural_order} CONFIG.cyclic_prefix_insertion {false} \
   CONFIG.memory_options_data {block_ram} CONFIG.memory_options_phase_factors {block_ram} \
   CONFIG.memory_options_reorder {block_ram} \
@@ -48,6 +56,11 @@ set wrapper_text [read $channel]
 close $channel
 if {![regexp {C_ARCH => ([0-9]+),} $wrapper_text unused architecture] || $architecture != 1} {
   error "probe must retain the frozen radix-4 burst architecture C_ARCH=1"
+}
+if {$shared_realtime_probe &&
+    (![regexp {C_THROTTLE_SCHEME => ([0-9]+),} $wrapper_text unused throttle_value] ||
+     $throttle_value != 0)} {
+  error "shared-realtime probe did not generate the requested throttle scheme"
 }
 if {$actual_synthesis_clock} {
   # Changing the generated standalone _ooc.xdc target is deliberately local to
@@ -93,12 +106,18 @@ if {$actual_synthesis_clock} {
   write_checkpoint [file join $output_dir fft_synth.dcp]
   write_verilog -mode funcsim [file join $output_dir fft_synth_netlist.v]
   set synth_ce_registers [get_cells -hier -filter {NAME =~ *gen_ce_non_real_time.ce_predicted_reg* && REF_NAME == FDRE}]
-  if {[llength $synth_ce_registers] == 0} { error "missing synthesized CE prediction registers" }
-  report_timing -from [all_registers] \
-    -to [get_pins -of_objects $synth_ce_registers -filter {REF_PIN_NAME == D}] \
-    -max_paths 20 -file [file join $output_dir synthesis_ce_prediction_fanin.rpt]
-  report_timing -from $synth_ce_registers -to [all_registers] -max_paths 20 \
-    -file [file join $output_dir synthesis_ce_distribution_fanout.rpt]
+  if {$shared_realtime_probe} {
+    if {[llength $synth_ce_registers] != 0} { error "unexpected nonrealtime CE in realtime probe" }
+    report_timing -from [all_registers] -to [all_registers] -max_paths 20 \
+      -file [file join $output_dir synthesis_internal_paths.rpt]
+  } else {
+    if {[llength $synth_ce_registers] == 0} { error "missing synthesized CE prediction registers" }
+    report_timing -from [all_registers] \
+      -to [get_pins -of_objects $synth_ce_registers -filter {REF_PIN_NAME == D}] \
+      -max_paths 20 -file [file join $output_dir synthesis_ce_prediction_fanin.rpt]
+    report_timing -from $synth_ce_registers -to [all_registers] -max_paths 20 \
+      -file [file join $output_dir synthesis_ce_distribution_fanout.rpt]
+  }
 }
 # XFFT 9.1 emits a fixed 10 ns OOC XDC even when target_clock_frequency is
 # 200. That CONFIG selects arithmetic; it does NOT constrain implementation.
@@ -140,12 +159,18 @@ if {$actual_synthesis_clock} {
   # Both sides matter: replication can improve the wide CE distribution while
   # making its shared prediction cone slower. Never report only the D endpoint.
   set ce_registers [get_cells -hier -filter {NAME =~ *gen_ce_non_real_time.ce_predicted_reg* && REF_NAME == FDRE}]
-  if {[llength $ce_registers] == 0} { error "missing expected nonrealtime CE prediction registers" }
-  set ce_data_pins [get_pins -of_objects $ce_registers -filter {REF_PIN_NAME == D}]
-  report_timing -from [all_registers] -to $ce_data_pins -max_paths 20 \
-    -path_type full_clock_expanded -file [file join $output_dir ce_prediction_fanin.rpt]
-  report_timing -from $ce_registers -to [all_registers] -max_paths 20 \
-    -path_type full_clock_expanded -file [file join $output_dir ce_distribution_fanout.rpt]
+  if {$shared_realtime_probe} {
+    if {[llength $ce_registers] != 0} { error "unexpected routed nonrealtime CE in realtime probe" }
+    report_timing -from [all_registers] -to [all_registers] -max_paths 20 \
+      -path_type full_clock_expanded -file [file join $output_dir internal_paths.rpt]
+  } else {
+    if {[llength $ce_registers] == 0} { error "missing expected nonrealtime CE prediction registers" }
+    set ce_data_pins [get_pins -of_objects $ce_registers -filter {REF_PIN_NAME == D}]
+    report_timing -from [all_registers] -to $ce_data_pins -max_paths 20 \
+      -path_type full_clock_expanded -file [file join $output_dir ce_prediction_fanin.rpt]
+    report_timing -from $ce_registers -to [all_registers] -max_paths 20 \
+      -path_type full_clock_expanded -file [file join $output_dir ce_distribution_fanout.rpt]
+  }
   report_high_fanout_nets -timing -max_nets 20 -file [file join $output_dir high_fanout.rpt]
   write_verilog -mode funcsim [file join $output_dir fft_routed_netlist.v]
 }
@@ -159,6 +184,12 @@ set channel [open [file join $output_dir summary.txt] w]
 puts $channel "scope=single_XFFT_internal_register_to_register_NOT_IO_CDC_scheduler_or_receiver"
 puts $channel "vivado_version=[version -short]"
 puts $channel "clock_mhz=$clock_mhz"
+if {$shared_realtime_probe} {
+  puts $channel "protocol_scope=shared_candidate_realtime_feasibility_only"
+  puts $channel "throttle_scheme=$throttle_scheme"
+  puts $channel "numerical_equivalence_qualified=false"
+  puts $channel "service_protocol_qualified=false"
+}
 if {$actual_synthesis_clock} {
   puts $channel "synthesis_clock_mode=actual-synth"
   puts $channel "original_generated_ooc_clock_period_ns=10.000"
