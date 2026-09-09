@@ -5,7 +5,8 @@
 module tb_axi_starlink_pss_map_stop #(
   parameter integer ENABLE_BOUNDARY_STOP = 1,
   parameter integer USE_SHARED_XFFT = 1,
-  parameter integer INPUT_RATE_MSPS = 15
+  parameter integer INPUT_RATE_MSPS = 15,
+  parameter integer HEALTH_COUNTERS_FROM_FLAGS = 0
 );
   localparam integer BINS = 8, FRAMES = 4, TOTAL = BINS * FRAMES;
   localparam [63:0] BASE = 64'h00000001fffffff0;
@@ -35,9 +36,16 @@ module tb_axi_starlink_pss_map_stop #(
   reg [31:0] detector_health_flags = 0, ingress_dropped_sample_count = 0;
   reg ingress_overflow_sticky = 0;
   wire [15:0] ingress_fifo_level = 0, ingress_maximum_fifo_level = 0;
-  wire [31:0] scheduler_gap_count = 0, scheduler_index_error_count = 0;
-  wire [31:0] scheduler_overflow_count = 0, detector_fault_count = 0;
-  wire [31:0] score_phase_index_discontinuity_count = 0;
+  reg [12:0] health_events = 0;
+  reg [31:0] independent_counts [0:4];
+  wire [31:0] producer_counts [0:4];
+  wire [31:0] produced_health_flags;
+  wire [31:0] controller_health_flags = detector_health_flags | produced_health_flags;
+  wire [31:0] detector_fault_count = producer_counts[0] | independent_counts[0];
+  wire [31:0] scheduler_gap_count = producer_counts[1] | independent_counts[1];
+  wire [31:0] scheduler_index_error_count = producer_counts[2] | independent_counts[2];
+  wire [31:0] scheduler_overflow_count = producer_counts[3] | independent_counts[3];
+  wire [31:0] score_phase_index_discontinuity_count = producer_counts[4] | independent_counts[4];
   reg [31:0] score_denominator_zero_count = 0;
   wire [9:0] candidate_fifo_stored_count = 0, candidate_fifo_maximum_stored_count = 0;
   wire [63:0] ddc_accepted_sample_count = 0, ddc_emitted_sample_count = 0;
@@ -52,6 +60,36 @@ module tb_axi_starlink_pss_map_stop #(
   wire s_axi_arready, s_axi_rvalid;
   wire [31:0] s_axi_rdata;
 
+`ifdef PSMA_STOP_PUBLIC_TRACE
+  integer trace_file;
+  initial begin
+    trace_file = $fopen("psma-public-trace.txt", "w");
+    if (!trace_file) $fatal(1, "cannot open public-interface trace");
+  end
+  always @(posedge clk) begin
+    #2;
+    $fdisplay(trace_file, "%0t %b", $time,
+      {map_read_request, map_read_bank, map_read_index, map_release,
+       map_release_bank, acquisition_enable, acquisition_flush, irq,
+       s_axi_awready, s_axi_wready, s_axi_bvalid, s_axi_bresp,
+       s_axi_arready, s_axi_rvalid, s_axi_rresp, s_axi_rdata, stop_request});
+  end
+`endif
+
+  starlink_pss_acquisition_health #(.USE_SHARED_XFFT(USE_SHARED_XFFT)) health (
+    .clk(clk), .resetn(resetn), .detector_fault(health_events[0]),
+    .scheduler_gap_pulse(health_events[1]), .scheduler_index_error_pulse(health_events[2]),
+    .scheduler_overflow_pulse(health_events[3]), .forward_fft_fault(health_events[4]),
+    .kernel_join_fault(health_events[5]), .product_overflow_fault(health_events[6]),
+    .inverse_fft_fault(health_events[7]), .forward_exponent_fault(health_events[8]),
+    .candidate_path_fault(health_events[9]), .phase_index_discontinuity_pulse(health_events[10]),
+    .score_valid(health_events[11]), .score_denominator_zero(health_events[12]),
+    .detector_fault_count(producer_counts[0]), .scheduler_gap_count(producer_counts[1]),
+    .scheduler_index_error_count(producer_counts[2]), .scheduler_overflow_count(producer_counts[3]),
+    .score_phase_index_discontinuity_count(producer_counts[4]),
+    .score_denominator_zero_count(), .detector_health_flags(produced_health_flags)
+  );
+
   starlink_pss_phase_map #(
     .PHASE_BINS(BINS), .PHASE_INDEX_WIDTH(3), .TILE_FRAMES(FRAMES), .TILE_FRAME_WIDTH(2),
     .MAP_SEGMENT_ADDRESS_WIDTH(3), .MAP_SEGMENT_COUNT(1), .MAP_SEGMENT_INDEX_WIDTH(1),
@@ -60,9 +98,11 @@ module tb_axi_starlink_pss_map_stop #(
   axi_starlink_pss_phase_map_sync #(
     .PHASE_BINS(BINS), .PHASE_INDEX_WIDTH(3), .TILE_FRAMES(FRAMES),
     .INPUT_RATE_MSPS(INPUT_RATE_MSPS), .USE_SHARED_XFFT(USE_SHARED_XFFT),
-    .ENABLE_BOUNDARY_STOP(ENABLE_BOUNDARY_STOP)
+    .ENABLE_BOUNDARY_STOP(ENABLE_BOUNDARY_STOP),
+    .HEALTH_COUNTERS_FROM_FLAGS(HEALTH_COUNTERS_FROM_FLAGS)
   ) control (.map_clk(clk), .map_reset(!resetn), .s_axi_aclk(clk),
-             .s_axi_aresetn(resetn), .s_axi_awprot(3'd0), .s_axi_arprot(3'd0), .*);
+             .s_axi_aresetn(resetn), .s_axi_awprot(3'd0), .s_axi_arprot(3'd0),
+             .detector_health_flags(controller_health_flags), .*);
 
   task automatic fail(input string message);
     $display("PSMA_STOP_FAIL %s", message);
@@ -121,8 +161,15 @@ module tb_axi_starlink_pss_map_stop #(
     resetn = 0; score_valid = 0; stream_discontinuity = 0; core_gate = 1;
     detector_health_flags = 0; ingress_overflow_sticky = 0;
     ingress_dropped_sample_count = 0; score_denominator_zero_count = 0;
+    health_events = 0;
+    for (integer counter = 0; counter < 5; counter = counter + 1)
+      independent_counts[counter] = 0;
     idle(5); resetn = 1; idle(5);
     axi_write(8'h14, 1, 4'hf); idle(BINS + 4);
+  endtask
+  task automatic health_pulse(input integer cause);
+    @(negedge clk); health_events = 13'd1 << (cause == 4 ? 10 : cause);
+    @(negedge clk); health_events = 0;
   endtask
   task automatic score(input [63:0] index, input integer phase);
     @(negedge clk); score_valid = 1; score_start_index = index;
@@ -330,6 +377,36 @@ module tb_axi_starlink_pss_map_stop #(
       axi_write(8'hf8, 1, 4'hf); expect_word(11, 5); expect_register(8'hf8, 0);
       boot(); detector_health_flags = 32'h800; score_denominator_zero_count = 9;
       axi_write(8'hf8, 1, 4'hf); expect_terminal(1, 0, 0, 32'h06);
+
+      // Exercise the actual same-epoch producer, not just a manually asserted
+      // flag: before admission, after acceptance, and on terminal retirement.
+      for (kind = 0; kind < 5; kind = kind + 1) begin
+        boot(); health_pulse(kind);
+        if (producer_counts[kind] != 1) fail("real health pulse not counted");
+        axi_write(8'hf8, 1, 4'hf); expect_word(11, 5); expect_register(8'hf8, 0);
+
+        boot(); score(BASE, 0); axi_write(8'hf8, 1, 4'hf); health_pulse(kind);
+        expect_terminal(1, 0, 0, 32'h0a);
+        if (discontinuity_abort_count != 1) fail("real producer fault lost partial abort");
+
+        boot();
+        fork
+          tile(BASE, 1);
+          begin wait(stop_ack); health_pulse(kind); end
+        join
+        expect_terminal(1, 1, BASE, 32'h1e); expect_word(10, 1);
+        read_release(0); expect_terminal(1, 1, BASE, 32'h1e);
+      end
+      // Without the explicit producer contract, a nonzero independent counter
+      // is still fatal even when a caller supplies no corresponding flag.
+      if (!HEALTH_COUNTERS_FROM_FLAGS) begin
+        for (kind = 0; kind < 5; kind = kind + 1) begin
+          boot(); independent_counts[kind] = 32'h8000_0000;
+          axi_write(8'hf8, 1, 4'hf); expect_word(11, 5); expect_register(8'hf8, 0);
+        end
+      end
+      $display("PSMA_STOP_HEALTH_PASS summary=%0d real_causes=5 generic_counter_fallback=%0d",
+               HEALTH_COUNTERS_FROM_FLAGS, !HEALTH_COUNTERS_FROM_FLAGS);
 
       // Pulse-only faults on controller retirement or afterwards stay sticky
       // without changing the terminal coordinate tuple.

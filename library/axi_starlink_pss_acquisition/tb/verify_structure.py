@@ -34,6 +34,7 @@ for fragment, label in (
     (".enable                 (conditioner_enable)", "shared conditioning enable"),
     ("acquisition_enable || (ENABLE_PILOT_TAP && pilot_enable)", "opt-in pilot keepalive"),
     ("parameter integer ENABLE_PILOT_TAP = 0", "historical profiles unchanged"),
+    (".HEALTH_COUNTERS_FROM_FLAGS(ENABLE_BOUNDARY_STOP)", "integrated same-epoch health summary"),
     (".flush                  (acquisition_flush)", "common flush"),
 ):
     require(WRAPPER, fragment, label)

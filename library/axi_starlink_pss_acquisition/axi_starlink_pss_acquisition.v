@@ -398,6 +398,9 @@ module axi_starlink_pss_acquisition #(
 
   axi_starlink_pss_phase_map_sync #(
     .ENABLE_BOUNDARY_STOP(ENABLE_BOUNDARY_STOP),
+    // acquisition_health supplies these flags/counters on this same AXI
+    // clock/reset. Do not enable this shortcut for independent health inputs.
+    .HEALTH_COUNTERS_FROM_FLAGS(ENABLE_BOUNDARY_STOP),
     .USE_SHARED_XFFT    (USE_SHARED_XFFT),
     .INPUT_RATE_MSPS    (INPUT_RATE_MSPS),
     .COEFFICIENT_ENERGY(ACQUISITION_COEFFICIENT_ENERGY)

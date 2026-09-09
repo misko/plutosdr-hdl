@@ -19,6 +19,10 @@ module axi_starlink_pss_phase_map_sync #(
   parameter integer INPUT_RATE_MSPS = 15,
   parameter integer USE_SHARED_XFFT = 0,
   parameter integer ENABLE_BOUNDARY_STOP = 0,
+  // Set only when these five counters and flags come from the same-clock,
+  // same-reset starlink_pss_acquisition_health producer. Independent public
+  // counter inputs retain conservative checks by default.
+  parameter integer HEALTH_COUNTERS_FROM_FLAGS = 0,
   parameter [30:0] COEFFICIENT_ENERGY = 31'd1073742825
 ) (
   input  wire                          map_clk,
@@ -113,6 +117,8 @@ module axi_starlink_pss_phase_map_sync #(
   localparam [31:0] IDENTIFICATION = 32'h5053_4d41;
   localparam integer DDC_ENABLED = INPUT_RATE_MSPS != 15;
   initial begin
+    if (HEALTH_COUNTERS_FROM_FLAGS != 0 && HEALTH_COUNTERS_FROM_FLAGS != 1)
+      $fatal(1, "HEALTH_COUNTERS_FROM_FLAGS must be zero or one");
     if (ENABLE_BOUNDARY_STOP != 0 && ENABLE_BOUNDARY_STOP != 1)
       $fatal(1, "ENABLE_BOUNDARY_STOP must be zero or one");
     if (ENABLE_BOUNDARY_STOP && (USE_SHARED_XFFT != 1 || INPUT_RATE_MSPS != 15))
@@ -302,10 +308,17 @@ module axi_starlink_pss_phase_map_sync #(
   // Fatal shared-service mask is deliberately unchanged; denominator zero
   // (bit 11/count) is diagnostic. These are live observations, not a single
   // atomic RF/health snapshot. PSMA snapshots remain independently available.
+  // The integrated producer sets bits 0/1/2/3/10 on exactly the same edges
+  // that their saturating counters become nonzero. Reuse those sticky bits
+  // without a pipeline delay; retain all counters in the snapshot ABI. This
+  // removes a redundant 160-bit reduction from the stop-admission path, not a
+  // fault cause. Ingress loss has an independent producer and stays checked.
+  wire stop_detector_counter_fault = !HEALTH_COUNTERS_FROM_FLAGS &&
+      (|scheduler_gap_count || |scheduler_index_error_count ||
+       |scheduler_overflow_count || |detector_fault_count ||
+       |score_phase_index_discontinuity_count);
   wire stop_upstream_fault_now = |(snapshot_health_flags & 32'h0000_57ff) ||
-      |ingress_dropped_sample_count || |scheduler_gap_count ||
-      |scheduler_index_error_count || |scheduler_overflow_count ||
-      |detector_fault_count || |score_phase_index_discontinuity_count;
+      |ingress_dropped_sample_count || stop_detector_counter_fault;
   wire stop_map_fault_now = |discarded_score_count || |discontinuity_abort_count ||
       |map_overrun_count || |score_protocol_error_count ||
       |map_arithmetic_overflow_count || |map_read_error_count ||
