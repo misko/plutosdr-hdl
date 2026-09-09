@@ -1,6 +1,7 @@
 `timescale 1ns/1ps
 
 module tb_starlink_pss_xfft_block_adapter;
+  parameter integer CHECK_IDENTITY = 1;
 
   reg clk = 1'b0;
   reg resetn = 1'b0;
@@ -81,7 +82,7 @@ module tb_starlink_pss_xfft_block_adapter;
   always #5 clk = ~clk;
 
   starlink_pss_xfft_block_adapter #(
-    .FORWARD_TRANSFORM (1)
+    .FORWARD_TRANSFORM (1), .CHECK_INPUT_BLOCK_IDENTITY(CHECK_IDENTITY)
   ) dut (
     .clk                            (clk),
     .resetn                         (resetn),
@@ -326,6 +327,9 @@ module tb_starlink_pss_xfft_block_adapter;
     cycle_count <= cycle_count + 1;
     if (cycle_count > 30000)
       fail("simulation watchdog expired");
+    if (resetn && !flush && dut.input_start_accept &&
+        dut.expected_output_position !== 9'd0)
+      fail("healthy first input must find output position already zero");
 
     if (configured_pulse)
       configured_count <= configured_count + 1;
@@ -437,6 +441,22 @@ module tb_starlink_pss_xfft_block_adapter;
       fail("complete-block accounting mismatch");
     if (protocol_fault || data_in_halts != 1 || data_out_halts != 1)
       fail("nonfatal halt telemetry handling mismatch");
+
+    // Reuse the configured adapter WITHOUT reset/flush. This exercises the
+    // completed-output -> next-input invariant used to remove the redundant
+    // first-input output-position reset in both identity modes.
+    send_complete_input_block(64'd1000);
+    @(negedge clk);
+    core_status_tdata = {3'b000, 5'd5};
+    core_status_tvalid = 1'b1;
+    @(negedge clk);
+    core_status_tvalid = 1'b0;
+    for (position = 0; position < 512; position = position + 1)
+      send_output_sample(position[8:0], 5'd5, position == 511);
+    repeat (3) @(negedge clk);
+    if (published_count != 1024 || input_blocks != 2 || output_blocks != 2 || protocol_fault)
+      fail("back-to-back configured-block lifecycle mismatch");
+    $display("XFFT_PHASE_INIT_INVARIANT_PASS identity=%0d healthy_blocks=2 reset_between_blocks=0", CHECK_IDENTITY);
 
     // Bad application TLAST is consumed at the adapter but never reaches the
     // generated core.

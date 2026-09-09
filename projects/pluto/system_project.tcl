@@ -87,6 +87,19 @@ if {[info exists ::env(STARLINK_PSS_RATE_MSPS)] &&
 
 if {[info exists ::env(STARLINK_PSS_SHARED_XFFT)] &&
     $::env(STARLINK_PSS_SHARED_XFFT) eq "1"} {
+  # The source-pinned full-receiver experiment demonstrated placement with
+  # this spread policy while default placement could fail before routing.
+  # Apply it only to the explicitly selected shared paired receiver. This is
+  # a fresh implementation, not DCP reuse or a relaxation of any constraint.
+  if {![info exists ::env(STARLINK_PSS_PROFILE)] ||
+      $::env(STARLINK_PSS_PROFILE) ne "paired-pilot" ||
+      ![info exists ::env(STARLINK_PSS_RATE_MSPS)] ||
+      $::env(STARLINK_PSS_RATE_MSPS) ne "15"} {
+    error "shared-XFFT implementation policy requires paired-pilot at 15 MS/s"
+  }
+  set_property strategy Congestion_SpreadLogic_high [get_runs impl_1]
+  set_property STEPS.POST_ROUTE_PHYS_OPT_DESIGN.IS_ENABLED true [get_runs impl_1]
+  set_property STEPS.POST_ROUTE_PHYS_OPT_DESIGN.ARGS.DIRECTIVE Explore [get_runs impl_1]
   set_property STEPS.INIT_DESIGN.TCL.POST \
     [file normalize shared_xfft_impl_gate.tcl] [get_runs impl_1]
 }

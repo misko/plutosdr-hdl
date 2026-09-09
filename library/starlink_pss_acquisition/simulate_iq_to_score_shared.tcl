@@ -1,7 +1,7 @@
 # Complete coarse pipeline with the actual 100/200/100 MHz transform island.
 # Numerical and canonical 15 MS/s capacity evidence, not receiver fit/deployment.
-# Usage: ... -tclargs OUTPUT numeric VECTORS | OUTPUT capacity ?64|4096?
-if {$argc < 2 || $argc > 3} { error "expected OUTPUT numeric VECTORS or OUTPUT capacity ?64|4096?" }
+# Usage: ... -tclargs OUTPUT numeric VECTORS | OUTPUT capacity ?64|4096? ?nominal|bursty-stalled?
+if {$argc < 2 || $argc > 4} { error "expected OUTPUT numeric VECTORS or OUTPUT capacity ?64|4096? ?nominal|bursty-stalled?" }
 if {[version -short] ne "2022.2"} { error "requires Vivado 2022.2" }
 set script_dir [file dirname [file normalize [info script]]]
 set output_dir [file normalize [lindex $argv 0]]
@@ -10,8 +10,11 @@ if {$mode ni {capacity numeric} || ($mode eq "numeric" && $argc != 3)} {
   error "numeric mode requires vectors; capacity does not"
 }
 set capacity_blocks 64
-if {$mode eq "capacity" && $argc == 3} { set capacity_blocks [lindex $argv 2] }
+if {$mode eq "capacity" && $argc >= 3} { set capacity_blocks [lindex $argv 2] }
 if {$capacity_blocks ni {64 4096}} { error "capacity supports 64 or 4096 blocks" }
+set capacity_profile nominal
+if {$mode eq "capacity" && $argc == 4} { set capacity_profile [lindex $argv 3] }
+if {$capacity_profile ni {nominal bursty-stalled}} { error "unknown capacity profile" }
 if {[file exists $output_dir]} { error "refusing to overwrite pipeline evidence" }
 file mkdir $output_dir
 set bench_name tb_starlink_pss_iq_to_score_xfft
@@ -116,6 +119,9 @@ if {$mode eq "numeric"} {
 }
 set_property file_type {Memory Initialization Files} [get_files -of_objects [get_filesets sim_1] *.mem]
 set_property top $bench_name [get_filesets sim_1]
+if {$mode eq "capacity" && $capacity_profile eq "bursty-stalled"} {
+  set_property generic {SOURCE_BURST_MODE=1 SCORE_STALL_MODE=1} [get_filesets sim_1]
+}
 set_property xsim.simulate.runtime {all} [get_filesets sim_1]
 launch_simulation -simset sim_1 -mode behavioral
 close_sim

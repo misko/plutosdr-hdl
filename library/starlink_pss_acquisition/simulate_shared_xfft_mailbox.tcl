@@ -1,11 +1,13 @@
 # Actual two-clock transform service with frozen vectors; no receiver claims.
-if {$argc < 2 || $argc > 3} { error "expected OUTPUT VECTOR_DIRECTORY ?MAIN_JOBS?" }
+if {$argc < 2 || $argc > 4} { error "expected OUTPUT VECTOR_DIRECTORY ?MAIN_JOBS? ?OUTPUT_STALL_MODE?" }
 if {[version -short] ne "2022.2"} { error "requires Vivado 2022.2" }
 set script_dir [file dirname [file normalize [info script]]]
 set output_dir [file normalize [lindex $argv 0]]
 set vector_dir [file normalize [lindex $argv 1]]
-set main_jobs [expr {$argc == 3 ? [lindex $argv 2] : 6}]
+set main_jobs [expr {$argc >= 3 ? [lindex $argv 2] : 6}]
 if {$main_jobs ni {6 64}} { error "bounded replay supports 6 or 64 main jobs" }
+set output_stall_mode [expr {$argc == 4 ? [lindex $argv 3] : 1}]
+if {$output_stall_mode ni {0 1}} { error "OUTPUT_STALL_MODE must be 0 or 1" }
 if {[file exists $output_dir]} { error "refusing to overwrite replay evidence" }
 set project_name shared_xfft_mailbox
 set project_dir [file join $output_dir project]
@@ -41,7 +43,7 @@ foreach name {samples_ci16 forward_q17 product_q17 inverse_q17 forward_exponents
 }
 set_property file_type {Memory Initialization Files} [get_files -of_objects [get_filesets sim_1] *.mem]
 set_property top tb_starlink_pss_shared_xfft_service [get_filesets sim_1]
-set_property generic "MAIN_JOBS=$main_jobs" [get_filesets sim_1]
+set_property generic "MAIN_JOBS=$main_jobs OUTPUT_STALL_MODE=$output_stall_mode" [get_filesets sim_1]
 set_property xsim.simulate.runtime {all} [get_filesets sim_1]
 launch_simulation -simset sim_1 -mode behavioral
 close_sim

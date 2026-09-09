@@ -164,6 +164,7 @@ module starlink_pss_sample_cdc #(
   (* ASYNC_REG = "TRUE" *) reg [31:0] dropped_count_gray_sync_1;
   (* ASYNC_REG = "TRUE" *) reg [31:0] dropped_count_gray_sync_2;
   reg [31:0] acquisition_dropped_sample_count;
+  reg acquisition_overflow_sticky;
 
   wire source_write;
   wire source_drop;
@@ -218,7 +219,7 @@ module starlink_pss_sample_cdc #(
                                   acquisition_pointer_binary;
   assign fifo_level = acquisition_fifo_level;
   assign dropped_sample_count = acquisition_dropped_sample_count;
-  assign overflow_sticky = |dropped_sample_count;
+  assign overflow_sticky = acquisition_overflow_sticky;
   assign acquisition_sample_i = acquisition_payload[15:0];
   assign acquisition_sample_q = acquisition_payload[31:16];
   assign acquisition_sample_index = acquisition_payload[95:32];
@@ -287,6 +288,7 @@ module starlink_pss_sample_cdc #(
       acquisition_pointer_gray <= {POINTER_WIDTH{1'b0}};
       acquisition_empty <= 1'b1;
       acquisition_dropped_sample_count <= 32'd0;
+      acquisition_overflow_sticky <= 1'b0;
       maximum_fifo_level <= {(POINTER_WIDTH){1'b0}};
     end else begin
       acquisition_pointer_binary <= acquisition_pointer_binary_next;
@@ -296,6 +298,11 @@ module starlink_pss_sample_cdc #(
       // This removes a 32-bit XOR chain from the peripheral boundary.
       acquisition_dropped_sample_count <= gray_to_binary_32(
           dropped_count_gray_sync_2);
+      // Gray zero iff binary zero. Compute the health bit alongside the
+      // decoded counter, from the same synchronized word and on the same
+      // edge. This preserves exact fault visibility without routing a wide
+      // post-counter reduction through the pilot's admission/flush controls.
+      acquisition_overflow_sticky <= |dropped_count_gray_sync_2;
       if (acquisition_fifo_level > maximum_fifo_level)
         maximum_fifo_level <= acquisition_fifo_level;
     end

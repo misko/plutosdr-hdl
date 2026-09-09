@@ -69,6 +69,9 @@ module tb_starlink_pilot_ddc #(
   reg [31:0] visit_value;
   integer cycle = 0;
   integer previous_hb_cycle = -100;
+  integer hb_launch_cycle = -1;
+  reg [3:0] hb_job_pointer;
+  reg [3:0] hb_expected_a, hb_expected_b;
   integer phase_test;
   initial begin
     if (dut.quantize_q16(35'sd32768) !== 17'h00000 ||
@@ -123,6 +126,28 @@ module tb_starlink_pilot_ddc #(
     // The combinational fail-closed qualifier uses the current ingress beat;
     // sampling after NBA updates but before the next stimulus is not a transfer.
     cycle = cycle + 1;
+    // Independent reference for the registered folded-address walk and the
+    // original start-to-transfer latency. Numeric checks remain in the host
+    // oracle; these assertions cover every issue in all DDC replay scenarios.
+    if (!dut.halfband.run) hb_launch_cycle = -1;
+    else begin
+      if (dut.hb_valid) begin
+        if (hb_launch_cycle < 0 || cycle - hb_launch_cycle != 13)
+          $fatal(1, "halfband start-to-transfer latency changed");
+        hb_launch_cycle = -1;
+      end
+      if (dut.halfband.start) begin
+        hb_job_pointer = dut.halfband.even_pointer;
+        hb_launch_cycle = cycle;
+      end
+      if (dut.halfband.issue) begin
+        hb_expected_a = hb_job_pointer - dut.halfband.row;
+        hb_expected_b = hb_job_pointer - 4'd15 + dut.halfband.row;
+        if (dut.halfband.address_a !== hb_expected_a ||
+            dut.halfband.address_b !== hb_expected_b)
+          $fatal(1, "halfband folded-address walk changed");
+      end
+    end
     if ($test$plusargs("TRACE")) begin
       if (dut.mixed_valid) $display("MIX %d %d %d %d", dut.mixed_index, dut.mixed_i, dut.mixed_q, cycle);
       if (dut.hb_valid && !dut.pipe_flush) $display("HB %d %d %d %d", dut.hb_index, dut.hb_i, dut.hb_q, cycle);

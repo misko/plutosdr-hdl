@@ -136,6 +136,8 @@ module tb_starlink_pss_sample_cdc #(
   endtask
 
   always @(negedge acquisition_clk) begin
+    if (overflow_sticky !== (|dropped_sample_count))
+      fail("overflow flag must match the decoded counter on the same cycle");
     if (acquisition_sample_valid) begin
       if (expected_read >= expected_write)
         fail("unexpected or stale destination sample");

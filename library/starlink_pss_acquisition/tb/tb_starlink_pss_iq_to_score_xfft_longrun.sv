@@ -5,6 +5,8 @@
 // capacity, and liveness rather than numerical values.  Its purpose is to
 // expose faults which accumulate only after many overlap-save blocks.
 module tb_starlink_pss_iq_to_score_xfft_longrun;
+  parameter integer SOURCE_BURST_MODE = 0;
+  parameter integer SCORE_STALL_MODE = 0;
 
   localparam integer BLOCK_COUNT = 64;
   localparam integer FFT_SAMPLES = 512;
@@ -51,6 +53,13 @@ module tb_starlink_pss_iq_to_score_xfft_longrun;
   integer drive_index;
   integer cadence_phase = 0;
   integer observed_max_fifo = 0;
+  integer maximum_overlap_queue = 0, maximum_transform_fifo = 0;
+  integer forward_stall_cycles = 0, maximum_forward_stall_cycles = 0;
+  reg [63:0] maximum_ring_retention_age = 0;
+  reg [63:0] maximum_energy_lookup_age = 0;
+  reg [63:0] maximum_score_age = 0;
+  reg [63:0] ring_retention_age, energy_lookup_age;
+  wire score_ready = !SCORE_STALL_MODE || cycle_count % 97 >= 3;
   reg fault_seen = 1'b0;
 
   always #5 clk = ~clk;
@@ -66,7 +75,7 @@ module tb_starlink_pss_iq_to_score_xfft_longrun;
     .sample_q                             (sample_q),
     .sample_index                         (sample_index),
     .score_valid                          (score_valid),
-    .score_ready                          (1'b1),
+    .score_ready                          (score_ready),
     .score_value                          (score_value),
     .score_start_index                    (score_start_index),
     .score_denominator_zero               (score_denominator_zero),
@@ -162,12 +171,38 @@ module tb_starlink_pss_iq_to_score_xfft_longrun;
 
       if (candidate_fifo_stored_count > observed_max_fifo)
         observed_max_fifo = candidate_fifo_stored_count;
+      if (dut.scheduler.queued_block_count > maximum_overlap_queue)
+        maximum_overlap_queue = dut.scheduler.queued_block_count;
+      if (dut.transform_fifo.stored_count > maximum_transform_fifo)
+        maximum_transform_fifo = dut.transform_fifo.stored_count;
+      if (dut.scheduler.required_block_present) begin
+        ring_retention_age = dut.scheduler.expected_sample_index -
+          (dut.scheduler.active_block ? dut.scheduler.active_start_index :
+                                        dut.scheduler.queue_head_start_index);
+        if (ring_retention_age > maximum_ring_retention_age)
+          maximum_ring_retention_age = ring_retention_age;
+      end
+      if (dut.cache_lookup_valid_from_path && dut.cache_lookup_ready_to_path &&
+          dut.cache_lookup_start_from_path <= dut.energy_cache.newest_energy_start_index) begin
+        energy_lookup_age = dut.energy_cache.newest_energy_start_index -
+                            dut.cache_lookup_start_from_path;
+        if (energy_lookup_age > maximum_energy_lookup_age)
+          maximum_energy_lookup_age = energy_lookup_age;
+      end
+      if (dut.scheduler_fft_valid && !dut.scheduler_fft_ready) begin
+        forward_stall_cycles = forward_stall_cycles + 1;
+        if (forward_stall_cycles > maximum_forward_stall_cycles)
+          maximum_forward_stall_cycles = forward_stall_cycles;
+      end else forward_stall_cycles = 0;
 
-      if (score_valid) begin
+      if (score_valid && score_ready) begin
         if (score_start_index !== FIRST_SAMPLE_INDEX + score_count)
           report_and_fail("score_index_order");
         if (score_denominator_zero)
           report_and_fail("zero_denominator");
+        if (sample_index >= score_start_index &&
+            sample_index - score_start_index > maximum_score_age)
+          maximum_score_age = sample_index - score_start_index;
         score_count = score_count + 1;
         if (score_count % VALID_RESULTS_PER_BLOCK == 0)
           $display("IQ_TO_SCORE_XFFT_LONGRUN_PROGRESS block=%0d scores=%0d cycle=%0d fifo_max=%0d cache_oldest=%0d cache_newest=%0d",
@@ -189,7 +224,10 @@ module tb_starlink_pss_iq_to_score_xfft_longrun;
       @(negedge clk);
       sample_valid = 1'b0;
       cadence_phase = cadence_phase + 15;
-      if (cadence_phase >= 100) begin
+      // Stress only delivery cadence, not source-index continuity or the
+      // average 15 MS/s rate: accumulate arrivals through a bounded pause,
+      // then deliver the pending samples on consecutive processing clocks.
+      if (cadence_phase >= 100 && (!SOURCE_BURST_MODE || cycle_count % 40 >= 12)) begin
         cadence_phase = cadence_phase - 100;
         // Bounded nonzero deterministic CI16 stimulus.  Numerical score
         // accuracy remains covered by the independent exact-vector replay.
@@ -220,10 +258,19 @@ module tb_starlink_pss_iq_to_score_xfft_longrun;
       report_and_fail("end_to_end_count");
     if (observed_max_fifo >= 512)
       report_and_fail("fifo_capacity_exhausted");
+    if (maximum_overlap_queue > dut.scheduler.BLOCK_QUEUE_DEPTH ||
+        maximum_ring_retention_age > dut.scheduler.RING_SAMPLES ||
+        maximum_transform_fifo > dut.transform_fifo.FIFO_DEPTH ||
+        maximum_energy_lookup_age >= dut.energy_cache.CACHE_ENTRIES)
+      report_and_fail("observed_backlog_outside_retention_bounds");
 
     $display("IQ_TO_SCORE_XFFT_LONGRUN_PASS samples=%0d blocks=%0d forward=%0d product=%0d inverse=%0d scores=%0d fifo_max=%0d",
              driven_samples, BLOCK_COUNT, forward_count, product_count,
              inverse_count, score_count, observed_max_fifo);
+    $display("IQ_TO_SCORE_XFFT_BACKLOG_PASS blocks=%0d overlap_queue_max=%0d ring_retention_age_max=%0d transform_fifo_max=%0d energy_lookup_age_max=%0d score_age_max=%0d forward_stall_cycles_max=%0d source_burst_mode=%0d score_stall_mode=%0d",
+             BLOCK_COUNT, maximum_overlap_queue, maximum_ring_retention_age,
+             maximum_transform_fifo, maximum_energy_lookup_age, maximum_score_age,
+             maximum_forward_stall_cycles, SOURCE_BURST_MODE, SCORE_STALL_MODE);
     $finish;
   end
 

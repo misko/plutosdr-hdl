@@ -64,6 +64,7 @@ module starlink_pss_shared_xfft_service (
 
   reg engine_active;
   reg engine_input_closed;
+  reg engine_output_closed;
   reg [69:0] engine_metadata;
   reg fast_fault;
   (* ASYNC_REG = "TRUE" *) reg [1:0] fast_fault_sync;
@@ -78,6 +79,32 @@ module starlink_pss_shared_xfft_service (
   wire [17:0] fast_output_i, fast_output_q;
   wire [8:0] fast_output_position;
   wire [4:0] fast_output_exponent;
+  wire adapter_output_complete;
+  // The return RAM has already been reserved for this entire job. Register
+  // the checked adapter beat before the mailbox's framing/write controls.
+  // The block descriptor remains engine-owned until the final staged word
+  // commits; only the per-transform exponent needs to accompany every beat.
+  reg return_valid;
+  reg [35:0] return_data;
+  reg [8:0] return_position;
+  reg return_last;
+  reg [4:0] return_exponent;
+  reg return_complete_seen;
+  wire return_publish = return_valid && !fast_fault && !adapter_fault &&
+                        (!return_last || return_complete_seen);
+  wire return_accept = return_publish && output_mailbox_ready;
+  // Data can be sampled speculatively whenever this register is free. Only
+  // return_valid makes it observable. Keep the adapter's metadata/fault tree
+  // off these payload clock enables, and hold every bit while the final beat
+  // waits for its qualified completion fence.
+  always @(posedge fft_clk) begin
+    if (!return_valid || return_accept) begin
+      return_data <= {fast_output_q, fast_output_i};
+      return_position <= fast_output_position;
+      return_last <= fast_output_last;
+      return_exponent <= fast_output_exponent;
+    end
+  end
   wire slow_output_valid;
   assign fast_input_ready = engine_active && !engine_input_closed && !fast_fault && adapter_input_ready;
   assign output_valid = slow_running && slow_output_valid && !service_fault;
@@ -86,9 +113,9 @@ module starlink_pss_shared_xfft_service (
     .METADATA_WIDTH(75), .RESET_RELEASE_EXTERNAL(1)
   ) output_mailbox (
     .input_clk(fft_clk), .input_resetn(fast_running),
-    .input_valid(fast_output_valid && !fast_fault), .input_ready(output_mailbox_ready),
-    .input_data({fast_output_q, fast_output_i}), .input_position(fast_output_position),
-    .input_last(fast_output_last), .input_metadata({engine_metadata, fast_output_exponent}),
+    .input_valid(return_publish), .input_ready(output_mailbox_ready),
+    .input_data(return_data), .input_position(return_position),
+    .input_last(return_last), .input_metadata({engine_metadata, return_exponent}),
     .input_fault(output_mailbox_fault), .output_clk(clk), .output_resetn(slow_running),
     .output_valid(slow_output_valid), .output_ready(output_ready && !service_fault),
     .output_data(output_data), .output_position(output_position),
@@ -101,18 +128,42 @@ module starlink_pss_shared_xfft_service (
     if (!fast_running) begin
       engine_active <= 0;
       engine_input_closed <= 0;
+      engine_output_closed <= 0;
+      return_valid <= 0;
+      return_complete_seen <= 0;
       fast_fault <= 0;
     end else if (adapter_fault || output_mailbox_fault ||
-                 (fast_output_valid && !output_mailbox_ready)) begin
+                 (return_valid && !output_mailbox_ready) ||
+                 (fast_output_valid && (engine_output_closed ||
+                                       (return_valid && !return_accept)))) begin
       engine_active <= 0;
+      return_valid <= 0;
       fast_fault <= 1;
-    end else if (!engine_active && !fast_fault && fast_input_valid && output_mailbox_ready) begin
-      engine_active <= 1;
-      engine_input_closed <= 0;
-      engine_metadata <= fast_input_metadata;
-    end else if (engine_active) begin
-      if (fast_input_valid && fast_input_ready && fast_input_last) engine_input_closed <= 1;
-      if (fast_output_valid && fast_output_last) engine_active <= 0;
+    end else begin
+      if (return_accept) return_valid <= 0;
+      if (fast_output_valid && !fast_fault) begin
+        return_valid <= 1;
+        if (fast_output_last) engine_output_closed <= 1;
+      end
+      // The final beat cannot commit on its capture edge or before the
+      // adapter's registered, fault-qualified completion has been observed.
+      // Keep the adapter/core and descriptor alive through this drain fence.
+      if (adapter_output_complete) return_complete_seen <= 1;
+      if (!engine_active && !fast_fault && !return_valid &&
+          fast_input_valid && output_mailbox_ready) begin
+        engine_active <= 1;
+        engine_input_closed <= 0;
+        engine_output_closed <= 0;
+        return_complete_seen <= 0;
+        engine_metadata <= fast_input_metadata;
+      end else if (engine_active) begin
+        if (fast_input_valid && fast_input_ready && fast_input_last) engine_input_closed <= 1;
+        if (return_accept && return_last) begin
+          engine_active <= 0;
+          engine_output_closed <= 0;
+          return_complete_seen <= 0;
+        end
+      end
     end
   end
 
@@ -148,7 +199,8 @@ module starlink_pss_shared_xfft_service (
     .core_status_tready(core_status_ready), .core_event_frame_started(event_frame),
     .core_event_tlast_unexpected(event_last_unexpected), .core_event_tlast_missing(event_last_missing),
     .core_event_status_channel_halt(event_status_halt), .core_event_data_in_channel_halt(event_input_halt),
-    .core_event_data_out_channel_halt(event_output_halt), .protocol_fault(adapter_fault)
+    .core_event_data_out_channel_halt(event_output_halt), .protocol_fault(adapter_fault),
+    .output_block_complete_pulse(adapter_output_complete)
   );
   // Each job resets/reconfigures the same core. The runtime direction is held
   // before adapter reset release and replaces ONLY the config direction bit.

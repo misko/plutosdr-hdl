@@ -189,7 +189,10 @@ module axi_starlink_pss_acquisition #(
       assign ddc_saturation_event_count = 32'd0;
     end else if (INPUT_RATE_MSPS == 30) begin : g_rate_30
       starlink_pss_x2_ddc #(
-        .EDGE_UPPER(1)
+        .EDGE_UPPER               (1),
+        // Paired 300-second capture exceeds 2^32 samples at both 30 MS/s
+        // ingress and 15 MS/s egress. Preserve the legacy non-pilot contract.
+        .WIDE_OBSERVATION_COUNTERS(ENABLE_PILOT_TAP ? 1 : 0)
       ) acquisition_ddc (
         .clk                    (s_axi_aclk),
         .resetn                 (s_axi_aresetn),

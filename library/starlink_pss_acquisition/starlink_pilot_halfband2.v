@@ -31,7 +31,8 @@ module starlink_pilot_halfband2 #(
   // before row 8 is issued. Arithmetic and external latency remain unchanged.
   (* ram_style = "distributed" *) reg [31:0] even_memory [0:15];
   (* ram_style = "distributed" *) reg [31:0] odd_memory [0:7];
-  reg [3:0] even_pointer, job_pointer;
+  reg [3:0] even_pointer;
+  reg [3:0] address_a, address_b;
   reg [2:0] odd_pointer;
   reg [4:0] job_history;
   reg signed [15:0] center_i, center_q;
@@ -61,8 +62,10 @@ module starlink_pilot_halfband2 #(
     end
   end
 
-  wire [3:0] address_a = job_pointer - row;
-  wire [3:0] address_b = job_pointer - 4'd15 + row;
+  // Walk the folded pair addresses in registers. This is the same modulo-16
+  // sequence as job_pointer-row and job_pointer-15+row, but removes address
+  // arithmetic ahead of the asynchronous RAM reads and DSP pair adder.
+  // No arithmetic stage, issue interval, or output latency is changed.
   wire [4:0] tap_a = {row, 1'b0};
   wire [4:0] tap_b = 5'd30 - tap_a;
   wire signed [15:0] a_i = job_history >= tap_a ? $signed(even_memory[address_a][15:0]) : 16'sd0;
@@ -128,7 +131,8 @@ module starlink_pilot_halfband2 #(
     if (!run) begin
       even_pointer <= 0;
       odd_pointer <= 0;
-      job_pointer <= 0;
+      address_a <= 0;
+      address_b <= 0;
       job_history <= 0;
       history_count <= 0;
       support_count <= 0;
@@ -164,7 +168,8 @@ module starlink_pilot_halfband2 #(
         else if (support_count < 30) support_count <= support_count + 1'b1;
       end
       if (start) begin
-        job_pointer <= even_pointer;
+        address_a <= even_pointer;
+        address_b <= even_pointer + 1'b1;
         job_history <= history_count;
         busy <= 1;
         issuing <= 1;
@@ -174,7 +179,11 @@ module starlink_pilot_halfband2 #(
         job_support <= input_support_valid && support_count == 30;
       end else if (issue) begin
         if (row == 8) issuing <= 0;
-        else row <= row + 1'b1;
+        else begin
+          row <= row + 1'b1;
+          address_a <= address_a - 1'b1;
+          address_b <= address_b + 1'b1;
+        end
       end
     end
   end

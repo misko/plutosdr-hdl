@@ -272,7 +272,9 @@ module starlink_pss_xfft_block_adapter #(
           frame_started_seen <= 1'b0;
           status_seen <= 1'b0;
           output_exponent_seen <= 1'b0;
-          expected_output_position <= 0;
+          // A healthy new block can start only after reset or a completed
+          // previous output block; both already clear expected_output_position.
+          // Do not route first-input framing into this output-phase reset.
         end
 
         if (expected_input_position == 9'd511) begin
