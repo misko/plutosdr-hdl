@@ -200,6 +200,26 @@ module starlink_pss_realtime_result_guard #(
       // quarantine clears active. No publication or fault check is delayed.
       if (!active) age <= 0;
       else age <= age + 1'b1;
+      // These are private job observations, not publication authority. Capture
+      // them without routing the complete current fault tree through every
+      // counter/flag/exponent enable. A simultaneous fault still clears active
+      // and return_valid below and latches exact reasons on this same edge.
+      // Sticky quarantine prevents any changed private observation from
+      // authorizing publication or a new job before the common epoch reset.
+      // Once inactive, raw events are errors regardless of these private values.
+      if (active && !protocol_fault) begin
+        if (certified_input_beat) input_count <= input_count + 1'b1;
+        if (certified_input_complete) input_complete_seen <= 1;
+        if (core_event_frame_started) frame_seen <= 1;
+        if (core_status_tvalid) begin
+          status_seen <= 1;
+          status_exponent <= core_status_tdata[4:0];
+        end
+        if (core_output_tvalid) begin
+          if (!exponent_seen) output_exponent <= core_output_tuser[20:16];
+          exponent_seen <= 1;
+        end
+      end
       if (protocol_fault || fault_now) begin
         active <= 0;
         return_valid <= 0;
@@ -216,17 +236,8 @@ module starlink_pss_realtime_result_guard #(
           exponent_seen <= 0;
         end
         if (active) begin
-          if (certified_input_beat) input_count <= input_count + 1'b1;
-          if (certified_input_complete) input_complete_seen <= 1;
-          if (core_event_frame_started) frame_seen <= 1;
-          if (core_status_tvalid) begin
-            status_seen <= 1;
-            status_exponent <= core_status_tdata[4:0];
-          end
           if (mailbox_accept) return_valid <= 0;
           if (core_output_tvalid) begin
-            if (!exponent_seen) output_exponent <= core_output_tuser[20:16];
-            exponent_seen <= 1;
             return_valid <= 1;
           end
           if (final_commit) begin
