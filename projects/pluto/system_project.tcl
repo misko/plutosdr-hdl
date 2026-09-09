@@ -2,6 +2,25 @@ source ../../scripts/adi_env.tcl
 source $ad_hdl_dir/projects/scripts/adi_project_xilinx.tcl
 source $ad_hdl_dir/projects/scripts/adi_board.tcl
 
+# Reject an invalid realtime selector before creating a receiver project. The
+# block-design policy independently validates the same explicit opt-in.
+set realtime_xfft 0
+if {[info exists ::env(STARLINK_PSS_REALTIME_XFFT)]} {
+  set realtime_xfft $::env(STARLINK_PSS_REALTIME_XFFT)
+}
+if {$realtime_xfft ni {0 1}} {
+  error "STARLINK_PSS_REALTIME_XFFT must be 0 or 1"
+}
+if {$realtime_xfft &&
+    (![info exists ::env(STARLINK_PSS_SHARED_XFFT)] ||
+     $::env(STARLINK_PSS_SHARED_XFFT) ne "1" ||
+     ![info exists ::env(STARLINK_PSS_PROFILE)] ||
+     $::env(STARLINK_PSS_PROFILE) ne "paired-pilot" ||
+     ![info exists ::env(STARLINK_PSS_RATE_MSPS)] ||
+     $::env(STARLINK_PSS_RATE_MSPS) ne "15")} {
+  error "realtime-XFFT implementation requires explicit shared paired-pilot at 15 MS/s"
+}
+
 adi_project_create pluto 0 {} "xc7z010clg400-1"
 
 # The complete detector is intentionally area-first.  This also lets the same

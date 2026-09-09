@@ -268,10 +268,22 @@ if {$starlink_pss_shared_xfft &&
     ($starlink_pss_profile ne "paired-pilot" || $starlink_pss_rate_msps != 15)} {
   error "shared-XFFT experiment requires paired-pilot at 15 MS/s"
 }
+set starlink_pss_realtime_xfft 0
+if {[info exists ::env(STARLINK_PSS_REALTIME_XFFT)]} {
+  set starlink_pss_realtime_xfft $::env(STARLINK_PSS_REALTIME_XFFT)
+}
+if {$starlink_pss_realtime_xfft ni {0 1}} {
+  error "STARLINK_PSS_REALTIME_XFFT must be 0 or 1"
+}
+if {$starlink_pss_realtime_xfft &&
+    (!$starlink_pss_shared_xfft || $starlink_pss_profile ne "paired-pilot" ||
+     $starlink_pss_rate_msps != 15)} {
+  error "realtime-XFFT experiment requires explicit shared paired-pilot at 15 MS/s"
+}
 set starlink_pss_rx_dma_enabled [expr {
   $starlink_pss_profile ni {detector-only paired-pilot}
 }]
-puts "STARLINK_PSS_BUILD_PROFILE rate_msps=$starlink_pss_rate_msps profile=$starlink_pss_profile shared_xfft=$starlink_pss_shared_xfft"
+puts "STARLINK_PSS_BUILD_PROFILE rate_msps=$starlink_pss_rate_msps profile=$starlink_pss_profile shared_xfft=$starlink_pss_shared_xfft realtime_xfft=$starlink_pss_realtime_xfft"
 set starlink_pss_minimum_lead_samples [expr {
   64 * $starlink_pss_rate_msps / 15
 }]
@@ -317,6 +329,7 @@ ad_ip_parameter starlink_pss_acquisition CONFIG.SAMPLE_FIFO_ADDRESS_WIDTH 7
 ad_ip_parameter starlink_pss_acquisition CONFIG.INPUT_RATE_MSPS $starlink_pss_rate_msps
 ad_ip_parameter starlink_pss_acquisition CONFIG.ENABLE_PILOT_TAP $starlink_pilot_enabled
 ad_ip_parameter starlink_pss_acquisition CONFIG.USE_SHARED_XFFT $starlink_pss_shared_xfft
+ad_ip_parameter starlink_pss_acquisition CONFIG.USE_REALTIME_XFFT $starlink_pss_realtime_xfft
 # FCLK1 already supplies the board's 200 MHz IDELAY reference. The island has
 # local async-assert/sync-release reset synchronizers in both clock domains.
 ad_connect sys_200m_clk starlink_pss_acquisition/fft_clk

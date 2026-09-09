@@ -5,6 +5,7 @@
 // Vivado simulations.
 module starlink_pss_iq_to_phase_map #(
   parameter integer USE_SHARED_XFFT = 0,
+  parameter integer USE_REALTIME_XFFT = 0,
   parameter KERNEL_ROM_FILE = "",
   parameter [30:0] COEFFICIENT_ENERGY = 31'd1,
   parameter integer PHASE_BINS = 20000,

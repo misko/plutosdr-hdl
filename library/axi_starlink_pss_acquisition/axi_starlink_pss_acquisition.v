@@ -13,7 +13,8 @@ module axi_starlink_pss_acquisition #(
   parameter integer SAMPLE_FIFO_ADDRESS_WIDTH = 7,
   parameter integer INPUT_RATE_MSPS = 15,
   parameter integer ENABLE_PILOT_TAP = 0,
-  parameter integer USE_SHARED_XFFT = 0
+  parameter integer USE_SHARED_XFFT = 0,
+  parameter integer USE_REALTIME_XFFT = 0
 ) (
   input  wire                 sample_clk,
   input  wire                 fft_clk,
@@ -171,6 +172,14 @@ module axi_starlink_pss_acquisition #(
       (INPUT_RATE_MSPS == 60) ? 31'd1073765335 :
       ((INPUT_RATE_MSPS == 30) ? 31'd1073744004 : 31'd1073742825);
 
+  initial begin
+    if (USE_REALTIME_XFFT != 0 && USE_REALTIME_XFFT != 1)
+      $fatal(1, "USE_REALTIME_XFFT must be zero or one");
+    if (USE_REALTIME_XFFT &&
+        (USE_SHARED_XFFT != 1 || INPUT_RATE_MSPS != 15 || ENABLE_PILOT_TAP != 1))
+      $fatal(1, "realtime XFFT requires shared paired-pilot at 15 MS/s");
+  end
+
   generate
     if ((INPUT_RATE_MSPS != 15) && (INPUT_RATE_MSPS != 30) &&
         (INPUT_RATE_MSPS != 60)) begin : g_invalid_rate
@@ -301,6 +310,7 @@ module axi_starlink_pss_acquisition #(
 
   starlink_pss_iq_to_phase_map #(
     .USE_SHARED_XFFT   (USE_SHARED_XFFT),
+    .USE_REALTIME_XFFT (USE_REALTIME_XFFT),
     .KERNEL_ROM_FILE   (ACQUISITION_KERNEL_ROM_FILE),
     .COEFFICIENT_ENERGY(ACQUISITION_COEFFICIENT_ENERGY)
   ) acquisition (

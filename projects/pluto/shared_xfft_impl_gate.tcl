@@ -4,6 +4,11 @@ if {![info exists ::env(STARLINK_PSS_SHARED_XFFT)] ||
     $::env(STARLINK_PSS_SHARED_XFFT) ne "1"} {
   error "shared-XFFT implementation gate requires explicit opt-in"
 }
+set realtime_xfft 0
+if {[info exists ::env(STARLINK_PSS_REALTIME_XFFT)]} {
+  set realtime_xfft $::env(STARLINK_PSS_REALTIME_XFFT)
+}
+if {$realtime_xfft ni {0 1}} { error "STARLINK_PSS_REALTIME_XFFT must be 0 or 1" }
 proc pss_shared_one {pattern} {
   set cells [get_cells -quiet -hier -regexp $pattern]
   if {[llength $cells] != 1} { error "shared-XFFT expected one endpoint: $pattern got [llength $cells]" }
@@ -25,6 +30,12 @@ pss_shared_one {.*starlink_pilot_dma/inst$}
 set cores [get_cells -quiet -hier -filter \
   {REF_NAME =~ *starlink_pss_fft512_bfp18* || ORIG_REF_NAME =~ *starlink_pss_fft512_bfp18*}]
 if {[llength $cores] != 1} { error "shared-XFFT expected exactly one generated transform core" }
+set is_realtime_core [string match *starlink_pss_fft512_bfp18_rt_candidate* \
+  "[get_property REF_NAME $cores] [get_property ORIG_REF_NAME $cores]"]
+if {$is_realtime_core != $realtime_xfft} {
+  error "shared-XFFT generated core does not match explicit realtime selector"
+}
+puts $gate_report "realtime_xfft=$realtime_xfft generated_core=[get_property REF_NAME $cores]"
 puts $gate_report "generated_cores=1 coarse_and_fine_and_pilot_dma_present=1"
 set mailbox_reset_chains [get_cells -quiet -hier -regexp \
   {.*transform_service/(input_mailbox|output_mailbox)/.*reset.*sync_reg\[[01]\]$}]
@@ -84,6 +95,29 @@ foreach {box source_period destination_period requirement nominal_width} {
     }
   }
   puts $gate_report "$box nominal_metadata_bits=$nominal_width surviving_source_bits=[llength $source] surviving_destination_bits=[llength $destination] requirement_ns=$requirement"
+}
+if {$realtime_xfft} {
+  set source [pss_shared_one {.*transform_service/input_mailbox/input_fault_reg$}]
+  set first [pss_shared_one {.*transform_service/input_fault_fast_sync_reg\[0\]$}]
+  set second [pss_shared_one {.*transform_service/input_fault_fast_sync_reg\[1\]$}]
+  pss_shared_period $source 10.0
+  pss_shared_period $first 5.0
+  pss_shared_period $second 5.0
+  foreach flop [concat $first $second] {
+    if {![get_property ASYNC_REG $flop]} {
+      error "realtime-XFFT sticky source fault requires marked two-flop synchronization"
+    }
+  }
+  foreach {launch capture scope} [list $source $first crossing $first $second second_stage] {
+    set path [get_timing_paths -quiet -from $launch -to $capture -max_paths 1]
+    if {[llength $path] != 1 || abs([get_property REQUIREMENT $path] - 5.0) > 0.001} {
+      error "realtime-XFFT missing or waived source fault $scope timing path"
+    }
+    puts $gate_report "input_fault_fast_sync/$scope requirement_ns=[get_property REQUIREMENT $path]"
+  }
+} elseif {[llength [get_cells -quiet -hier -regexp \
+    {.*transform_service/input_fault_fast_sync_reg\[[01]\]$}]]} {
+  error "nonrealtime receiver unexpectedly contains realtime source-fault synchronization"
 }
 puts $gate_report "SHARED_XFFT_INIT_GATE_PASS receiver_fit_and_timing_unqualified=1"
 close $gate_report

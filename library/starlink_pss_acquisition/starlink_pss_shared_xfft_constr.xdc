@@ -30,6 +30,13 @@ set_max_delay -quiet -datapath_only 10.000 \
   -from [get_cells -quiet -hier -regexp {.*transform_service/fast_fault_reg$}] \
   -to [get_cells -quiet -hier -regexp {.*transform_service/fast_fault_sync_reg\[0\]$}]
 
+# Realtime-only sticky source fault. An invalid source bank cannot commit; its
+# service-wide quarantine crosses separately as a bounded two-flop level.
+# Default/nonrealtime designs have no matching destination (quiet no-op).
+set_max_delay -quiet -datapath_only 5.000 \
+  -from [get_cells -quiet -hier -regexp {.*transform_service/input_mailbox/input_fault_reg$}] \
+  -to [get_cells -quiet -hier -regexp {.*transform_service/input_fault_fast_sync_reg\[0\]$}]
+
 # Only asynchronous assertion pins of named reset-release synchronizers.
 set pss_shared_reset_cells [get_cells -quiet -hier -regexp \
   {.*(fft_reset_release_sync|slow_reset_fast_sync|fast_reset_fast_sync|slow_reset_slow_sync|fast_reset_slow_sync|in_reset_in_sync|out_reset_in_sync|in_reset_out_sync|out_reset_out_sync)_reg\[[01]\]$}]

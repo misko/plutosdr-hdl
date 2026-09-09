@@ -18,7 +18,8 @@ module starlink_pss_iq_to_phase_map #(
   parameter integer MAP_SEGMENT_ADDRESS_WIDTH = 11,
   parameter integer MAP_SEGMENT_COUNT = 10,
   parameter integer MAP_SEGMENT_INDEX_WIDTH = 4,
-  parameter integer USE_SHARED_XFFT = 0
+  parameter integer USE_SHARED_XFFT = 0,
+  parameter integer USE_REALTIME_XFFT = 0
 ) (
   input  wire                          clk,
   input  wire                          resetn,
@@ -100,6 +101,13 @@ module starlink_pss_iq_to_phase_map #(
   reg [7:0] map_score_value;
   reg map_stream_discontinuity;
 
+  initial begin
+    if (USE_REALTIME_XFFT != 0 && USE_REALTIME_XFFT != 1)
+      $fatal(1, "USE_REALTIME_XFFT must be zero or one");
+    if (USE_REALTIME_XFFT && USE_SHARED_XFFT != 1)
+      $fatal(1, "realtime XFFT requires the explicit shared composition");
+  end
+
   assign map_enable = enable && !flush && !detector_fault;
   assign source_discontinuity = sample_gap || scheduler_gap_pulse ||
       scheduler_index_error_pulse || scheduler_overflow_pulse ||
@@ -107,6 +115,7 @@ module starlink_pss_iq_to_phase_map #(
 
   generate if (USE_SHARED_XFFT) begin : shared_transform
   starlink_pss_iq_to_score_shared #(
+    .USE_REALTIME_XFFT (USE_REALTIME_XFFT),
     .KERNEL_ROM_FILE   (KERNEL_ROM_FILE),
     .COEFFICIENT_ENERGY(COEFFICIENT_ENERGY)
   ) iq_to_score (

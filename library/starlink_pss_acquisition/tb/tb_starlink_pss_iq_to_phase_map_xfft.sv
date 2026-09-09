@@ -1,7 +1,8 @@
 `timescale 1ns/1ps
 
 module tb_starlink_pss_iq_to_phase_map_xfft #(
-  parameter integer USE_SHARED_XFFT = 0
+  parameter integer USE_SHARED_XFFT = 0,
+  parameter integer USE_REALTIME_XFFT = 0
 );
 
   localparam integer SAMPLE_COUNT = 1406;
@@ -90,6 +91,7 @@ module tb_starlink_pss_iq_to_phase_map_xfft #(
 
   starlink_pss_iq_to_phase_map #(
     .USE_SHARED_XFFT         (USE_SHARED_XFFT),
+    .USE_REALTIME_XFFT       (USE_REALTIME_XFFT),
     .PHASE_BINS              (PHASE_BINS),
     .PHASE_INDEX_WIDTH       (PHASE_INDEX_WIDTH),
     .TILE_FRAMES             (BLOCK_COUNT),
@@ -224,13 +226,32 @@ module tb_starlink_pss_iq_to_phase_map_xfft #(
   // Inject AFTER a new tile has accepted scores, proving quarantine aborts a
   // partial map and publishes the service-wide cause, not a directional fault.
   generate if (USE_SHARED_XFFT) begin : shared_fault_test
+    // Keep the real service boundary in the selected branch. Realtime error
+    // injection exercises the same raw vendor veto as the isolated core tests.
+    if (USE_REALTIME_XFFT) begin : realtime_fault
+      initial begin
+        wait (start_fault_test);
+        wait (accepted_score_count > SCORE_COUNT + 100);
+        @(negedge clk);
+        force dut.shared_transform.iq_to_score.realtime_transform.transform_service.event_last_missing = 1'b1;
+        repeat (20) @(negedge clk);
+        release dut.shared_transform.iq_to_score.realtime_transform.transform_service.event_last_missing;
+      end
+    end else begin : nonrealtime_fault
+      initial begin
+        wait (start_fault_test);
+        wait (accepted_score_count > SCORE_COUNT + 100);
+        @(negedge clk);
+        force dut.shared_transform.iq_to_score.nonrealtime_transform.transform_service.adapter.protocol_fault = 1'b1;
+        repeat (20) @(negedge clk);
+        release dut.shared_transform.iq_to_score.nonrealtime_transform.transform_service.adapter.protocol_fault;
+      end
+    end
     initial begin
       wait (start_fault_test);
       wait (accepted_score_count > SCORE_COUNT + 100);
       @(negedge clk);
-      force dut.shared_transform.iq_to_score.transform_service.adapter.protocol_fault = 1'b1;
       repeat (20) @(negedge clk);
-      release dut.shared_transform.iq_to_score.transform_service.adapter.protocol_fault;
       repeat (20) @(negedge clk);
       if (!detector_fault || score_valid || map_ready_mask != 0 || map_publish_count != 1)
         fail("shared fault published a partial map or failed quarantine");
@@ -239,6 +260,8 @@ module tb_starlink_pss_iq_to_phase_map_xfft #(
           discontinuity_abort_count == 0)
         fail("shared fault health identity or partial-tile abort incorrect");
       $display("SHARED_PHASE_MAP_FAULT_PASS partial_tile_aborted=1 no_partial_publication=1 service_health_bit=14 detector_episodes=1");
+      if (USE_REALTIME_XFFT)
+        $display("REALTIME_PHASE_MAP_FAULT_PASS partial_tile_aborted=1 service_health_bit=14");
       fault_test_done = 1;
     end
   end endgenerate
@@ -348,6 +371,8 @@ module tb_starlink_pss_iq_to_phase_map_xfft #(
       sample_valid = 0;
       wait (fault_test_done);
     end
+    if (USE_REALTIME_XFFT)
+      $display("REALTIME_PHASE_MAP_PASS exact_scores=1341 exact_map_reads=447 reduced_geometry_only=1 CAPACITY_AND_PHYSICAL_UNQUALIFIED");
     $finish;
   end
 

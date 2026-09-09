@@ -33,6 +33,11 @@ set_property -dict [list \
 generate_target all [get_ips starlink_pss_fft512_bfp18]
 
 set acq_dir "$ad_hdl_dir/library/starlink_pss_acquisition"
+# Package both fixed IP definitions, independent of the selected receiver mode.
+# Elaboration selects exactly one shared service/core; legacy IP is unchanged.
+source "$acq_dir/create_shared_realtime_xfft_ip.tcl"
+pss_create_shared_realtime_xfft_ip [file normalize \
+  "axi_starlink_pss_acquisition.gen/sources_1/ip/starlink_pss_fft512_bfp18_rt_candidate/synth/starlink_pss_fft512_bfp18_rt_candidate.vhd"]
 set map_dir "$ad_hdl_dir/library/axi_starlink_pss_phase_map"
 adi_ip_files axi_starlink_pss_acquisition [list \
   "$acq_dir/starlink_pss_sample_cdc.v" \
@@ -55,6 +60,9 @@ adi_ip_files axi_starlink_pss_acquisition [list \
   "$acq_dir/starlink_pss_iq_to_score.v" \
   "$acq_dir/starlink_pss_iq_to_score_shared.v" \
   "$acq_dir/starlink_pss_shared_xfft_service.v" \
+  "$acq_dir/starlink_pss_shared_realtime_xfft_service.v" \
+  "$acq_dir/starlink_pss_realtime_input_guard.v" \
+  "$acq_dir/starlink_pss_realtime_result_guard.v" \
   "$acq_dir/starlink_pss_block_mailbox.v" \
   "$acq_dir/starlink_pss_score_phase_tagger.v" \
   "$acq_dir/starlink_pss_phase_map_bank.v" \
@@ -132,6 +140,8 @@ set_property -dict [list \
 ipx::create_xgui_files [ipx::current_core]
 set_property -dict [list value_validation_type list value_validation_list "0 1"] \
   [ipx::get_user_parameters USE_SHARED_XFFT -of_objects [ipx::current_core]]
+set_property -dict [list value_validation_type list value_validation_list "0 1"] \
+  [ipx::get_user_parameters USE_REALTIME_XFFT -of_objects [ipx::current_core]]
 set_property -dict [list value_validation_type list value_validation_list "0 1"] \
   [ipx::get_user_parameters ENABLE_PILOT_TAP -of_objects [ipx::current_core]]
 ipx::save_core [ipx::current_core]

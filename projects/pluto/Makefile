@@ -25,6 +25,10 @@ export STARLINK_PSS_PROFILE
 STARLINK_PSS_SHARED_XFFT ?= 0
 export STARLINK_PSS_SHARED_XFFT
 
+# A distinct, unqualified realtime core; never implied by shared mode alone.
+STARLINK_PSS_REALTIME_XFFT ?= 0
+export STARLINK_PSS_REALTIME_XFFT
+
 M_DEPS += ../../library/common/ad_iobuf.v
 M_DEPS += ../../library/axi_ad9361/axi_ad9361_delay.tcl
 M_DEPS += shared_xfft_impl_gate.tcl

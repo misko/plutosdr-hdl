@@ -6,7 +6,8 @@
 module starlink_pss_iq_to_score_shared #(
   parameter KERNEL_ROM_FILE = "upper_edge_pss_kernel_q17.mem",
   parameter [30:0] COEFFICIENT_ENERGY = 31'd1073742825,
-  parameter integer DATA_WIDTH = 18
+  parameter integer DATA_WIDTH = 18,
+  parameter integer USE_REALTIME_XFFT = 0
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -310,6 +311,26 @@ module starlink_pss_iq_to_score_shared #(
   assign inverse_output_block_start = shared_output_metadata[73:10];
   assign forward_output_exponent = shared_output_metadata[4:0];
   assign inverse_output_exponent = shared_output_metadata[4:0];
+  // Explicit experimental selector; the original nonrealtime implementation
+  // remains the default. Arithmetic and both sides of this interface are shared.
+  generate if (USE_REALTIME_XFFT == 1) begin : realtime_transform
+  starlink_pss_shared_realtime_xfft_service transform_service (
+    .clk(clk), .resetn(pipeline_resetn), .fft_clk(fft_clk), .fft_resetn(fft_resetn),
+    .input_valid(shared_input_valid), .input_ready(shared_input_ready),
+    .input_data(choose_inverse ? {inverse_stream_q, inverse_stream_i} :
+                                 {scheduler_fft_q, 2'b00, scheduler_fft_i, 2'b00}),
+    .input_position(choose_inverse ? inverse_stream_position : scheduler_fft_position),
+    .input_last(shared_input_last),
+    .input_metadata(choose_inverse ?
+      {1'b1, inverse_stream_block_start, inverse_stream_forward_exponent} :
+      {1'b0, scheduler_fft_block_start, 5'b0}),
+    .output_valid(shared_output_valid),
+    .output_ready(shared_output_inverse ? inverse_output_ready : forward_output_ready),
+    .output_data(shared_output_data), .output_position(shared_output_position),
+    .output_last(shared_output_last), .output_metadata(shared_output_metadata),
+    .service_fault(shared_fault)
+  );
+  end else begin : nonrealtime_transform
   starlink_pss_shared_xfft_service transform_service (
     .clk(clk), .resetn(pipeline_resetn), .fft_clk(fft_clk), .fft_resetn(fft_resetn),
     .input_valid(shared_input_valid), .input_ready(shared_input_ready),
@@ -326,6 +347,11 @@ module starlink_pss_iq_to_score_shared #(
     .output_last(shared_output_last), .output_metadata(shared_output_metadata),
     .service_fault(shared_fault)
   );
+  end endgenerate
+  initial begin
+    if (USE_REALTIME_XFFT != 0 && USE_REALTIME_XFFT != 1)
+      $fatal(1, "USE_REALTIME_XFFT must be 0 or 1");
+  end
   always @(posedge clk) begin
     if (!pipeline_resetn) begin
       grant_active <= 0;
