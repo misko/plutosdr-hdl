@@ -16,7 +16,7 @@ module tb_starlink_pilot_capture;
   reg [63:0] input_index = 0;
   reg [31:0] input_data = 0;
   reg [1:0] ready_mode = 1;
-  wire ready = ready_mode == 2 ? dut.ddc_valid : ready_mode[0];
+  wire ready = ready_mode == 2 ? dut.capture_valid : ready_mode[0];
   wire valid, enabled, irq;
   wire [31:0] data;
   axi_starlink_pilot_capture #(.INPUT_RATE_MSPS(SOURCE_RATE_MSPS)) dut (
@@ -34,12 +34,24 @@ module tb_starlink_pilot_capture;
   reg [31:0] held;
   integer write_requests = 0, write_executions = 0, write_responses = 0;
   reg [31:0] held_write_data;
+  reg expected_capture_valid = 0;
+  reg [128:0] expected_capture_payload;
   always @(posedge clk) begin
     if (!resetn) begin
       stalled <= 0;
+      expected_capture_valid <= 0;
       write_requests = 0; write_executions = 0; write_responses = 0;
     end
     else begin
+      if (dut.capture_valid !== expected_capture_valid)
+        $fatal(1, "DDC observation token was lost, repeated, or delayed");
+      if (dut.capture_valid &&
+          {dut.capture_support, dut.capture_visit, dut.capture_index, dut.capture_data}
+          !== expected_capture_payload)
+        $fatal(1, "registered DDC IQ/support/visit/index observation separated");
+      expected_capture_valid <= !dut.clear_ok && dut.ddc_valid;
+      expected_capture_payload <= {dut.ddc_support, dut.ddc_visit, dut.ddc_index,
+                                  dut.ddc_q, dut.ddc_i};
       if (dut.running !== (dut.active && dut.faults_now == 0 && !dut.stop_request) ||
           dut.push !== (dut.eligible && dut.faults_now == 0 && !dut.stop_request) ||
           dut.source_run !== (dut.active && !dut.stop_request && !input_flush && !dut.bad_write))

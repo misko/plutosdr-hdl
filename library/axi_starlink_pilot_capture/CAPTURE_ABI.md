@@ -35,6 +35,20 @@ write response follows execution, not initial decode. This adds one internal
 clock of control latency without changing the register meanings. The source
 counter, not host command-send time, remains the observation coordinate.
 
+The complete DDC output observation (IQ, newest source index, visit and support)
+crosses a one-clock register before capture admission. Signal coordinates and
+filter group delay are unchanged. STOP, current source faults and capture faults
+still suppress admission on their execution edge; a staged but not yet admitted
+word is discarded on termination. Already offered AXIS words remain stable and
+drain normally. DDC-emitted telemetry may therefore lead capture accounting by
+one staged output, or include a final output discarded on termination; it is not
+a substitute for the admitted/delivered counters.
+If a new internal DDC input fault coincides with admission of the final valid
+staged prefix, auto-stop can precede capture's observation of registered DDC
+halt. The DDC sticky fault survives flush even if capture fault bit0 stays zero.
+Qualification must inspect **both** DDC and capture faults, including at finite
+completion; an exact output count alone is insufficient.
+
 Commands require a full 32-bit write, one command at a time:
 
 - CLEAR (4): only inactive and FIFO empty. Clears session counters, faults,
@@ -79,7 +93,7 @@ All counters/indexes are unsigned; 64-bit pairs are low word then high word.
 | 30 / 38 | snapshot, u64 | First/last admitted newest canonical index |
 | 40 / 48 | snapshot, u64 | Admitted / AXIS-delivered sample counts |
 | 50 | snapshot, u64 | Initial unsupported result count |
-| 58 | snapshot, u64 | First fault diagnostic index (DDC output if valid, else canonical input) |
+| 58 | snapshot, u64 | First fault diagnostic index (staged DDC output if valid, else canonical input) |
 | 60 / 68 | snapshot, u64 | DDC accepted / emitted counts (includes unsupported) |
 | 70 | snapshot | DDC saturation count |
 | 74 | snapshot | DDC fault bits [7:0], ingress FIFO high water [15:8] |

@@ -1,5 +1,5 @@
 // Finite combinational equivalence check of the actual PIL1 admission gates.
-// Clock stays low: vary registered command/state and forced DDC outputs without
+// Clock stays low: vary registered command/state and staged DDC outputs without
 // assuming reachable FIFO/fault combinations. Temporal behavior is tested by
 // tb_starlink_pilot_capture, including live STOP and malformed AXI writes.
 `timescale 1ns/1ps
@@ -21,11 +21,11 @@ module tb_starlink_pilot_admission_gate;
   integer state, command, data_case, boundary, checked = 0, pushed = 0;
   reg old_running, old_push, old_source;
   initial begin
-    force dut.ddc_valid = test_valid;
-    force dut.ddc_support = test_support;
+    force dut.capture_valid = test_valid;
+    force dut.capture_support = test_support;
     force dut.ddc_halted = test_halted;
-    force dut.ddc_index = test_index;
-    force dut.ddc_visit = test_visit;
+    force dut.capture_index = test_index;
+    force dut.capture_visit = test_visit;
     // 32 lifecycle states x 8 command choices x 256 data/fault combinations
     // x 4 counter/FIFO boundaries = 262144 independent settled comparisons.
     for (state = 0; state < 32; state = state + 1) begin

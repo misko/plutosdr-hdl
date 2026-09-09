@@ -64,7 +64,6 @@ module starlink_pss_shared_xfft_service (
 
   reg engine_active;
   reg engine_input_closed;
-  reg engine_output_closed;
   reg [69:0] engine_metadata;
   reg fast_fault;
   (* ASYNC_REG = "TRUE" *) reg [1:0] fast_fault_sync;
@@ -90,21 +89,49 @@ module starlink_pss_shared_xfft_service (
   reg return_last;
   reg [4:0] return_exponent;
   reg return_complete_seen;
+  // On a healthy job this is exactly the old registered closed state: the
+  // checked last beat enters the stage, waits through completion, then retires.
+  wire engine_output_closed = return_valid && return_last;
   wire return_publish = return_valid && !fast_fault && !adapter_fault &&
                         (!return_last || return_complete_seen);
   wire return_accept = return_publish && output_mailbox_ready;
+  wire return_slot_open = !return_valid || return_accept;
+  // Capacity checks are a transport concern. Do not route the adapter's wide
+  // metadata qualification through another fault/priority tree. A checked beat
+  // always has a raw core handshake; raw-only beats failing qualification still
+  // raise the adapter fault and must never become checked stage contents.
+  wire raw_output_accept = core_output_valid && core_output_ready;
+  wire output_transport_overrun = raw_output_accept &&
+      (engine_output_closed || (return_valid && !return_accept));
   // Data can be sampled speculatively whenever this register is free. Only
   // return_valid makes it observable. Keep the adapter's metadata/fault tree
   // off these payload clock enables, and hold every bit while the final beat
   // waits for its qualified completion fence.
   always @(posedge fft_clk) begin
-    if (!return_valid || return_accept) begin
+    if (return_slot_open) begin
       return_data <= {fast_output_q, fast_output_i};
       return_position <= fast_output_position;
       return_last <= fast_output_last;
       return_exponent <= fast_output_exponent;
     end
   end
+  always @(posedge fft_clk) begin
+    if (!fast_running || fast_fault || adapter_fault || output_mailbox_fault)
+      return_valid <= 0;
+    else if (return_slot_open)
+      return_valid <= fast_output_valid;
+  end
+  always @(posedge fft_clk) begin
+    if (!fast_running) fast_fault <= 0;
+    else if (adapter_fault || output_mailbox_fault ||
+             (return_valid && !output_mailbox_ready) || output_transport_overrun)
+      fast_fault <= 1;
+  end
+  // Idle values are unpublished. Every job-start edge is an idle edge, so the
+  // committed input descriptor is captured there and held through final return
+  // acceptance, without an output-validation cone on 70 register enables.
+  always @(posedge fft_clk)
+    if (!engine_active) engine_metadata <= fast_input_metadata;
   wire slow_output_valid;
   assign fast_input_ready = engine_active && !engine_input_closed && !fast_fault && adapter_input_ready;
   assign output_valid = slow_running && slow_output_valid && !service_fault;
@@ -128,23 +155,11 @@ module starlink_pss_shared_xfft_service (
     if (!fast_running) begin
       engine_active <= 0;
       engine_input_closed <= 0;
-      engine_output_closed <= 0;
-      return_valid <= 0;
       return_complete_seen <= 0;
-      fast_fault <= 0;
-    end else if (adapter_fault || output_mailbox_fault ||
-                 (return_valid && !output_mailbox_ready) ||
-                 (fast_output_valid && (engine_output_closed ||
-                                       (return_valid && !return_accept)))) begin
+    end else if (fast_fault || adapter_fault || output_mailbox_fault) begin
       engine_active <= 0;
-      return_valid <= 0;
-      fast_fault <= 1;
+      return_complete_seen <= 0;
     end else begin
-      if (return_accept) return_valid <= 0;
-      if (fast_output_valid && !fast_fault) begin
-        return_valid <= 1;
-        if (fast_output_last) engine_output_closed <= 1;
-      end
       // The final beat cannot commit on its capture edge or before the
       // adapter's registered, fault-qualified completion has been observed.
       // Keep the adapter/core and descriptor alive through this drain fence.
@@ -153,14 +168,11 @@ module starlink_pss_shared_xfft_service (
           fast_input_valid && output_mailbox_ready) begin
         engine_active <= 1;
         engine_input_closed <= 0;
-        engine_output_closed <= 0;
         return_complete_seen <= 0;
-        engine_metadata <= fast_input_metadata;
       end else if (engine_active) begin
         if (fast_input_valid && fast_input_ready && fast_input_last) engine_input_closed <= 1;
         if (return_accept && return_last) begin
           engine_active <= 0;
-          engine_output_closed <= 0;
           return_complete_seen <= 0;
         end
       end

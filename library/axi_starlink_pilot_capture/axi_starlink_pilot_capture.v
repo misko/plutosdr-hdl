@@ -117,25 +117,46 @@ module axi_starlink_pilot_capture #(
   wire [31:0] ddc_visit, ddc_clips;
   wire [7:0] ddc_fault, ddc_high_water;
 
+  // Separate the DDC's same-cycle fail-closed validation from capture FIFO
+  // admission. Register the complete observation, not just its valid bit:
+  // the absolute source coordinate and support/visit tags travel with the IQ.
+  // Payload is speculative and needs no reset/enable tree; only the token
+  // makes it meaningful. This adds one fabric clock, not one signal sample.
+  reg capture_valid, capture_support;
+  reg [31:0] capture_data, capture_visit;
+  reg [63:0] capture_index;
+  always @(posedge s_axi_aclk) begin
+    capture_data <= {ddc_q, ddc_i};
+    capture_index <= ddc_index;
+    capture_visit <= ddc_visit;
+    capture_support <= ddc_support;
+    if (!s_axi_aresetn || clear_ok) capture_valid <= 0;
+    else capture_valid <= ddc_valid;
+  end
+
   // Valid/data stay asserted and stable under backpressure, including STOP or
   // fault. Those operations stop admission, not an already promised AXIS beat.
   assign m_axis_tvalid = s_axi_aresetn && !empty;
   assign m_axis_tdata = fifo[rd_pointer];
   wire pop = m_axis_tvalid && m_axis_tready;
-  wire eligible = active && ddc_valid && ddc_support;
+  // Termination discards an unpromised staged word. Do not diagnose its FIFO,
+  // index or counter eligibility after STOP/source cancellation has won.
+  // These are short current control gates, not a return through DDC validation.
+  wire observation_run = source_run && !canonical_gap && !ddc_halted;
+  wire eligible = observation_run && capture_valid && capture_support;
   wire overflow = eligible && fifo_count == FIFO_DEPTH && !pop;
   wire bad_index = eligible && ((admitted != 0 &&
-      (last_index > 64'hfffffffffffffff9 || ddc_index != last_index + 64'd6)) ||
-      ddc_visit != visit_id);
+      (last_index > 64'hfffffffffffffff9 || capture_index != last_index + 64'd6)) ||
+      capture_visit != visit_id);
   wire exhausted = (eligible && (&admitted)) || (pop && (&delivered)) ||
-      (active && ddc_valid && !ddc_support && (&unsupported));
+      (observation_run && capture_valid && !capture_support && (&unsupported));
   wire [31:0] faults_now = {25'd0, exhausted, bad_write,
       active && canonical_flush, bad_index, overflow,
       active && canonical_gap, active && ddc_halted};
   wire active_fault_now = exhausted || active_bad_write || canonical_flush ||
       bad_index || overflow || canonical_gap || ddc_halted;
   wire running = active && !active_fault_now && !stop_request;
-  wire push = running && ddc_valid && ddc_support;
+  wire push = running && capture_valid && capture_support;
   // Do not feed output-derived faults combinationally back into DDC flush:
   // DDC valid itself is qualified by flush. Latch those faults on this edge.
   wire source_run = active && !stop_request && !canonical_flush && !active_bad_write;
@@ -155,7 +176,7 @@ module axi_starlink_pilot_capture #(
   );
 
   always @(posedge s_axi_aclk) begin
-    if (push) fifo[wr_pointer] <= {ddc_q, ddc_i};
+    if (push) fifo[wr_pointer] <= capture_data;
     if (!s_axi_aresetn || clear_ok) begin
       active <= 0;
       used <= 0;
@@ -175,13 +196,13 @@ module axi_starlink_pilot_capture #(
       if (stop_request || faults_now != 0) active <= 0;
       faults <= faults | faults_now;
       if (faults == 0 && faults_now != 0)
-        lost_index <= ddc_valid ? ddc_index : canonical_index;
-      if (running && ddc_valid && !ddc_support) unsupported <= unsupported + 1'b1;
+        lost_index <= capture_valid ? capture_index : canonical_index;
+      if (running && capture_valid && !capture_support) unsupported <= unsupported + 1'b1;
       if (push) begin
         wr_pointer <= wr_pointer + 1'b1;
         admitted <= admitted + 1'b1;
-        if (admitted == 0) first_index <= ddc_index;
-        last_index <= ddc_index;
+        if (admitted == 0) first_index <= capture_index;
+        last_index <= capture_index;
         if (sample_limit != 0 && admitted == {32'd0, sample_limit} - 1'b1) active <= 0;
       end
       if (pop) begin
