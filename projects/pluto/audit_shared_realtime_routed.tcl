@@ -106,6 +106,20 @@ set input_cursor_pins [get_pins -quiet -of_objects $input_cursor \
   -filter {REF_PIN_NAME == D || REF_PIN_NAME == CE}]
 if {[llength $input_cursor_pins] != 18} { error "expected all input cursor D and CE pins" }
 audit_paths input_cursor {} $input_cursor_pins 5.0
+# Follow the exact metadata-to-job-control path targeted by the balanced tree,
+# even when a different endpoint becomes the whole receiver's worst path.
+# This adds observation only; all 75 held bits and the real 5ns clock must exist.
+set output_metadata [get_cells -quiet -hier -regexp \
+  {.*transform_service/output_mailbox/metadata_in_hold_reg\[[0-9]+\]$}]
+if {[llength $output_metadata] != 75} { error "expected all 75 output metadata registers" }
+audit_period $output_metadata 5.0
+set job_start [audit_one {.*transform_service/input_job_start_reg$}]
+audit_period $job_start 5.0
+audit_paths output_metadata_job_start $output_metadata $job_start 5.0
+# Also retain the preceding receiver's next failing control cone separately.
+set result_input_fault [audit_one {.*transform_service/result_guard/fault_reasons_reg\[5\]$}]
+audit_period $result_input_fault 5.0
+audit_paths input_cursor_result_fault $input_cursor $result_input_fault 5.0
 set return_registers [get_cells -quiet -hier -regexp \
   {.*transform_service/result_guard/return_(valid|occupied|last|data|position|exponent)_reg(\[[0-9]+\])?$}]
 audit_paths return_slot {} $return_registers 5.0
