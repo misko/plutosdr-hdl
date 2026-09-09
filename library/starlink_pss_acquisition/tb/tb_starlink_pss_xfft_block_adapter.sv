@@ -31,6 +31,7 @@ module tb_starlink_pss_xfft_block_adapter;
   reg core_event_data_out_channel_halt = 1'b0;
 
   wire input_ready;
+  wire input_transport_ready;
   wire output_valid;
   wire signed [23:0] output_i;
   wire signed [23:0] output_q;
@@ -91,6 +92,7 @@ module tb_starlink_pss_xfft_block_adapter;
     .flush                          (flush),
     .input_valid                    (input_valid),
     .input_ready                    (input_ready),
+    .input_transport_ready          (input_transport_ready),
     .input_i                        (input_i),
     .input_q                        (input_q),
     .input_position                 (input_position),
@@ -329,6 +331,8 @@ module tb_starlink_pss_xfft_block_adapter;
     cycle_count <= cycle_count + 1;
     if (cycle_count > 30000)
       fail("simulation watchdog expired");
+    if (resetn && !flush && input_transport_ready !== (input_ready && core_input_tready))
+      fail("transport readiness differs during reset/config/job/fault lifecycle");
     if (resetn && !flush && dut.input_start_accept &&
         dut.expected_output_position !== 9'd0)
       fail("healthy first input must find output position already zero");
@@ -460,8 +464,8 @@ module tb_starlink_pss_xfft_block_adapter;
       fail("back-to-back configured-block lifecycle mismatch");
     $display("XFFT_PHASE_INIT_INVARIANT_PASS identity=%0d healthy_blocks=2 reset_between_blocks=0", CHECK_IDENTITY);
 
-    // Bad application TLAST is consumed at the adapter but never reaches the
-    // generated core.
+    // Bad application TLAST is consumed/faulted even while the core stalls;
+    // transport must hold producer storage and never send it to the core.
     common_flush_and_configure();
     published_before_fault = published_count;
     @(negedge clk);
@@ -469,13 +473,17 @@ module tb_starlink_pss_xfft_block_adapter;
     input_block_start_index = 64'd2000;
     input_last = 1'b1;
     input_valid = 1'b1;
+    core_input_tready = 1'b0;
     @(posedge clk);
-    if (!input_ready || core_input_tvalid)
+    if (!input_ready || input_transport_ready || core_input_tvalid)
       fail("bad application frame was not consumed fail-closed");
     @(negedge clk);
     input_valid = 1'b0;
-    if (!protocol_fault || published_count != published_before_fault)
+    core_input_tready = 1'b1;
+    if (!protocol_fault || input_transport_ready || published_count != published_before_fault)
       fail("bad application TLAST did not quarantine output");
+    $display("XFFT_INPUT_TRANSPORT_STALLED_FAULT_PASS identity=%0d raw_position=%0d immediate_checker_fault=1 transport_held=1",
+             CHECK_IDENTITY, RAW_OUTPUT_POSITION_ADVANCE);
 
     // Status without an in-flight block is an identity error.
     common_flush_and_configure();

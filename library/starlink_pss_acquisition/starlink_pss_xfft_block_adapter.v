@@ -69,7 +69,8 @@ module starlink_pss_xfft_block_adapter #(
   output reg                     core_tlast_error_pulse,
   output reg                     core_data_in_halt_pulse,
   output reg                     core_data_out_halt_pulse,
-  output reg                     protocol_fault
+  output reg                     protocol_fault,
+  output wire                    input_transport_ready
 );
 
   reg [1:0] reset_release_count;
@@ -135,6 +136,13 @@ module starlink_pss_xfft_block_adapter #(
   assign input_ready = adapter_released && configured && !protocol_fault &&
                        input_slot_available &&
                        (input_metadata_valid ? core_input_tready : 1'b1);
+  // Producer-storage retirement only; never substitute this for input_ready
+  // in the checker. Malformed input must still be accepted/faulted there even
+  // when the core stalls. Spell out the independent transport cone locally:
+  // cross-module absorption of input_ready && core_input_tready left the wide
+  // metadata comparator on the routed mailbox read-enable feedback path.
+  assign input_transport_ready = adapter_released && configured && !protocol_fault &&
+                                 input_slot_available && core_input_tready;
   assign input_accept = input_valid && input_ready;
   assign input_start_accept = input_accept &&
                               expected_input_position == 0 &&

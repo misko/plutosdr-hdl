@@ -73,7 +73,7 @@ module starlink_pss_shared_xfft_service (
   assign service_fault = input_mailbox_fault || fast_fault_sync[1];
   assign input_ready = slow_running && input_mailbox_ready && !service_fault;
 
-  wire adapter_input_ready, adapter_fault;
+  wire adapter_input_ready, adapter_input_transport_ready, adapter_fault;
   wire fast_output_valid, fast_output_last, output_mailbox_ready, output_mailbox_fault;
   wire [17:0] fast_output_i, fast_output_q;
   wire [8:0] fast_output_position;
@@ -133,14 +133,12 @@ module starlink_pss_shared_xfft_service (
   always @(posedge fft_clk)
     if (!engine_active) engine_metadata <= fast_input_metadata;
   wire slow_output_valid;
-  // Adapter ready deliberately consumes malformed metadata even when the core
-  // stalls, so it can fault immediately. Mailbox retirement instead requires
-  // core readiness: (metadata_ok ? core_ready : 1) && core_ready simplifies to
-  // core_ready, keeping the metadata comparator off the mailbox feedback path.
-  // The only unmatched adapter acceptance is a malformed stalled word; its
-  // sticky fault quarantines the held mailbox word until explicit reset.
+  // Use the adapter's explicit metadata-independent transport cone. Its checked
+  // input_ready still consumes malformed stalled words immediately; the mailbox
+  // holds those words until the unchanged sticky-fault/reset quarantine purges
+  // them. No cross-module Boolean absorption is needed for read retirement.
   assign fast_input_ready = engine_active && !engine_input_closed && !fast_fault &&
-                            adapter_input_ready && core_input_ready;
+                            adapter_input_transport_ready;
   assign output_valid = slow_running && slow_output_valid && !service_fault;
 
   starlink_pss_block_mailbox #(
@@ -202,7 +200,8 @@ module starlink_pss_shared_xfft_service (
   ) adapter (
     .clk(fft_clk), .resetn(fast_running && engine_active), .flush(1'b0),
     .input_valid(fast_input_valid && engine_active && !engine_input_closed && !fast_fault),
-    .input_ready(adapter_input_ready), .input_i(fast_input_data[17:0]),
+    .input_ready(adapter_input_ready), .input_transport_ready(adapter_input_transport_ready),
+    .input_i(fast_input_data[17:0]),
     .input_q(fast_input_data[35:18]), .input_position(fast_input_position),
     .input_block_start_index(engine_metadata[68:5]), .input_last(fast_input_last),
     .output_valid(fast_output_valid), .output_ready(1'b1),

@@ -39,6 +39,8 @@ module tb_starlink_pss_shared_xfft_service;
       (old_closed_shadow || (dut.return_valid && !dut.return_accept));
   wire old_fault_event = dut.adapter_fault || dut.output_mailbox_fault ||
       (dut.return_valid && !dut.output_mailbox_ready) || old_validated_overrun;
+  wire old_fast_input_ready = dut.engine_active && !dut.engine_input_closed &&
+      !dut.fast_fault && dut.adapter_input_ready && dut.core_input_ready;
   starlink_pss_shared_xfft_service dut (.*);
 
   function automatic [69:0] tag(input integer job_id);
@@ -50,6 +52,8 @@ module tb_starlink_pss_shared_xfft_service;
     end
   endfunction
   always @(posedge fft_clk) begin
+    if (dut.fast_running && dut.fast_input_ready !== old_fast_input_ready)
+      $fatal(1, "explicit transport port changed shared mailbox retirement");
     if (!dut.adapter.resetn) validated_position_shadow <= 0;
     else begin
       if (!dut.adapter_fault &&
@@ -420,7 +424,7 @@ module tb_starlink_pss_shared_xfft_service;
              config_cycles, load_cycles, compute_cycles, output_cycles, drain_cycles);
     $display("SHARED_XFFT_TRANSPORT_SPLIT_PASS blocked_return_cases=%0d raw_only_overruns=%0d old_validated_overruns_preserved=1 healthy_closed_state_equivalent=1 active_descriptor_stable=1",
              transport_fault_cases, raw_only_overruns);
-    $display("SHARED_XFFT_COUNTER_RETIREMENT_PASS stalled_malformed_input_cases=%0d unmatched_input_accepts=%0d speculative_counter_advances=%0d healthy_shadow_counter=1 mailbox_ack_held=1 public_completion_fenced=1",
+    $display("SHARED_XFFT_COUNTER_RETIREMENT_PASS stalled_malformed_input_cases=%0d unmatched_input_accepts=%0d speculative_counter_advances=%0d healthy_shadow_counter=1 mailbox_ack_held=1 public_completion_fenced=1 transport_ready_equivalent=1",
              input_retirement_fault_cases, unmatched_input_accepts, speculative_counter_advances);
     $finish(0);
   end

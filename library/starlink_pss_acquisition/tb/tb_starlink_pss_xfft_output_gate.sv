@@ -32,6 +32,7 @@ module tb_starlink_pss_xfft_output_gate;
   );
   integer mask, geometry, checked = 0;
   integer allowed = 0, denied = 0;
+  integer retirement_allowed = 0, unmatched_input_faults = 0;
   reg old_gate;
   initial begin
     for (geometry = 0; geometry < 4; geometry = geometry + 1) begin
@@ -70,14 +71,27 @@ module tb_starlink_pss_xfft_output_gate;
         if (dut.output_state_advance !== old_gate)
           $fatal(1, "output gate changed identity=%0d geometry=%0d mask=%0h old=%b new=%b",
                  CHECK_IDENTITY, geometry, mask, old_gate, dut.output_state_advance);
+        if (dut.input_transport_ready !== (dut.input_ready && core_input_tready))
+          $fatal(1, "explicit transport ready differs from preceding retirement expression");
+        if (input_valid && dut.input_transport_ready && !dut.input_accept)
+          $fatal(1, "transport retired an input not accepted by checker");
+        if (dut.input_accept && !dut.input_transport_ready) begin
+          if (!dut.input_framing_error_now || core_input_tready || dut.core_input_tvalid)
+            $fatal(1, "unmatched checker acceptance is not a malformed stalled word");
+          unmatched_input_faults = unmatched_input_faults + 1;
+        end
+        if (dut.input_transport_ready) retirement_allowed = retirement_allowed + 1;
         if (old_gate) allowed = allowed + 1;
         else denied = denied + 1;
         checked = checked + 1;
       end
     end
-    if (!allowed || !denied) $fatal(1, "vacuous output gate check");
+    if (!allowed || !denied || !retirement_allowed || !unmatched_input_faults)
+      $fatal(1, "vacuous output/transport gate check");
     $display("XFFT_OUTPUT_GATE_EQUIVALENCE_PASS identity=%0d checked=%0d allowed=%0d denied=%0d",
              CHECK_IDENTITY, checked, allowed, denied);
+    $display("XFFT_INPUT_TRANSPORT_EQUIVALENCE_PASS identity=%0d checked=%0d retirement_allowed=%0d unmatched_stalled_faults=%0d old_retirement_equal=1 validation_preserved=1",
+             CHECK_IDENTITY, checked, retirement_allowed, unmatched_input_faults);
     $finish;
   end
 endmodule
