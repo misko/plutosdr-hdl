@@ -8,6 +8,35 @@ selected and cannot authorize deployment before the remaining gates pass.
 The experimental firmware remains do-not-merge. Realtime is a candidate for
 the current packing/timing failure, not an assumed whole-chip solution.
 
+## Publication-control trial — 2026-09-09
+
+The first `2e552234` cut completed routing with fast WNS -2.538 ns (improved
+from -3.531 ns), slow WNS +0.007 ns and hold +0.021 ns. The worst endpoint moved
+to output-mailbox write-position CE. Its routed audit still finds return-slot
+(-2.393 ns), publication (-1.923 ns), RAM-control (-2.535 ns), and independent
+vendor direction-control (-1.144 ns) failures. It is not deployable.
+
+The next trial keeps all fault reasons and same-cycle publication vetoes:
+
+- Express effective input-count equality with exact 511/512 predicates,
+  verified over all 2048 binary count/beat combinations. This simplifies the
+  downstream test; it does not remove the input checker's metadata carry chain.
+- Capture only the 51 private payload bits on a raw arriving active output.
+  Current-cycle faults still clear validity and veto the mailbox immediately;
+  sticky quarantine prevents the private fault-edge value ever gaining validity
+  before epoch reset. The real-mailbox test explicitly observes 21 such captures,
+  reset purges, and 504 quarantine checks in each of three clock relationships.
+- For a held final word with all registered final premises, use the exactly
+  reduced final-phase fault predicate. Every new certificate/frame/status/output
+  event, lost output ownership, external/mailbox fault, and watchdog expiration
+  still vetoes that edge. Other words keep the full original validation tree.
+
+Conditional final-phase comparison covers 262144 combinations plus 512 actual
+edges at each watchdog setting 2, 5 and 17; all nine omitted-veto mutations fail.
+The old-vs-new public behavior regression and actual-core service/score/map
+replays also pass. These are bounded executable proofs, not universal vendor
+event-latency, RF, or physical-timing proofs. A new full implementation is required.
+
 ## First measured control-cone cut — 2026-09-09
 
 The explicitly integrated `ff4229bb` receiver fits and routes, but final timing

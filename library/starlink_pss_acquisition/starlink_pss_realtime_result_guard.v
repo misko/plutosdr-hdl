@@ -69,7 +69,11 @@ module starlink_pss_realtime_result_guard #(
   reg [8:0] return_position;
   reg [4:0] return_exponent;
 
-  wire [10:0] effective_input_count = {1'b0, input_count} + certified_input_beat;
+  // Exact equality after a possible delivered beat; no wide increment is
+  // needed just to decide whether the effective count is 512. This does not
+  // remove or defer the independent input guard's ordinal/metadata check.
+  wire effective_input_full = (input_count == 511 && certified_input_beat) ||
+    (input_count == 512 && !certified_input_beat);
   wire effective_input_complete = input_complete_seen || certified_input_complete;
   wire effective_frame_seen = frame_seen || core_event_frame_started;
   wire reservation_error = active && (!output_bank_reserved ||
@@ -77,7 +81,7 @@ module starlink_pss_realtime_result_guard #(
   wire input_error = (certified_input_beat &&
     (!active || input_complete_seen || input_count == 512)) ||
     (certified_input_complete &&
-    (!active || input_complete_seen || effective_input_count != 512));
+    (!active || input_complete_seen || !effective_input_full));
   wire frame_error = core_event_frame_started &&
     (!active || frame_seen || (input_count == 0 && !certified_input_beat));
   wire status_error = core_status_tvalid &&
@@ -88,7 +92,7 @@ module starlink_pss_realtime_result_guard #(
   // The unused upper component-slot bits are ignored, as in the old adapter.
   wire output_error = core_output_tvalid &&
     (!active || output_count == 512 || !effective_input_complete ||
-     effective_input_count != 512 || !effective_frame_seen ||
+     !effective_input_full || !effective_frame_seen ||
      core_output_tuser[15:9] != 0 || core_output_tuser[23:21] != 0 ||
      core_output_tuser[8:0] != output_count[8:0] ||
      core_output_tlast != (output_count == 511) ||
@@ -123,8 +127,17 @@ module starlink_pss_realtime_result_guard #(
   wire final_qualified = input_count == 512 && input_complete_seen &&
     output_count == 512 && frame_seen && exponent_seen && status_seen &&
     output_exponent == status_exponent && final_fence_certified;
-  assign mailbox_input_valid = resetn && active && !protocol_fault && !fault_now &&
-    return_valid && (!return_last || final_qualified);
+  // With a held final word AND final_qualified, every new raw input/frame/
+  // status/output event is illegal, input ownership is already retired, and
+  // the remaining immediate faults are output ownership, transport/external
+  // faults and the watchdog. This is faults_now restricted to that phase.
+  // Keep the full fault tree and exact reason accumulation for every phase;
+  // never use this reduced predicate for a nonfinal or unqualified word.
+  wire final_fault_now = external_fault_now || mailbox_input_fault ||
+    !output_bank_reserved || certified_input_beat || certified_input_complete ||
+    core_event_frame_started || core_status_tvalid || core_output_tvalid || watchdog_error;
+  assign mailbox_input_valid = resetn && active && !protocol_fault && return_valid &&
+    ((!return_last && !fault_now) || (return_last && final_qualified && !final_fault_now));
   assign mailbox_input_data = return_data;
   assign mailbox_input_position = return_position;
   assign mailbox_input_last = return_last;
@@ -158,10 +171,21 @@ module starlink_pss_realtime_result_guard #(
       commit_pulse <= 0;
       fault_reasons <= fault_reasons | faults_now;
       // Account the raw arriving beat even if it triggers quarantine. This
-      // counter is private; malformed data still cannot enter the return slot
-      // or publish. Saturate beyond the one allowed block rather than wrap.
+      // counter is private; malformed data still cannot become a valid return
+      // word or publish. Saturate beyond the one allowed block rather than wrap.
       if (active && !protocol_fault && core_output_tvalid && output_count < 513)
         output_count <= output_count + 1'b1;
+      // Speculatively capture ONLY private payload on the arriving edge, so
+      // its 51-bit register enable need not traverse the full validation tree.
+      // Current faults still clear return_valid below and veto mailbox_input_valid
+      // immediately. Sticky quarantine prevents this payload gaining validity
+      // later; the epoch reset clears it before another job can be admitted.
+      if (active && !protocol_fault && core_output_tvalid) begin
+        return_data <= {core_output_tdata[41:24], core_output_tdata[17:0]};
+        return_position <= core_output_tuser[8:0];
+        return_last <= core_output_tlast;
+        return_exponent <= core_output_tuser[20:16];
+      end
       // Private watchdog state need not wait for the complete current-cycle
       // fault cone. Admission occurs while inactive, so it still starts at
       // zero; every healthy active edge and the immediate deadline veto are
@@ -197,10 +221,6 @@ module starlink_pss_realtime_result_guard #(
             if (!exponent_seen) output_exponent <= core_output_tuser[20:16];
             exponent_seen <= 1;
             return_valid <= 1;
-            return_data <= {core_output_tdata[41:24], core_output_tdata[17:0]};
-            return_position <= core_output_tuser[8:0];
-            return_last <= core_output_tlast;
-            return_exponent <= core_output_tuser[20:16];
           end
           if (final_commit) begin
             active <= 0;
