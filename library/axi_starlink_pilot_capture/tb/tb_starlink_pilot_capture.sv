@@ -61,7 +61,7 @@ module tb_starlink_pilot_capture;
         write_requests = write_requests + 1;
         held_write_data = dut.wdata;
       end
-      if (dut.write_pending) begin
+      if ((dut.write_pending && !dut.clear_admit) || dut.clear_ok) begin
         if (write_requests != write_executions + 1 || dut.wdata !== held_write_data)
           $fatal(1, "registered command lost, repeated, or payload changed");
         write_executions = write_executions + 1;

@@ -101,11 +101,21 @@ module axi_starlink_pilot_capture #(
       limit_request <= wreq && waddr == 6'h27 && wstrb == 4'hf;
     end
   end
-  wire clear_ok = clear_request && !active && empty;
+  // Decide legality at the original command edge, but execute an accepted
+  // CLEAR from a registered token. The FIFO-empty comparator must not drive
+  // the DDC's high-fanout reset/run/flush tree combinationally. The AXI helper
+  // holds this write outstanding until commit; inactive + empty therefore
+  // stays quiescent and no ARM/configuration/SNAPSHOT can interleave.
+  wire clear_admit = clear_request && !active && empty;
+  reg clear_ok;
+  always @(posedge s_axi_aclk) begin
+    if (!s_axi_aresetn) clear_ok <= 0;
+    else clear_ok <= clear_admit;
+  end
   wire arm_ok = arm_request && !active && !used && empty && faults == 0 && visit_id != 0;
   wire visit_write = visit_request && !active && !used && empty;
   wire limit_write = limit_request && !active && !used && empty;
-  wire bad_write = write_pending && !(arm_ok || stop_request || clear_ok || snapshot_request || visit_write || limit_write);
+  wire bad_write = write_pending && !(arm_ok || stop_request || clear_admit || snapshot_request || visit_write || limit_write);
   // During capture only STOP and SNAPSHOT are legal. Keep that small decode
   // separate from inactive ARM eligibility (sticky faults, visit, FIFO, used),
   // which must not feed through DDC flush into every active output admission.
@@ -255,7 +265,9 @@ module axi_starlink_pilot_capture #(
   always @(posedge s_axi_aclk) begin
     // Respond only after the registered request has taken effect. AXI BVALID
     // must never promise completion while a STOP/CLEAR/configuration is pending.
-    wack <= write_pending;
+    // Invalid CLEAR still faults/responds at its original rejection edge.
+    // Only an accepted CLEAR waits the extra clock for the common reset edge.
+    wack <= (write_pending && !clear_admit) || clear_ok;
     rack <= rreq;
     if (!s_axi_aresetn) begin wack <= 0; rack <= 0; rdata <= 0; end
     else if (rreq) begin

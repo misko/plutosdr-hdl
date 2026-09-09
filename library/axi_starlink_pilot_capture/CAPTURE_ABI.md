@@ -32,8 +32,14 @@ disable map acquisition. Original non-pilot profiles retain their behavior.
 
 The control word is decoded into a registered request before execution. AXI
 write response follows execution, not initial decode. This adds one internal
-clock of control latency without changing the register meanings. The source
-counter, not host command-send time, remains the observation coordinate.
+clock of control latency without changing the register meanings. Accepted CLEAR
+has one further clock between its inactive/empty eligibility check and its
+common capture/DDC/snapshot reset edge. Its write remains outstanding until
+that reset executes, preventing a new control write from interleaving. Invalid
+CLEAR still faults at the eligibility edge. Independent reads before the write
+response may see pre-CLEAR state; software must wait for completion before
+reading the cleared state. STOP and active fault timing are unchanged. The
+source counter, not host command-send time, remains the observation coordinate.
 
 The complete DDC output observation (IQ, newest source index, visit and support)
 crosses a one-clock register before capture admission. Signal coordinates and
