@@ -50,6 +50,9 @@ module starlink_pss_realtime_result_guard #(
   input wire core_status_tvalid,
   output wire mailbox_input_valid,
   output wire mailbox_private_valid,
+  // Separate final-only authorization for explicit-commit mailboxes. Ordinary
+  // mailbox_input_valid remains unchanged for nonfinal result retirement.
+  output wire mailbox_commit_valid,
   input wire mailbox_input_ready,
   input wire mailbox_input_fault,
   output wire [35:0] mailbox_input_data,
@@ -172,8 +175,9 @@ module starlink_pss_realtime_result_guard #(
   // branch of mailbox_input_valid. This is the same handshake on the same
   // edge, without unnecessarily reconverging the full nonfinal fault tree
   // onto final occupancy/ACK controls. No publication condition is omitted.
-  wire final_commit = resetn && active && !protocol_fault && return_valid &&
-    return_last && final_qualified && !final_fault_now && mailbox_input_ready;
+  assign mailbox_commit_valid = resetn && active && !protocol_fault && return_valid &&
+    return_last && final_qualified && !final_fault_now;
+  wire final_commit = mailbox_commit_valid && mailbox_input_ready;
 
   always @(posedge clk or negedge resetn) begin
     if (!resetn) begin

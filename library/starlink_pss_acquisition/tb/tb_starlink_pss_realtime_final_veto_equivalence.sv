@@ -35,7 +35,7 @@ module tb_starlink_pss_realtime_final_veto_equivalence;
   wire [7:0] fault_reasons;
   wire phase_input_fault_now = 1'bz; // Default mode keeps all original checks.
   starlink_pss_realtime_result_guard #(.WATCHDOG_CYCLES(WATCHDOG_CYCLES)) dut (
-    .mailbox_private_valid(), .*);
+    .mailbox_private_valid(), .mailbox_commit_valid(), .*);
 
   wire [8:0] final_veto_terms = {
     dut.watchdog_error, core_output_tvalid, core_status_tvalid,
@@ -138,6 +138,8 @@ module tb_starlink_pss_realtime_final_veto_equivalence;
           $fatal(1, "FINAL_VETO_EQ_MISMATCH omit=%0d events=%h actual=%b proposed=%b",
             OMIT_VETO, event_bits, dut.fault_now, proposed_final_fault);
       end
+      if (dut.mailbox_commit_valid !== proposed_final_valid)
+        $fatal(1, "FINAL_AUTH_VETO_MISMATCH");
       if (mailbox_input_valid !== proposed_final_valid ||
           dut.final_commit !== proposed_final_commit || job_ready !== 0)
         $fatal(1, "FINAL_VETO_PUBLIC_MISMATCH events=%h", event_bits);

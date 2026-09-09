@@ -57,6 +57,8 @@ module tb_starlink_pss_shared_realtime_xfft_service;
     #0.2;
     if (dut.fast_running) begin
       shadow_rows = shadow_rows + 1;
+      if (dut.return_commit_valid !== (old_return_valid && old_return_last))
+        $fatal(1, "FINAL_AUTH_SERVICE_MISMATCH");
       if ({dut.job_ready, dut.return_valid, dut.result_busy, dut.result_commit,
            dut.result_fault, dut.result_guard.fault_reasons} !==
           {old_job_ready, old_return_valid, old_busy, old_commit, old_fault, old_fault_reasons})

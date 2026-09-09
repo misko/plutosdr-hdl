@@ -19,6 +19,7 @@ module tb_starlink_pss_realtime_occupancy;
   reg core_status_tvalid = 0, mailbox_input_ready = 1, mailbox_input_fault = 0;
   wire job_ready, mailbox_input_valid, mailbox_private_valid, mailbox_input_last, busy;
   wire commit_pulse, protocol_fault;
+  wire mailbox_commit_valid;
   wire [35:0] mailbox_input_data;
   wire [8:0] mailbox_input_position;
   wire [74:0] mailbox_input_metadata;
@@ -59,6 +60,8 @@ module tb_starlink_pss_realtime_occupancy;
           {mailbox_input_data, mailbox_input_position, mailbox_input_last, mailbox_input_metadata} !==
           {old_data, old_position, old_last, old_metadata})
         $fatal(1, "OCCUPANCY_PAYLOAD_MISMATCH");
+      if (mailbox_commit_valid !== (old_valid && old_last))
+        $fatal(1, "FINAL_AUTH_PUBLIC_MISMATCH");
       if (protocol_fault && mailbox_private_valid) $fatal(1, "OCCUPANCY_PRIVATE_ESCAPE");
     end
   endtask

@@ -116,7 +116,7 @@ module starlink_pss_shared_realtime_xfft_service (
   );
 
   wire output_mailbox_ready, output_mailbox_fault, output_mailbox_framing_fault_now;
-  wire return_valid, return_private_valid, return_last;
+  wire return_valid, return_private_valid, return_commit_valid, return_last;
   wire [35:0] return_data;
   wire [8:0] return_position;
   wire [74:0] return_metadata;
@@ -158,6 +158,7 @@ module starlink_pss_shared_realtime_xfft_service (
     .core_output_tvalid(core_output_valid), .core_output_tlast(core_output_last),
     .core_status_tdata(core_status_data), .core_status_tvalid(core_status_valid),
     .mailbox_input_valid(return_valid), .mailbox_private_valid(return_private_valid),
+    .mailbox_commit_valid(return_commit_valid),
     .mailbox_input_ready(output_mailbox_ready),
     .mailbox_input_fault(output_mailbox_fault || output_mailbox_framing_fault_now),
     .mailbox_input_data(return_data),
@@ -168,11 +169,13 @@ module starlink_pss_shared_realtime_xfft_service (
   wire slow_output_valid;
   assign output_valid = slow_running && slow_output_valid && !service_fault;
   // Only private bank writes bypass the current-cycle validation cone. Final
-  // authorization and guard retirement retain the exact same qualified valid.
+  // authorization and guard retirement retain the exact same qualified final
+  // handshake. Nonfinal words cannot publish this mailbox, so their validation
+  // cone need not reconverge onto the ownership toggle through authorization.
   starlink_pss_block_mailbox #(.METADATA_WIDTH(75), .RESET_RELEASE_EXTERNAL(1),
     .EXPLICIT_COMMIT(1)) output_mailbox (
     .input_clk(fft_clk), .input_resetn(fast_running), .input_valid(return_private_valid),
-    .input_commit_authorized(return_valid),
+    .input_commit_authorized(return_commit_valid),
     .input_ready(output_mailbox_ready), .input_data(return_data),
     .input_position(return_position), .input_last(return_last),
     .input_metadata(return_metadata), .input_fault(output_mailbox_fault),
