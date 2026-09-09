@@ -80,7 +80,11 @@ module axi_starlink_pilot_capture #(
   // acknowledgement, so configuration payloads need no second 32-bit copy.
   wire command = waddr == 6'h02 && wstrb == 4'hf;
   reg write_pending;
-  reg arm_request, stop_request, clear_request, snapshot_request;
+  reg arm_request, stop_request, clear_request;
+  // Local replication only: the full receiver measured 649 loads and 12.649 ns
+  // of wire delay on this snapshot-enable net. Copies retain the same decode,
+  // reset and capture edge; no pipeline stage or relaxed timing is introduced.
+  (* max_fanout = 32 *) reg snapshot_request;
   reg visit_request, limit_request;
   always @(posedge s_axi_aclk) begin
     if (!s_axi_aresetn) begin
