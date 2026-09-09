@@ -71,10 +71,20 @@ set_property -dict [list \
   value_validation_list "0 1" \
 ] [ipx::get_user_parameters ENABLE_INJECTION -of_objects [ipx::current_core]]
 
+# Vivado infers the RTL default expression as a derived boolean. Make the
+# packaged knob an explicit integer choice and let the generated XGUI callback
+# forward that choice to RTL; the BD sets it explicitly for every profile/rate.
+set dsp_user [ipx::get_user_parameters USE_DSP_REDUCER -of_objects [ipx::current_core]]
+set dsp_model [ipx::get_hdl_parameters USE_DSP_REDUCER -of_objects [ipx::current_core]]
+set_property value_format long $dsp_user
+set_property value 0 $dsp_user
+set_property value_format long $dsp_model
+set_property value_dependency {} $dsp_model
+set_property value 0 $dsp_model
 set_property -dict [list \
   value_validation_type list \
   value_validation_list "0 1" \
-] [ipx::get_user_parameters USE_DSP_REDUCER -of_objects [ipx::current_core]]
+] $dsp_user
 
 ipx::create_xgui_files [ipx::current_core]
 ipx::save_core [ipx::current_core]
