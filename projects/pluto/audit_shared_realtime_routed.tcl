@@ -94,6 +94,18 @@ proc audit_paths {label sources destinations {required_period {}}} {
 set core_registers [get_cells -quiet -hier -filter \
   {IS_SEQUENTIAL && NAME =~ *transform_service/shared_xfft/*}]
 audit_paths vendor_internal $core_registers $core_registers 5.0
+# The previous complete receiver's worst path was ordinal feedback into this
+# private cursor. Inventory all nine actual registers and report their saved
+# D/CE timing after the dependency cut; a changed worst-path label alone is not
+# evidence that this specific path now passes. No constraints are applied.
+set input_cursor [get_cells -quiet -hier -regexp \
+  {.*transform_service/input_guard/expected_position_reg\[[0-9]+\]$}]
+if {[llength $input_cursor] != 9} { error "expected all nine input cursor registers" }
+audit_period $input_cursor 5.0
+set input_cursor_pins [get_pins -quiet -of_objects $input_cursor \
+  -filter {REF_PIN_NAME == D || REF_PIN_NAME == CE}]
+if {[llength $input_cursor_pins] != 18} { error "expected all input cursor D and CE pins" }
+audit_paths input_cursor {} $input_cursor_pins 5.0
 set return_registers [get_cells -quiet -hier -regexp \
   {.*transform_service/result_guard/return_(valid|occupied|last|data|position|exponent)_reg(\[[0-9]+\])?$}]
 audit_paths return_slot {} $return_registers 5.0
