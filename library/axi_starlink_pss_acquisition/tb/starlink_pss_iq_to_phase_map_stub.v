@@ -75,6 +75,7 @@ module starlink_pss_iq_to_phase_map #(
   output wire [31:0]                  map_arithmetic_overflow_count,
   output wire [31:0]                  map_read_error_count,
   output wire [31:0]                  map_release_error_count,
+  output wire                         map_counter_fault,
   input  wire                         stop_request,
   output wire                         stop_ready, stop_pending, stop_ack, stop_done,
   output wire                         stop_complete, stop_failed, stop_has_map,
@@ -138,6 +139,7 @@ module starlink_pss_iq_to_phase_map #(
   assign map_arithmetic_overflow_count = 32'd0;
   assign map_read_error_count = 32'd0;
   assign map_release_error_count = 32'd0;
+  assign map_counter_fault = 1'b0;
 
   wire unused = ^{
     KERNEL_ROM_FILE, COEFFICIENT_ENERGY, PHASE_BINS, TILE_FRAMES,
