@@ -1,10 +1,57 @@
 # Bounded future shared-realtime FFT candidate
 
-Status: design/test contract only. This architecture is **not implemented or
-qualified**. It does not change the frozen nonrealtime receiver, production IP,
+Status: isolated input/result guards are implemented and unit-tested. The
+complete shared-realtime architecture is **not integrated or qualified**.
+These new modules are not instantiated by the frozen receiver. They do not
+change the nonrealtime receiver, production IP,
 clock constraints, or deployment eligibility. The experimental firmware remains
 do-not-merge. Realtime is a candidate if the current nonrealtime design still
 fails; it is not an assumed solution to whole-chip timing or packing.
+
+## Isolated dependencies — 2026-09-09
+
+`starlink_pss_realtime_input_guard.v` immediately rejects missing demanded
+input, malformed ordinal/TLAST and optional descriptor mismatch. It retains the
+explicit metadata-independent mailbox retirement cone. One common reset epoch
+admits one job; pre-first-word idle and undemanded source pauses during core
+waitstates are legal. Withdrawal of source enable cannot disable an already
+started job's delivery checker. Its two synthetic tests cover both identity
+modes, nine healthy blocks, 48 rejected jobs and exact same-edge certificates.
+They are not actual-core or reservation proofs.
+
+`starlink_pss_realtime_result_guard.v` reuses the real output mailbox and one
+52-bit return slot. It checks raw output framing and counts, independent status
+and provisional exponent, then holds word 511 until all certified premises pass.
+Three synthetic clock/phase cases each transport 23 exact 512-word blocks,
+reject 37 jobs, exercise 12 independent reset cases and two ACK-gated reuses.
+Status delayed 777 clocks after the final word remains private; missing status
+and the exact watchdog/commit edge fail closed. This proves the isolated guard
+contract, not actual FFT arithmetic, input delivery, capacity or physical CDC.
+
+Compose the two with a registered admission token. A combinational path from
+result `job_ready` through input `job_start`/duplicate-start fault back into
+result readiness would form a feedback loop. The result guard permits ACK-only
+reuse; the input guard deliberately requires a new reset epoch. Initial combined
+testing must retain per-job resets and align certificates with actual deliveries.
+
+The expanded actual-generated-core observer in `build/realtime-delivery-sweep-v1/`
+is separate from both guards. Its 27 healthy jobs match all 13,824 full 36-bit
+complex words. All 21 starved jobs produce 512 wrong words each. Ten gap
+geometries, including a missing final input, are exercised in both directions;
+20 explicit-reset recoveries pass. Twelve halt cycles occur after the testbench
+has left its input phase, so an input-phase-only event mask is insufficient.
+Observed status and halt delays remain two clocks on these fixtures, **not a
+universal bound**. Extended legal idle produces no halt in the tested jobs.
+
+The input rule and warning about delayed TLAST events are documented in
+[AMD PG109, May 4, 2022, pp. 12–13 and 51–53](https://www.amd.com/content/dam/xilinx/support/documents/ip_documentation/xfft/v9_1/pg109-xfft.pdf).
+Immediate local checking is intended to detect those input corruption mechanisms
+before their possibly delayed vendor indication; the eventual integrated event
+policy, reservation ownership and final fence still require qualification.
+
+No integrated actual-core service, sustained paired acquisition, whole-chip
+resource saving, timing closure or radio deployment is established by these
+dependency tests. The current nonrealtime receiver remains the runtime source.
 
 ## Evidence and its limits
 

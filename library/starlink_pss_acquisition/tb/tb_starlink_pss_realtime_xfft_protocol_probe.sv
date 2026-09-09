@@ -26,10 +26,15 @@ module tb_starlink_pss_realtime_xfft_protocol_probe;
   integer value_mismatches = 0, metadata_mismatches = 0, tlast_events = 0;
   integer first_input_cycle = -1, first_status_cycle = -1, first_output_cycle = -1;
   integer first_gap_cycle = -1, first_gap_halt_cycle = -1, gap_demands = 0;
+  integer last_gap_cycle = -1, last_gap_halt_cycle = -1, first_halt_phase = -1;
+  integer last_input_cycle = -1, local_delivery_fault_cycle = -1;
+  integer expected_gaps = 0, gap_start = -1, gap_length = 0;
   integer halt_cycles [0:6], healthy_halt_cycles [0:6], starved_halt_cycles [0:6];
   integer total_healthy_jobs = 0, total_healthy_words = 0, reset_jobs = 0, no_reset_jobs = 0;
   integer starvation_value_mismatches = 0, starvation_output_count = 0;
-  integer starvation_halts = 0, trace_file, k;
+  integer starvation_halts = 0, trace_file, k, sweep_direction, sweep_case;
+  integer next_sweep_job = 8, total_starved_jobs = 0;
+  integer sweep_starts [0:9], sweep_lengths [0:9];
   reg [35:0] expected_word;
   reg [4:0] expected_exponent;
 
@@ -48,7 +53,7 @@ module tb_starlink_pss_realtime_xfft_protocol_probe;
 
   always @(posedge clk) begin
     cycle_count = cycle_count + 1;
-    if (cycle_count > 100000) $fatal(1, "realtime observer watchdog");
+    if (cycle_count > 500000) $fatal(1, "realtime observer watchdog");
     $fdisplay(trace_file, "%0d,%0d,%0d,%0b,%0b,%0b,%0b,%0b,%0b,%0d,%0b,%0b,%h,%0b,%h,%h,%0b,%0b,%0b,%0b",
       cycle_count, job_id, phase, aresetn, config_valid, config_ready,
       input_valid, input_ready, input_last, input_count, output_valid, output_last,
@@ -58,15 +63,24 @@ module tb_starlink_pss_realtime_xfft_protocol_probe;
       if (input_valid && input_ready) begin
         input_count = input_count + 1;
         if (first_input_cycle < 0) first_input_cycle = cycle_count;
+        last_input_cycle = cycle_count;
       end
       if (phase == INPUT && first_input_cycle >= 0 && input_ready && !input_valid) begin
         gap_demands = gap_demands + 1;
         if (first_gap_cycle < 0) first_gap_cycle = cycle_count;
+        last_gap_cycle = cycle_count;
+        // Observation of the earlier local detector required by the vendor's
+        // realtime delivery contract. This testbench flag is NOT production
+        // starvation protection or a proof of an arbitrary vendor event bound.
+        if (local_delivery_fault_cycle < 0) local_delivery_fault_cycle = cycle_count;
       end
       if (event_input_halt) begin
         halt_cycles[phase] = halt_cycles[phase] + 1;
-        if (first_gap_cycle >= 0 && first_gap_halt_cycle < 0)
+        if (first_gap_cycle >= 0 && first_gap_halt_cycle < 0) begin
           first_gap_halt_cycle = cycle_count;
+          first_halt_phase = phase;
+        end
+        if (first_gap_cycle >= 0) last_gap_halt_cycle = cycle_count;
       end
       if (event_frame) frame_count = frame_count + 1;
       if (event_last_unexpected || event_last_missing) tlast_events = tlast_events + 1;
@@ -95,18 +109,25 @@ module tb_starlink_pss_realtime_xfft_protocol_probe;
   end
 
   task automatic run_job(input integer next_job, input integer next_fixture,
-                         input bit next_inverse, input bit reset_before, input bit inject_starvation);
+                         input bit next_inverse, input bit reset_before,
+                         input integer inject_start, input integer inject_length,
+                         input integer extra_idle);
     integer p, wait_start;
     reg [35:0] word_in;
     begin
       @(negedge clk);
       job_id = next_job; fixture = next_fixture; inverse = next_inverse;
-      starved = inject_starvation; job_active = 1;
+      gap_start = inject_start; gap_length = inject_length;
+      starved = inject_length != 0; expected_gaps = inject_length; job_active = 1;
+      if (inject_length < 0 || (starved && (inject_start < 1 || inject_start + inject_length > 512)))
+        $fatal(1, "invalid starvation fixture geometry");
       expected_exponent = inverse ? inverse_exponents[fixture] : forward_exponents[fixture];
       input_count = 0; output_count = 0; status_count = 0; frame_count = 0;
       value_mismatches = 0; metadata_mismatches = 0; tlast_events = 0;
       first_input_cycle = -1; first_status_cycle = -1; first_output_cycle = -1;
       first_gap_cycle = -1; first_gap_halt_cycle = -1; gap_demands = 0;
+      last_gap_cycle = -1; last_gap_halt_cycle = -1; first_halt_phase = -1;
+      last_input_cycle = -1; local_delivery_fault_cycle = -1;
       for (p = 0; p < 7; p = p + 1) halt_cycles[p] = 0;
       input_valid = 0; input_last = 0; config_valid = 0;
       if (reset_before) begin
@@ -117,7 +138,7 @@ module tb_starlink_pss_realtime_xfft_protocol_probe;
         reset_jobs = reset_jobs + 1;
       end else no_reset_jobs = no_reset_jobs + 1;
       phase = IDLE;
-      repeat (20 + next_job) @(negedge clk);
+      repeat (20 + next_job + extra_idle) @(negedge clk);
       phase = CONFIG;
       config_data = inverse ? 8'h00 : 8'h01;
       config_valid = 1;
@@ -125,7 +146,7 @@ module tb_starlink_pss_realtime_xfft_protocol_probe;
       while (!config_ready) @(posedge clk);
       @(negedge clk); config_valid = 0;
       phase = IDLE;
-      repeat (24 + next_job) @(negedge clk);
+      repeat (24 + next_job + extra_idle) @(negedge clk);
       phase = INPUT;
       for (p = 0; p < 512; p = p + 1) begin
         word_in = inverse ? products[fixture*512+p] :
@@ -133,12 +154,11 @@ module tb_starlink_pss_realtime_xfft_protocol_probe;
         input_data = {6'b0, word_in[35:18], 6'b0, word_in[17:0]};
         input_last = p == 511;
         input_valid = 1;
-        // Deliberately withhold 64 active-demand positions after 128 delivered
-        // words. Poison the invalid payload so ignored TVALID cannot silently
+        // Deliberately omit selected active-demand positions, NOT retry them
+        // after corruption. Poison the invalid payload so ignored TVALID cannot silently
         // masquerade as a numerically healthy fixture. This is an observation,
         // NOT the proposed production starvation detector or recovery policy.
-        if (starved && p >= 128 && p < 192) begin
-          if (frame_count == 0) $fatal(1, "starvation injection preceded active frame event");
+        if (starved && p >= gap_start && p < gap_start + gap_length) begin
           input_valid = 0;
           input_data = {6'b0, 18'h15555, 6'b0, 18'h2aaaa};
         end
@@ -157,6 +177,10 @@ module tb_starlink_pss_realtime_xfft_protocol_probe;
         status_count, frame_count, value_mismatches, metadata_mismatches, tlast_events,
         first_input_cycle, first_status_cycle, first_output_cycle,
         first_status_cycle - first_output_cycle, first_gap_cycle, first_gap_halt_cycle, gap_demands);
+      $display("RT_XFFT_DELIVERY job=%0d gap_start=%0d gap_length=%0d extra_idle_each=%0d last_input_cycle=%0d last_gap_cycle=%0d last_halt_after_gap=%0d first_halt_phase=%0d local_fault_cycle=%0d first_halt_minus_first_gap=%0d last_halt_minus_last_gap=%0d",
+        job_id, gap_start, gap_length, extra_idle, last_input_cycle, last_gap_cycle,
+        last_gap_halt_cycle, first_halt_phase, local_delivery_fault_cycle,
+        first_gap_halt_cycle - first_gap_cycle, last_gap_halt_cycle - last_gap_cycle);
       for (p = 0; p < 7; p = p + 1) begin
         $display("RT_XFFT_HALT_PHASE job=%0d starved=%0d phase=%0d halt_cycles=%0d", job_id, starved, p, halt_cycles[p]);
         if (starved) starved_halt_cycles[p] = starved_halt_cycles[p] + halt_cycles[p];
@@ -164,15 +188,20 @@ module tb_starlink_pss_realtime_xfft_protocol_probe;
       end
       if (!starved) begin
         if (input_count != 512 || output_count != 512 || status_count != 1 || frame_count != 1 ||
-            value_mismatches || metadata_mismatches || tlast_events || gap_demands)
+            value_mismatches || metadata_mismatches || tlast_events || gap_demands ||
+            local_delivery_fault_cycle != -1)
           $fatal(1, "realtime healthy fixture/lifecycle mismatch job=%0d", job_id);
         total_healthy_jobs = total_healthy_jobs + 1;
         total_healthy_words = total_healthy_words + output_count;
       end else begin
-        starvation_value_mismatches = value_mismatches;
-        starvation_output_count = output_count;
+        starvation_value_mismatches = starvation_value_mismatches + value_mismatches;
+        starvation_output_count = starvation_output_count + output_count;
+        total_starved_jobs = total_starved_jobs + 1;
         for (p = 0; p < 7; p = p + 1) starvation_halts = starvation_halts + halt_cycles[p];
-        if (gap_demands != 64) $fatal(1, "starvation probe failed to exercise 64 active-demand gaps");
+        if (gap_demands != expected_gaps || input_count != 512 - expected_gaps ||
+            output_count != 512 || local_delivery_fault_cycle != first_gap_cycle ||
+            local_delivery_fault_cycle < 0 || local_delivery_fault_cycle >= first_output_cycle)
+          $fatal(1, "starvation sweep did not exercise/locally observe the intended corrupt job");
       end
       job_active = 0;
     end
@@ -190,21 +219,43 @@ module tb_starlink_pss_realtime_xfft_protocol_probe;
     for (k = 0; k < 7; k = k + 1) begin
       halt_cycles[k] = 0; healthy_halt_cycles[k] = 0; starved_halt_cycles[k] = 0;
     end
-    run_job(0, 0, 0, 1, 0);
-    run_job(1, 0, 1, 0, 0);
-    run_job(2, 1, 0, 1, 0);
-    run_job(3, 1, 1, 0, 0);
-    run_job(4, 2, 0, 0, 0);
-    run_job(5, 2, 1, 1, 0);
-    run_job(6, 1, 0, 1, 1);
-    run_job(7, 2, 1, 1, 0);
-    if (total_healthy_jobs != 7 || total_healthy_words != 3584)
+    run_job(0, 0, 0, 1, -1, 0, 0);
+    run_job(1, 0, 1, 0, -1, 0, 0);
+    run_job(2, 1, 0, 1, -1, 0, 0);
+    run_job(3, 1, 1, 0, -1, 0, 0);
+    run_job(4, 2, 0, 0, -1, 0, 0);
+    run_job(5, 2, 1, 1, -1, 0, 0);
+    run_job(6, 1, 0, 1, 128, 64, 0);
+    run_job(7, 2, 1, 1, -1, 0, 0);
+    sweep_starts[0] = 1;   sweep_lengths[0] = 1;
+    sweep_starts[1] = 2;   sweep_lengths[1] = 1;
+    sweep_starts[2] = 127; sweep_lengths[2] = 1;
+    sweep_starts[3] = 128; sweep_lengths[3] = 2;
+    sweep_starts[4] = 255; sweep_lengths[4] = 1;
+    sweep_starts[5] = 256; sweep_lengths[5] = 8;
+    sweep_starts[6] = 448; sweep_lengths[6] = 64;
+    sweep_starts[7] = 510; sweep_lengths[7] = 1;
+    sweep_starts[8] = 510; sweep_lengths[8] = 2;
+    sweep_starts[9] = 511; sweep_lengths[9] = 1;
+    for (sweep_direction = 0; sweep_direction < 2; sweep_direction = sweep_direction + 1)
+      for (sweep_case = 0; sweep_case < 10; sweep_case = sweep_case + 1) begin
+        run_job(next_sweep_job, sweep_case % 3, sweep_direction != 0, 1,
+                sweep_starts[sweep_case], sweep_lengths[sweep_case], 256);
+        next_sweep_job = next_sweep_job + 1;
+        // Recover through an explicit reset and reverse the transform direction.
+        // Extended legal pre-configuration and pre-first-input idle must not
+        // become accidental evidence of a corrupted in-flight frame.
+        run_job(next_sweep_job, (sweep_case + 1) % 3, sweep_direction == 0, 1, -1, 0, 1024);
+        next_sweep_job = next_sweep_job + 1;
+      end
+    if (total_healthy_jobs != 27 || total_healthy_words != 13824 || total_starved_jobs != 21)
       $fatal(1, "realtime observer coverage mismatch");
     for (k = 0; k < 7; k = k + 1)
       $display("RT_XFFT_HALT_SUMMARY phase=%0d healthy_halt_cycles=%0d starved_halt_cycles=%0d", k, healthy_halt_cycles[k], starved_halt_cycles[k]);
     $display("REALTIME_XFFT_PROTOCOL_PROBE_PASS healthy_jobs=%0d exact_words=%0d reset_jobs=%0d no_reset_direction_jobs=%0d starvation_output_words=%0d starvation_value_mismatches=%0d starvation_halt_cycles=%0d SERVICE_UNQUALIFIED UNIVERSAL_HALT_RULE_UNQUALIFIED",
       total_healthy_jobs, total_healthy_words, reset_jobs, no_reset_jobs,
       starvation_output_count, starvation_value_mismatches, starvation_halts);
+    $display("REALTIME_XFFT_DELIVERY_SWEEP_PASS starved_jobs=%0d gap_geometries=10 transform_directions=2 explicit_reset_recoveries=20 LOCAL_DETECTOR_IS_TESTBENCH_ONLY", total_starved_jobs);
     $fclose(trace_file);
     $finish;
   end
