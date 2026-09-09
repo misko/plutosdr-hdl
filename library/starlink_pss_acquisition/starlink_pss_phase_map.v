@@ -19,7 +19,8 @@ module starlink_pss_phase_map #(
   parameter integer MAP_WIDTH = 16,
   parameter integer MAP_SEGMENT_ADDRESS_WIDTH = 11,
   parameter integer MAP_SEGMENT_COUNT = 10,
-  parameter integer MAP_SEGMENT_INDEX_WIDTH = 4
+  parameter integer MAP_SEGMENT_INDEX_WIDTH = 4,
+  parameter integer ENABLE_BOUNDARY_STOP = 0
 ) (
   input  wire                           clk,
   input  wire                           resetn,
@@ -55,7 +56,24 @@ module starlink_pss_phase_map #(
   output reg  [31:0]                    score_protocol_error_count,
   output reg  [31:0]                    map_arithmetic_overflow_count,
   output reg  [31:0]                    map_read_error_count,
-  output reg  [31:0]                    map_release_error_count
+  output reg  [31:0]                    map_release_error_count,
+
+  // Optional core-only publication fence, not a ticket/full-health/RF ABI.
+  // Request while enabled; pending/done requests are ignored.  Terminal
+  // coordinates are valid only while stop_done, including after bank release.
+  // A subsequent enable rising edge invalidates them and rearms admission.
+  // Future PSMA control must additionally qualify upstream/bridge health.
+  input  wire                           stop_request,
+  output reg                            stop_pending,
+  output reg                            stop_ack,
+  output reg                            stop_done,
+  output reg                            stop_complete,
+  output reg                            stop_failed,
+  output reg  [5:0]                     stop_failure_reason,
+  output wire                           stop_has_map,
+  output wire [31:0]                    stop_generation,
+  output wire [63:0]                    stop_start_index,
+  output wire [63:0]                    stop_end_index
 );
 
   localparam [1:0] STATE_WAIT_BANK = 2'd0;
@@ -65,8 +83,12 @@ module starlink_pss_phase_map #(
 
   localparam [PHASE_INDEX_WIDTH-1:0] LAST_PHASE = PHASE_BINS - 1;
   localparam [TILE_FRAME_WIDTH-1:0] LAST_FRAME = TILE_FRAMES - 1;
+  localparam [63:0] TILE_SAMPLE_COUNT = PHASE_BINS * 64'd1 * TILE_FRAMES;
 
   generate
+    if (ENABLE_BOUNDARY_STOP != 0 && ENABLE_BOUNDARY_STOP != 1) begin : g_invalid_boundary_stop
+      initial $fatal(1, "ENABLE_BOUNDARY_STOP must be zero or one");
+    end
     if (PHASE_BINS < 2) begin : g_invalid_phase_bins
       initial $fatal(1, "phase map requires at least two phase bins");
     end
@@ -137,13 +159,63 @@ module starlink_pss_phase_map #(
   reg read_pending_bank;
   reg read_pending_allowed;
 
-  wire score_accept_wait_frame = acquisition_enable &&
+  reg stop_enable_delayed;
+  reg stop_tile_aborted;
+  reg last_published_valid;
+  reg last_published_bank;
+  wire stop_rearm = ENABLE_BOUNDARY_STOP && stop_done &&
+      acquisition_enable && !stop_enable_delayed;
+  wire stop_accept_now = ENABLE_BOUNDARY_STOP && stop_request &&
+      acquisition_enable && !stop_pending && (!stop_done || stop_rearm);
+  // The constant parameter prevents an omitted legacy stop_request (Z) from
+  // affecting either admission or the RAM read ports.
+  wire stop_hold = ENABLE_BOUNDARY_STOP &&
+      (stop_pending || (stop_done && !stop_rearm) || stop_accept_now);
+  wire [63:0] last_published_start = last_published_bank ?
+      start_index_1 : start_index_0;
+  wire [31:0] last_published_generation = last_published_bank ?
+      generation_1 : generation_0;
+  wire [64:0] last_published_end =
+      {1'b0, last_published_start} + {1'b0, TILE_SAMPLE_COUNT};
+  // Releases clear RAM ownership, not generation/start metadata.  No bank
+  // can be reused while parked; reuse starts only after stop_done is cleared.
+  assign stop_has_map = ENABLE_BOUNDARY_STOP && last_published_valid;
+  assign stop_generation = stop_has_map ? last_published_generation : 32'd0;
+  assign stop_start_index = stop_has_map ? last_published_start : 64'd0;
+  // An unrepresentable end is explicitly failed; zero is not valid coverage.
+  assign stop_end_index = stop_has_map && !last_published_end[64] ?
+      last_published_end[63:0] : 64'd0;
+
+  wire read_allowed_now = (map_read_index < PHASE_BINS) &&
+      ((!map_read_bank && ready_0) || (map_read_bank && ready_1)) &&
+      !(map_release && map_release_bank == map_read_bank);
+  wire release_error_now = map_release &&
+      !((!map_release_bank && ready_0) || (map_release_bank && ready_1));
+  wire fill_sequence_error = state == STATE_FILL &&
+      (stream_discontinuity || (score_valid &&
+       (score_phase != expected_phase || score_start_index != expected_score_index)));
+  wire local_map_fault = |discarded_score_count || |discontinuity_abort_count ||
+      |map_overrun_count || |score_protocol_error_count ||
+      |map_arithmetic_overflow_count || |map_read_error_count ||
+      |map_release_error_count || fill_sequence_error ||
+      (read_pending && !read_pending_allowed) ||
+      (map_read_request && !read_allowed_now) || release_error_now;
+  // Bits match the proposed summary, without implementing its PSMA ABI:
+  // 0 continuity, 1 local map health, 2 reserved for bridge, 3 explicit abort,
+  // 4 source range, 5 generation exhaustion.  Original counters are retained.
+  wire [5:0] stop_fault_now = {
+      (last_published_valid && (&last_published_generation)),
+      (last_published_valid && last_published_end[64]),
+      (stop_pending && !acquisition_enable),
+      1'b0, local_map_fault, stream_discontinuity};
+
+  wire score_accept_wait_frame = acquisition_enable && !stop_hold &&
       state == STATE_WAIT_FRAME && score_valid && !stream_discontinuity &&
       score_phase == 0;
   wire drain_next_bank_clean = fill_bank ?
       (clean_0 && !ready_0 && !clear_active_0) :
       (clean_1 && !ready_1 && !clear_active_1);
-  wire score_accept_drain = acquisition_enable && state == STATE_DRAIN &&
+  wire score_accept_drain = acquisition_enable && !stop_hold && state == STATE_DRAIN &&
       drain_next_bank_clean && score_valid && !stream_discontinuity &&
       score_phase == 0 && score_start_index == expected_score_index;
   // A wrong absolute index aborts the tile and suppresses update_pending, so
@@ -153,7 +225,7 @@ module starlink_pss_phase_map #(
   wire score_read_fill = acquisition_enable && state == STATE_FILL &&
       score_valid && !stream_discontinuity &&
       score_phase == expected_phase;
-  wire score_read_drain = acquisition_enable && state == STATE_DRAIN &&
+  wire score_read_drain = acquisition_enable && !stop_hold && state == STATE_DRAIN &&
       drain_next_bank_clean && score_valid && !stream_discontinuity &&
       score_phase == 0;
   wire score_read = score_accept_wait_frame || score_read_fill ||
@@ -286,12 +358,55 @@ module starlink_pss_phase_map #(
       map_arithmetic_overflow_count <= 32'd0;
       map_read_error_count <= 32'd0;
       map_release_error_count <= 32'd0;
+      stop_enable_delayed <= 1'b0;
+      stop_tile_aborted <= 1'b0;
+      last_published_valid <= 1'b0;
+      last_published_bank <= 1'b0;
+      stop_pending <= 1'b0;
+      stop_ack <= 1'b0;
+      stop_done <= 1'b0;
+      stop_complete <= 1'b0;
+      stop_failed <= 1'b0;
+      stop_failure_reason <= 6'd0;
     end else begin
       map_read_valid <= 1'b0;
       map_read_error <= 1'b0;
       update_pending <= 1'b0;
       write_pending <= update_pending;
       publish_pending <= 1'b0;
+
+      if (ENABLE_BOUNDARY_STOP) begin
+        stop_enable_delayed <= acquisition_enable;
+        stop_ack <= 1'b0;
+        if (stop_rearm) begin
+          stop_done <= 1'b0;
+          stop_complete <= 1'b0;
+          stop_failed <= 1'b0;
+          stop_failure_reason <= 6'd0;
+          stop_tile_aborted <= 1'b0;
+        end
+        if (stop_accept_now)
+          stop_pending <= 1'b1;
+        if (stop_hold) begin
+          // This also observes late faults after a structural fence.  The
+          // immutable terminal coordinates do not change when health fails.
+          if (|stop_fault_now) begin
+            stop_failed <= 1'b1;
+            stop_failure_reason <= (stop_rearm ? 6'd0 : stop_failure_reason) |
+                stop_fault_now;
+          end
+          if (state == STATE_FILL &&
+              (!acquisition_enable || fill_sequence_error))
+            stop_tile_aborted <= 1'b1;
+        end
+        if (stop_pending && state != STATE_FILL && state != STATE_DRAIN &&
+            !update_pending && !write_pending && !publish_pending) begin
+          stop_pending <= 1'b0;
+          stop_ack <= 1'b1;
+          stop_done <= 1'b1;
+          stop_complete <= !stop_tile_aborted;
+        end
+      end
 
       if (update_pending) begin
         write_bank <= update_bank;
@@ -303,6 +418,10 @@ module starlink_pss_phase_map #(
       // preloads metadata while ready is low; asserting ready here publishes
       // that metadata and the now-complete map atomically to software.
       if (publish_pending) begin
+        if (ENABLE_BOUNDARY_STOP) begin
+          last_published_valid <= 1'b1;
+          last_published_bank <= publish_bank;
+        end
         if (!publish_bank)
           ready_0 <= 1'b1;
         else
@@ -323,9 +442,7 @@ module starlink_pss_phase_map #(
       read_pending <= map_read_request;
       if (map_read_request) begin
         read_pending_bank <= map_read_bank;
-        read_pending_allowed <= (map_read_index < PHASE_BINS) &&
-            ((!map_read_bank && ready_0) || (map_read_bank && ready_1)) &&
-            !(map_release && map_release_bank == map_read_bank);
+        read_pending_allowed <= read_allowed_now;
       end
 
       if (clear_active_0) begin
@@ -368,7 +485,15 @@ module starlink_pss_phase_map #(
       // registered write stage.  Let that state queue publication once even
       // if software disables acquisition on the immediately following cycle;
       // only partial FILL state is invalidated by disable.
-      if (!acquisition_enable && state != STATE_DRAIN) begin
+      if (stop_hold && (state == STATE_WAIT_BANK || state == STATE_WAIT_FRAME)) begin
+        if (state == STATE_WAIT_FRAME) begin
+          if (!fill_bank)
+            clean_0 <= 1'b1;
+          else
+            clean_1 <= 1'b1;
+        end
+        state <= STATE_WAIT_BANK;
+      end else if (!acquisition_enable && state != STATE_DRAIN) begin
         if (state == STATE_FILL) begin
           discontinuity_abort_count <=
               increment_saturating_32(discontinuity_abort_count);
@@ -479,7 +604,18 @@ module starlink_pss_phase_map #(
             publish_pending <= 1'b1;
             publish_bank <= fill_bank;
             map_publish_count <= increment_saturating_32(map_publish_count);
-            if (!fill_bank) begin
+            if (stop_hold) begin
+              // No reservation, next-tile score, or next-bank overrun is
+              // meaningful after this deliberate admission boundary.
+              if (!fill_bank) begin
+                generation_0 <= increment_saturating_32(map_publish_count);
+                start_index_0 <= active_tile_start_index;
+              end else begin
+                generation_1 <= increment_saturating_32(map_publish_count);
+                start_index_1 <= active_tile_start_index;
+              end
+              state <= STATE_WAIT_BANK;
+            end else if (!fill_bank) begin
               generation_0 <= increment_saturating_32(map_publish_count);
               start_index_0 <= active_tile_start_index;
               if (acquisition_enable &&
