@@ -1,11 +1,15 @@
 `timescale 1ns/1ps
 
 // Real digital CI16 shell/CDC/canonical tap, real shared XFFT/PSMA, real PIL1.
-// Test-only447x2 maps; pre-roll configuration pause is explicit. AXIS capture
+// Test-only447x2 default or explicit343x2 residue239 maps; pre-roll configuration pause is explicit. AXIS capture
 // bytes are not DDR DMA completion, IIO receipt, ADC formatting or RF evidence.
-module tb_starlink_pss_paired_realtime_psma_stop;
+module tb_starlink_pss_paired_realtime_psma_stop #(
+  parameter integer MAP_BINS = 447
+);
   localparam [63:0] FIRST = 64'h00000001fffffff0;
   localparam [63:0] PRE_FIRST = FIRST - 768;
+  localparam integer TILE_SCORES = MAP_BINS * 2;
+  localparam [63:0] MAP_END = FIRST + TILE_SCORES;
   localparam integer SOURCE_COUNT = 4096, PILOT_COUNT = 512, VISIT = 77;
   reg clk = 0, sample_clk = 0, fft_clk = 0, resetn = 0;
   always #5 clk = !clk;
@@ -38,7 +42,9 @@ module tb_starlink_pss_paired_realtime_psma_stop;
   integer pilot_at_stop = -1, canonical_at_stop = -1, ack_count = 0;
   integer sink_fd, map_count = 0, first_map_reads = 0;
   reg gap_seen = 0, pilot_armed = 0, expected_late_fault = 0;
-  reg third_started = 0, third_returned = 0, prior_stalled = 0;
+  reg third_started = 0, third_returned = 0, second_started = 0, prior_stalled = 0;
+  integer produced_at_ack = -1, candidate_fifo_at_ack = -1;
+  reg inverse_busy_at_ack = 0;
   reg [31:0] held_data;
   reg [63:0] expected_canonical = PRE_FIRST - 2;
 
@@ -62,12 +68,12 @@ module tb_starlink_pss_paired_realtime_psma_stop;
   );
   // Production shell has fixed map geometry. Override BOTH real child modules
   // in this bench only; keep15-bit outer index width so padding is exercised.
-  defparam dut.acquisition.PHASE_BINS = 447;
+  defparam dut.acquisition.PHASE_BINS = MAP_BINS;
   defparam dut.acquisition.TILE_FRAMES = 2;
   defparam dut.acquisition.MAP_SEGMENT_ADDRESS_WIDTH = 9;
   defparam dut.acquisition.MAP_SEGMENT_COUNT = 1;
   defparam dut.acquisition.MAP_SEGMENT_INDEX_WIDTH = 1;
-  defparam dut.phase_map_control.PHASE_BINS = 447;
+  defparam dut.phase_map_control.PHASE_BINS = MAP_BINS;
   defparam dut.phase_map_control.TILE_FRAMES = 2;
 
   axi_starlink_pilot_capture #(.INPUT_RATE_MSPS(15)) pilot (
@@ -190,14 +196,23 @@ module tb_starlink_pss_paired_realtime_psma_stop;
         delivered_count = delivered_count + 1;
       end
       if (dut.acquisition.score_valid) begin
-        if (score_count >= 894 || dut.acquisition.score_value !== scores[score_count] ||
+        // The map fence controls MAP admission, not the tagger's already
+        // computed tail while map publication/ACK is retiring. Check every
+        // observed score against the same oracle, distinguish prefix from tail.
+        if (score_count >= (MAP_BINS == 447 ? 894 : 1341) ||
+            dut.acquisition.score_value !== scores[score_count] ||
             dut.acquisition.score_start_index !== FIRST + score_count ||
-            dut.acquisition.score_phase !== score_count % 447 || dut.acquisition.score_denominator_zero)
+            dut.acquisition.score_phase !== score_count % MAP_BINS || dut.acquisition.score_denominator_zero)
           fail("original frozen score/index/phase mismatch or post-fence score");
         score_count = score_count + 1;
       end
-      if (dut.map_read_request && (dut.map_read_index[14:9] !== 0 || dut.map_read_index >= 447))
+      if (dut.map_read_request && (dut.map_read_index[14:9] !== 0 || dut.map_read_index >= MAP_BINS))
         fail("outer15-bit map index was not correctly zero padded");
+      if (dut.acquisition.shared_transform.iq_to_score.shared_input_accept &&
+          !dut.acquisition.shared_transform.iq_to_score.choose_inverse &&
+          dut.acquisition.shared_transform.iq_to_score.scheduler_fft_position == 0 &&
+          dut.acquisition.shared_transform.iq_to_score.scheduler_fft_block_start == FIRST + 447)
+        second_started = 1;
       if (dut.acquisition.shared_transform.iq_to_score.shared_input_accept &&
           !dut.acquisition.shared_transform.iq_to_score.choose_inverse &&
           dut.acquisition.shared_transform.iq_to_score.scheduler_fft_position == 0 &&
@@ -210,8 +225,17 @@ module tb_starlink_pss_paired_realtime_psma_stop;
       if (dut.stop_ack) begin
         ack_count = ack_count + 1;
         if (ack_count == 2) begin
-          if (!third_started || third_returned || !pilot_enable || score_count != 894)
-            fail("terminal lacked real in-flight tail and independently active pilot");
+          if (!pilot_enable || score_count < TILE_SCORES ||
+              dut.accepted_score_count != TILE_SCORES || !second_started)
+            fail("terminal lacked exact selected prefix or independently active pilot");
+          if (MAP_BINS == 447 && (!third_started || third_returned || score_count != 894))
+            fail("default terminal lacked original third-block work witness");
+          produced_at_ack = score_count;
+          candidate_fifo_at_ack = dut.candidate_fifo_stored_count;
+          inverse_busy_at_ack = dut.acquisition.shared_transform.iq_to_score.inverse_busy;
+          $display("PAIRED_STOP_TAIL map_bins=%0d selected_scores=%0d produced_scores=%0d residue=%0d second_started=%0d third_started=%0d third_returned=%0d candidate_fifo=%0d inverse_busy=%0d",
+            MAP_BINS, TILE_SCORES, score_count, TILE_SCORES % 447, second_started,
+            third_started, third_returned, candidate_fifo_at_ack, inverse_busy_at_ack);
           pilot_at_stop = delivered_count; canonical_at_stop = canonical_count;
         end
       end
@@ -221,6 +245,10 @@ module tb_starlink_pss_paired_realtime_psma_stop;
   integer n;
   reg [31:0] value, generation;
   initial begin
+    if (MAP_BINS != 447 && MAP_BINS != 343)
+      fail("only default447x2 or explicit343x2 test geometry is admitted");
+    if (MAP_BINS == 343 && TILE_SCORES % 447 != 1280000 % 447)
+      fail("residue geometry no longer matches the production block-boundary residue");
     for (n = 0; n < 2; n = n + 1) begin awaddr[n] = 0; araddr[n] = 0; wdata[n] = 0; end
     $readmemh("paired_source_ci16.mem", source_words);
     $readmemh("paired_pilot_ci16.mem", pilot_words);
@@ -230,11 +258,11 @@ module tb_starlink_pss_paired_realtime_psma_stop;
     if (metadata[0] != FIRST || metadata[1] != PRE_FIRST || metadata[6] > FIRST ||
         metadata[7] + 1 < FIRST + 959 || metadata[8] > FIRST || metadata[9] < FIRST + 959)
       fail("independent support fixture does not contain complete selected-map FFT envelope");
-    if (dut.acquisition.PHASE_BINS != 447 || dut.phase_map_control.PHASE_BINS != 447 ||
+    if (dut.acquisition.PHASE_BINS != MAP_BINS || dut.phase_map_control.PHASE_BINS != MAP_BINS ||
         dut.acquisition.TILE_FRAMES != 2 || dut.phase_map_control.TILE_FRAMES != 2 ||
         dut.acquisition.PHASE_INDEX_WIDTH != 15 || dut.phase_map_control.PHASE_INDEX_WIDTH != 15 ||
-        dut.acquisition.phase_map.i_map_bank_0.DEPTH != 447 ||
-        dut.acquisition.phase_map.i_map_bank_1.DEPTH != 447)
+        dut.acquisition.phase_map.i_map_bank_0.DEPTH != MAP_BINS ||
+        dut.acquisition.phase_map.i_map_bank_1.DEPTH != MAP_BINS)
       fail("test-only full-shell/control/actual-bank geometry inventory mismatch");
     sink_fd = $fopen("paired_pilot_actual.ci16", "wb");
     if (!sink_fd) fail("cannot open bounded AXIS sink");
@@ -248,7 +276,7 @@ module tb_starlink_pss_paired_realtime_psma_stop;
     // following clean beat, not waiting/masking, establishes this prerequisite.
     if (canonical_gap !== 0 || canonical_valid || dut.ingress_fifo_level)
       fail("startup did not establish a clean drained canonical payload before ARM");
-    expect_reg(0, 8'h04, 32'h10006); expect_reg(0, 8'h08, 447);
+    expect_reg(0, 8'h04, 32'h10006); expect_reg(0, 8'h08, MAP_BINS);
     expect_reg(0, 8'h0c, 32'h21002); expect_reg(0, 8'h10, 32'h33f);
     write_reg(0, 8'h14, 1);
     write_reg(1, 8'h08, 4); write_reg(1, 8'h20, VISIT);
@@ -272,14 +300,14 @@ module tb_starlink_pss_paired_realtime_psma_stop;
         wait(dut.phase_map_control.stop_terminal_valid); @(negedge clk);
         expect_stop_word(2, 32'h16); expect_stop_word(4, 2); expect_stop_word(5, 1);
         expect_stop_word(6, FIRST[31:0]); expect_stop_word(7, FIRST[63:32]);
-        expect_stop_word(8, 32'h36e); expect_stop_word(9, 2); expect_stop_word(10, 0);
+        expect_stop_word(8, MAP_END[31:0]); expect_stop_word(9, MAP_END[63:32]); expect_stop_word(10, 0);
         if (ack_count != 2 || dut.acquisition_enable || !pss_irq || dut.map_ready_mask != 1 ||
-            dut.map_publish_count != 1 || dut.accepted_score_count != 894 ||
+            dut.map_publish_count != 1 || dut.accepted_score_count != TILE_SCORES ||
             dut.map_generation_0 != 1 || dut.map_start_index_0 != FIRST)
           fail("selected map terminal ownership/IRQ/count mismatch");
         write_reg(0, 8'h1c, 0); write_reg(0, 8'h20, 0);
-        for (first_map_reads = 0; first_map_reads < 447; first_map_reads = first_map_reads + 1) begin
-          expect_reg(0, 8'h24, {24'd0, scores[first_map_reads]} + {24'd0, scores[first_map_reads + 447]});
+        for (first_map_reads = 0; first_map_reads < MAP_BINS; first_map_reads = first_map_reads + 1) begin
+          expect_reg(0, 8'h24, {24'd0, scores[first_map_reads]} + {24'd0, scores[first_map_reads + MAP_BINS]});
           map_count = map_count + 1;
         end
         write_reg(0, 8'h28, 1);
@@ -288,13 +316,14 @@ module tb_starlink_pss_paired_realtime_psma_stop;
     wait(canonical_count == SOURCE_COUNT + 2);
     wait(!pilot_enable && delivered_count == PILOT_COUNT); repeat (100) @(negedge clk);
     if (pilot_at_stop < 1 || pilot_at_stop >= PILOT_COUNT || delivered_count <= pilot_at_stop + 32 ||
-        canonical_count <= canonical_at_stop + 512 || score_count != 894 || map_count != 447 ||
+        canonical_count <= canonical_at_stop + 512 || score_count < TILE_SCORES || map_count != MAP_BINS ||
+        dut.accepted_score_count != TILE_SCORES ||
         pss_irq || dut.map_ready_mask || dut.map_publish_count != 1 ||
         dut.acquisition.shared_transform.iq_to_score.pipeline_active)
       fail("source/pilot continuation or healthy coarse local shutdown not proven");
     expect_stop_word(2, 32'h16); expect_stop_word(4, 2); expect_stop_word(5, 1);
     expect_stop_word(6, FIRST[31:0]); expect_stop_word(7, FIRST[63:32]);
-    expect_stop_word(8, 32'h36e); expect_stop_word(9, 2); expect_stop_word(10, 0);
+    expect_stop_word(8, MAP_END[31:0]); expect_stop_word(9, MAP_END[63:32]); expect_stop_word(10, 0);
     write_reg(1, 8'h08, 8); read_reg(1, 8'h98, generation);
     if (generation == 0) fail("no fresh PIL1 hardware snapshot");
     for (n = 0; n < 26; n = n + 1) read_reg(1, 8'h30 + 4*n, snapshot[n]);
@@ -310,20 +339,22 @@ module tb_starlink_pss_paired_realtime_psma_stop;
     for (n = 0; n < 26; n = n + 1) $write(" %08x", snapshot[n]);
     $write("\n");
     healthy(); $fclose(sink_fd);
-    $display("PAIRED_MAP_PILOT_PASS exact_scores=894 exact_map_words=447 exact_pilot_words=512 exact_bytes=2048 shared_support_envelope=959 pilot_after_stop=1 healthy_snapshot=1");
+    $display("PAIRED_MAP_PILOT_PASS exact_scores=%0d exact_map_words=%0d exact_pilot_words=512 exact_bytes=2048 shared_support_envelope=959 pilot_after_stop=1 healthy_snapshot=1", TILE_SCORES, MAP_BINS);
     // Real bridge misuse AFTER successful drain must invalidate joint health;
     // neither the historical terminal nor the already captured pilot changes.
     expected_late_fault = 1;
     write_reg(0, 8'h28, 1); repeat (20) @(negedge clk);
     expect_stop_word(2, 32'h1e); expect_stop_word(4, 2); expect_stop_word(5, 1);
     expect_stop_word(6, FIRST[31:0]); expect_stop_word(7, FIRST[63:32]);
-    expect_stop_word(8, 32'h36e); expect_stop_word(9, 2);
+    expect_stop_word(8, MAP_END[31:0]); expect_stop_word(9, MAP_END[63:32]);
     write_reg(0, 8'hfc, 10); read_reg(0, 8'hfc, value);
     if (!value[2] || dut.phase_map_control.bridge_release_error_count != 1 || pilot.faults || pilot.ddc_fault ||
         pilot.delivered != PILOT_COUNT || dut.map_publish_count != 1)
       fail("late bridge failure lost evidence or corrupted independent pilot");
     $display("PAIRED_LATE_FAULT_PASS actual_invalid_release=1 failed_joint_health=1 terminal_coordinates_retained=1 pilot_bytes_preserved=1");
-    $display("PAIRED_REALTIME_PSMA_STOP_PASS source_words=4096 pilot_words=512 map_words=447 NO_ADC_DMA_IIO_FINE_PRODUCTION_OR_PHYSICAL_CLAIM");
+    if (MAP_BINS == 343)
+      $display("PAIRED_RESIDUE_PASS selected_scores=686 map_words=343 residue=239 post_fence_tail_not_map_admission=1");
+    $display("PAIRED_REALTIME_PSMA_STOP_PASS source_words=4096 pilot_words=512 map_words=%0d NO_ADC_DMA_IIO_FINE_PRODUCTION_OR_PHYSICAL_CLAIM", MAP_BINS);
     $finish;
   end
 endmodule

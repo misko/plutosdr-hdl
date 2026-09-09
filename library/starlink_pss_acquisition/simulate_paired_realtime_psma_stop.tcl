@@ -1,4 +1,6 @@
-proc pss_verify_paired_outputs {simulation_dir expected_binary} {
+proc pss_verify_paired_outputs {simulation_dir expected_binary {map_bins 447}} {
+  if {$map_bins ni {447 343}} { error "invalid paired verifier geometry" }
+  set tile_scores [expr {$map_bins * 2}]
   set log_path [file join $simulation_dir simulate.log]
   if {![file isfile $log_path]} { error "missing paired simulation log" }
   set channel [open $log_path r]
@@ -9,10 +11,15 @@ proc pss_verify_paired_outputs {simulation_dir expected_binary} {
   }
   require_realtime_probe_pass $log_path [list \
     {PAIRED_PREROLL_PASS real_shell=1 real_cdc=1 real_canonical=1 samples=768 empty_ticket=1 explicit_configuration_pause=1} \
-    {PAIRED_MAP_PILOT_PASS exact_scores=894 exact_map_words=447 exact_pilot_words=512 exact_bytes=2048 shared_support_envelope=959 pilot_after_stop=1 healthy_snapshot=1} \
+    "PAIRED_MAP_PILOT_PASS exact_scores=$tile_scores exact_map_words=$map_bins exact_pilot_words=512 exact_bytes=2048 shared_support_envelope=959 pilot_after_stop=1 healthy_snapshot=1" \
     {PAIRED_LATE_FAULT_PASS actual_invalid_release=1 failed_joint_health=1 terminal_coordinates_retained=1 pilot_bytes_preserved=1} \
-    {PAIRED_REALTIME_PSMA_STOP_PASS source_words=4096 pilot_words=512 map_words=447 NO_ADC_DMA_IIO_FINE_PRODUCTION_OR_PHYSICAL_CLAIM} \
+    "PAIRED_REALTIME_PSMA_STOP_PASS source_words=4096 pilot_words=512 map_words=$map_bins NO_ADC_DMA_IIO_FINE_PRODUCTION_OR_PHYSICAL_CLAIM" \
   ] PAIRED_PILOT_WORD 512
+  if {$map_bins == 343} {
+    require_realtime_probe_pass $log_path [list \
+      {PAIRED_RESIDUE_PASS selected_scores=686 map_words=343 residue=239 post_fence_tail_not_map_admission=1} \
+    ] PAIRED_STOP_TAIL 1
+  }
   set actual_binary [file join $simulation_dir paired_pilot_actual.ci16]
   if {![file isfile $actual_binary] || [file size $actual_binary] != 2048} {
     error "actual pilot AXIS sink byte count mismatch"
@@ -26,10 +33,15 @@ proc pss_verify_paired_outputs {simulation_dir expected_binary} {
   if {$actual_pilot_bytes ne $expected_pilot_bytes} { error "actual pilot AXIS bytes differ from independent oracle" }
 }
 # Actual digital CI16 shell/CDC -> canonical tap -> real FFT/PSMA and PIL1.
-# Reduced447x2 map; explicit configuration pause; no DMA/IIO/ADC/RF claim.
+# Default447x2 or explicit343x2 residue239 map; explicit configuration pause; no DMA/IIO/ADC/RF claim.
 # Usage: vivado -mode batch -source simulate_paired_realtime_psma_stop.tcl \
-#        -tclargs NEW_OUTPUT EXISTING_SCORE_VECTORS EXISTING_PILOT_ORACLE
-if {$argc != 3} { error "expected NEW_OUTPUT EXISTING_SCORE_VECTORS EXISTING_PILOT_ORACLE" }
+#        -tclargs NEW_OUTPUT EXISTING_SCORE_VECTORS EXISTING_PILOT_ORACLE ?343x2|447x2?
+if {$argc ni {3 4}} { error "expected NEW_OUTPUT EXISTING_SCORE_VECTORS EXISTING_PILOT_ORACLE ?343x2|447x2?" }
+set selected_geometry 447x2
+if {$argc == 4} { set selected_geometry [lindex $argv 3] }
+if {$selected_geometry ni {447x2 343x2}} { error "paired geometry must be literal447x2 or343x2" }
+set map_bins [expr {$selected_geometry eq "343x2" ? 343 : 447}]
+set tile_scores [expr {$map_bins * 2}]
 if {[version -short] ne "2022.2"} { error "requires Vivado 2022.2" }
 set script_dir [file dirname [file normalize [info script]]]
 set output_dir [file normalize [lindex $argv 0]]
@@ -119,6 +131,17 @@ if {![file isfile $expected_binary] || [file size $expected_binary] != 2048 ||
   error "missing or invalid bounded pilot oracle vector receipt"
 }
 lappend input_paths $expected_binary $oracle_manifest
+set channel [open $oracle_manifest r]
+set oracle_text [read $channel]
+close $channel
+set oracle_geometry [regexp -all -inline {"selected_map_geometry": "([0-9]+x[0-9]+)"} $oracle_text]
+if {[llength $oracle_geometry] == 0 && $selected_geometry eq "447x2"} {
+  # Preserve replay of original default-only pilot manifests.
+  set oracle_geometry [list legacy_default 447x2]
+}
+if {[llength $oracle_geometry] != 2 || [lindex $oracle_geometry 1] ne $selected_geometry} {
+  error "pilot oracle vector receipt geometry differs from selected geometry"
+}
 foreach path $input_paths {
   if {![file isfile $path]} { error "missing paired simulation source $path" }
 }
@@ -130,7 +153,9 @@ source [file join $source_dir verify_realtime_probe_result.tcl]
 set channel [open [file join $output_dir scope.txt] w]
 puts $channel "scope=actual_digital_shell_cdc_canonical_real_fft_psma_and_pilot"
 puts $channel "processing_clock_ns=10 fft_clock_ns=5 fft_phase_ns=1.3 sample_clock_ns=10 sample_phase_ns=2.1 source_msps=15"
-puts $channel "test_only_geometry=447x2 outer_index_bits=15 score_fixture_unchanged=true"
+puts $channel "test_only_geometry=$selected_geometry outer_index_bits=15 score_fixture_unchanged=true"
+puts $channel "selected_score_prefix=$tile_scores fft_stride=447 tile_end_residue=[expr {$tile_scores % 447}] production_tile_end_residue=[expr {1280000 % 447}]"
+puts $channel "residue_scope=matching_block_residue_is_not_production_geometry_or_duration_qualification"
 puts $channel "preroll_samples=768 source_words=4096 pilot_words=512 pilot_axis_bytes=2048"
 puts $channel "empty_stop_then_pilot_preroll_configuration_pause_then_enable_without_flush=true"
 puts $channel "startup_prerequisite=two_real_contiguous_inactive_bootstrap_beats_then_canonical_gap_zero_before_ARM"
@@ -158,6 +183,7 @@ foreach name [concat $vector_names $filter_names {upper_edge_pss_kernel_q17.mem}
 }
 set_property file_type {Memory Initialization Files} [get_files -of_objects [get_filesets sim_1] *.mem]
 set_property top $bench_name [get_filesets sim_1]
+set_property generic MAP_BINS=$map_bins [get_filesets sim_1]
 set_property xsim.simulate.runtime {all} [get_filesets sim_1]
 set channel [open [file join $output_dir generated_ip.txt] w]
 puts $channel "generated_wrapper_sha256=[exec sha256sum $wrapper_path]"
@@ -165,6 +191,7 @@ close $channel
 launch_simulation -simset sim_1 -mode behavioral
 close_sim
 set simulation_dir [file join $project_dir ${project_name}.sim sim_1 behav xsim]
-pss_verify_paired_outputs $simulation_dir [file join $source_dir paired_pilot_expected.ci16]
+pss_verify_paired_outputs $simulation_dir [file join $source_dir paired_pilot_expected.ci16] $map_bins
 close_project
 puts "PAIRED_REALTIME_PSMA_STOP_SIMULATION_VERIFIED exact_axis_bytes=2048 reduced_geometry_only=1"
+puts "PAIRED_GEOMETRY_VERIFIED map_bins=$map_bins map_frames=2 selected_scores=$tile_scores residue=[expr {$tile_scores % 447}]"

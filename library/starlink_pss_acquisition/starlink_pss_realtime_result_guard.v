@@ -177,6 +177,15 @@ module starlink_pss_realtime_result_guard #(
     end else begin
       commit_pulse <= 0;
       fault_reasons <= fault_reasons | faults_now;
+      // Stage only private descriptor bits while idle. Every admitted job
+      // satisfies this predicate and captures the same descriptor on the same
+      // edge, without putting the active-job fault cone on 70 register enables.
+      // Rejected requests may change invalid metadata, never validity or bank
+      // ownership. A current fault still quarantines the epoch below; active
+      // jobs and the full ACK interval (including its clearing edge) hold the
+      // accepted descriptor. Reset purges any speculative value before reuse.
+      if (!active && !awaiting_ack && !protocol_fault && job_valid)
+        descriptor <= job_descriptor;
       // Account the raw arriving beat even if it triggers quarantine. This
       // counter is private; malformed data still cannot become a valid return
       // word or publish. Saturate beyond the one allowed block rather than wrap.
@@ -227,7 +236,6 @@ module starlink_pss_realtime_result_guard #(
         if (awaiting_ack && mailbox_input_ready) awaiting_ack <= 0;
         if (job_accept) begin
           active <= 1;
-          descriptor <= job_descriptor;
           input_count <= 0;
           output_count <= 0;
           input_complete_seen <= 0;
