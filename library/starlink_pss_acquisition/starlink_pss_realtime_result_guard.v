@@ -186,6 +186,21 @@ module starlink_pss_realtime_result_guard #(
       // accepted descriptor. Reset purges any speculative value before reuse.
       if (!active && !awaiting_ack && !protocol_fault && job_valid)
         descriptor <= job_descriptor;
+      // Job observations are private while inactive. Clear them during that
+      // phase, including the ACK wait, rather than routing the entire current
+      // fault/mailbox framing cone through their job_accept reset muxes. Every
+      // accepted job is inactive on this edge, so it still starts at zero.
+      // Idle events remain errors independent of these values; active checks,
+      // same-edge publication veto and sticky quarantine are unchanged. Keep
+      // faulted private observations frozen until the common epoch reset.
+      if (!active && !protocol_fault) begin
+        input_count <= 0;
+        output_count <= 0;
+        input_complete_seen <= 0;
+        frame_seen <= 0;
+        status_seen <= 0;
+        exponent_seen <= 0;
+      end
       // Account the raw arriving beat even if it triggers quarantine. This
       // counter is private; malformed data still cannot become a valid return
       // word or publish. Saturate beyond the one allowed block rather than wrap.
@@ -236,12 +251,6 @@ module starlink_pss_realtime_result_guard #(
         if (awaiting_ack && mailbox_input_ready) awaiting_ack <= 0;
         if (job_accept) begin
           active <= 1;
-          input_count <= 0;
-          output_count <= 0;
-          input_complete_seen <= 0;
-          frame_seen <= 0;
-          status_seen <= 0;
-          exponent_seen <= 0;
         end
         if (active) begin
           if (mailbox_accept) return_valid <= 0;
