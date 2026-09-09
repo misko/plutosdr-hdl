@@ -21,7 +21,13 @@
 `timescale 1ns/1ps
 
 module starlink_pss_realtime_result_guard #(
-  parameter integer WATCHDOG_CYCLES = 8192
+  parameter integer WATCHDOG_CYCLES = 8192,
+  // Opt in only when the caller proves idle input is reset/completed, and
+  // final qualification and the full ACK interval imply completed input.
+  // The supplied predicate must equal external_fault_now | both input
+  // certificates in these phases while the epoch is not already quarantined.
+  // Default callers retain the independent, unrestricted input checks.
+  parameter integer USE_PHASE_INPUT_FAULT = 0
 ) (
   input wire clk,
   input wire resetn,
@@ -34,6 +40,7 @@ module starlink_pss_realtime_result_guard #(
   input wire certified_input_complete,
   input wire final_fence_certified,
   input wire external_fault_now,
+  input wire phase_input_fault_now,
   input wire core_event_frame_started,
   input wire [47:0] core_output_tdata,
   input wire [23:0] core_output_tuser,
@@ -56,6 +63,8 @@ module starlink_pss_realtime_result_guard #(
 );
   localparam integer AGE_WIDTH = $clog2(WATCHDOG_CYCLES);
   initial begin
+    if (USE_PHASE_INPUT_FAULT != 0 && USE_PHASE_INPUT_FAULT != 1)
+      $fatal(1, "USE_PHASE_INPUT_FAULT must be zero or one");
     if (WATCHDOG_CYCLES < 2 || WATCHDOG_CYCLES > 1048576)
       $fatal(1, "realtime result guard requires a finite 2..1048576 cycle watchdog");
   end
@@ -122,8 +131,9 @@ module starlink_pss_realtime_result_guard #(
   // error regardless of its payload. This is exactly faults_now restricted
   // to idle, not a delayed or weaker admission fence. Keep active-job payload
   // validation off this path to the caller's admission/state controls.
-  wire idle_fault_now = external_fault_now || mailbox_input_fault ||
-    certified_input_beat || certified_input_complete ||
+  wire phase_input_fault = USE_PHASE_INPUT_FAULT ? phase_input_fault_now :
+    (external_fault_now || certified_input_beat || certified_input_complete);
+  wire idle_fault_now = phase_input_fault || mailbox_input_fault ||
     core_event_frame_started || core_status_tvalid || core_output_tvalid;
   assign job_ready = resetn && !protocol_fault && !idle_fault_now &&
     !active && !awaiting_ack && !return_valid &&
@@ -142,8 +152,8 @@ module starlink_pss_realtime_result_guard #(
   // faults and the watchdog. This is faults_now restricted to that phase.
   // Keep the full fault tree and exact reason accumulation for every phase;
   // never use this reduced predicate for a nonfinal or unqualified word.
-  wire final_fault_now = external_fault_now || mailbox_input_fault ||
-    !output_bank_reserved || certified_input_beat || certified_input_complete ||
+  wire final_fault_now = phase_input_fault || mailbox_input_fault ||
+    !output_bank_reserved ||
     core_event_frame_started || core_status_tvalid || core_output_tvalid || watchdog_error;
   assign mailbox_input_valid = resetn && active && !protocol_fault && return_valid &&
     ((!return_last && !fault_now) || (return_last && final_qualified && !final_fault_now));
@@ -158,7 +168,12 @@ module starlink_pss_realtime_result_guard #(
   // Same ordering as the existing service: descriptor, then new exponent.
   assign mailbox_input_metadata = {descriptor, return_exponent};
   wire mailbox_accept = mailbox_input_valid && mailbox_input_ready;
-  wire final_commit = mailbox_accept && return_last;
+  // Expand the final branch explicitly: return_last excludes the nonfinal
+  // branch of mailbox_input_valid. This is the same handshake on the same
+  // edge, without unnecessarily reconverging the full nonfinal fault tree
+  // onto final occupancy/ACK controls. No publication condition is omitted.
+  wire final_commit = resetn && active && !protocol_fault && return_valid &&
+    return_last && final_qualified && !final_fault_now && mailbox_input_ready;
 
   always @(posedge clk or negedge resetn) begin
     if (!resetn) begin
@@ -267,7 +282,9 @@ module starlink_pss_realtime_result_guard #(
         // edge. The hidden occupied bit is cleared on the next idle edge.
       end
 
-      // ACK wait is inactive, where idle_fault_now exactly equals fault_now.
+      // ACK wait is inactive. The optional caller-specific input predicate
+      // is exact only under its completed-input contract; all other callers
+      // retain idle_fault_now's full independent event checks.
       // Retain a faulted ACK wait and never clear it on a coincident orphan.
       if (awaiting_ack && mailbox_input_ready && !protocol_fault && !idle_fault_now)
         awaiting_ack <= 0;

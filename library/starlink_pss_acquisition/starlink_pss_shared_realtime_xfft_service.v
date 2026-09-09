@@ -131,8 +131,21 @@ module starlink_pss_shared_realtime_xfft_service (
   // frame and matching independent status. Raw vendor faults remain direct
   // commit vetoes AND sticky observations through compute, output and ACK drain.
   // This reasoning and its integration still require independent qualification.
-  wire final_fence = checked_input_complete && !input_guard_fault && !input_fault_now;
-  starlink_pss_realtime_result_guard result_guard (
+  // Completed input implies the checker has admitted this job and its slot
+  // is closed: no framing/delivery event or new certificate can occur. Only
+  // a duplicate start remains a current input error. Keep that error, every
+  // sticky input error and every other external source as immediate vetoes.
+  // The controller keeps the checker epoch alive throughout ACK_DRAIN and
+  // quarantine; only after result_busy falls may it reset the input checker.
+  // Full input fault/reason accumulation above remains unchanged in all phases.
+  // Before result admission the checker is held in reset; its certificates
+  // and current faults are also zero. Do not use this reduced expression in
+  // RUN_JOB's active input phase: external_fault_now still covers that phase.
+  wire phase_input_fault_now = (core_aresetn && input_job_start) || input_guard_fault ||
+    input_fault_fast_sync[1] || vendor_fault_now || fast_fault;
+  wire final_fence = checked_input_complete && !input_guard_fault &&
+    !(core_aresetn && input_job_start);
+  starlink_pss_realtime_result_guard #(.USE_PHASE_INPUT_FAULT(1)) result_guard (
     .clk(fft_clk), .resetn(fast_running), .job_valid(job_valid), .job_ready(job_ready),
     .job_descriptor(fast_input_metadata),
     .input_bank_reserved(state == WAIT_BANK ? fast_input_valid : engine_input_reserved),
@@ -140,6 +153,7 @@ module starlink_pss_shared_realtime_xfft_service (
     .certified_input_beat(certified_input_beat),
     .certified_input_complete(certified_input_complete), .final_fence_certified(final_fence),
     .external_fault_now(external_fault_now), .core_event_frame_started(event_frame),
+    .phase_input_fault_now(phase_input_fault_now),
     .core_output_tdata(core_output_data), .core_output_tuser(core_output_user),
     .core_output_tvalid(core_output_valid), .core_output_tlast(core_output_last),
     .core_status_tdata(core_status_data), .core_status_tvalid(core_status_valid),

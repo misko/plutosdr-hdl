@@ -24,6 +24,68 @@ module tb_starlink_pss_shared_realtime_xfft_service;
     .output_position(output_position), .output_last(output_last),
     .output_metadata(output_metadata), .service_fault(service_fault)
   );
+  // Independent frozen public guard consumes the same actual checker/core
+  // pins, but retains the original input-completion fence and all full input
+  // fault checks. It does not receive the new retired-input shortcut.
+  wire old_job_ready, old_return_valid, old_return_last, old_busy, old_commit, old_fault;
+  wire [35:0] old_return_data;
+  wire [8:0] old_return_position;
+  wire [74:0] old_return_metadata;
+  wire [7:0] old_fault_reasons;
+  wire old_final_fence = dut.checked_input_complete && !dut.input_guard_fault && !dut.input_fault_now;
+  starlink_pss_realtime_result_guard_ff4229_golden shadow (
+    .clk(fft_clk), .resetn(dut.fast_running), .job_valid(dut.job_valid),
+    .job_ready(old_job_ready), .job_descriptor(dut.fast_input_metadata),
+    .input_bank_reserved(dut.result_guard.input_bank_reserved),
+    .output_bank_reserved(dut.result_guard.output_bank_reserved),
+    .certified_input_beat(dut.certified_input_beat),
+    .certified_input_complete(dut.certified_input_complete),
+    .final_fence_certified(old_final_fence), .external_fault_now(dut.external_fault_now),
+    .core_event_frame_started(dut.event_frame), .core_output_tdata(dut.core_output_data),
+    .core_output_tuser(dut.core_output_user), .core_output_tvalid(dut.core_output_valid),
+    .core_output_tlast(dut.core_output_last), .core_status_tdata(dut.core_status_data),
+    .core_status_tvalid(dut.core_status_valid), .mailbox_input_valid(old_return_valid),
+    .mailbox_input_ready(dut.output_mailbox_ready),
+    .mailbox_input_fault(dut.output_mailbox_fault || dut.output_mailbox_framing_fault_now),
+    .mailbox_input_data(old_return_data), .mailbox_input_position(old_return_position),
+    .mailbox_input_last(old_return_last), .mailbox_input_metadata(old_return_metadata),
+    .busy(old_busy), .commit_pulse(old_commit), .protocol_fault(old_fault),
+    .fault_reasons(old_fault_reasons)
+  );
+  integer shadow_rows = 0, retired_final_rows = 0, retired_ack_rows = 0, idle_input_rows = 0;
+  always @(posedge fft_clk or negedge fft_clk) begin
+    #0.2;
+    if (dut.fast_running) begin
+      shadow_rows = shadow_rows + 1;
+      if ({dut.job_ready, dut.return_valid, dut.result_busy, dut.result_commit,
+           dut.result_fault, dut.result_guard.fault_reasons} !==
+          {old_job_ready, old_return_valid, old_busy, old_commit, old_fault, old_fault_reasons})
+        $fatal(1, "RETIRED_SERVICE_PUBLIC_MISMATCH cycle=%0d", cycle);
+      if (dut.return_valid &&
+          {dut.return_data, dut.return_position, dut.return_last, dut.return_metadata} !==
+          {old_return_data, old_return_position, old_return_last, old_return_metadata})
+        $fatal(1, "RETIRED_SERVICE_PAYLOAD_MISMATCH");
+      if (dut.final_fence !== old_final_fence)
+        $fatal(1, "RETIRED_SERVICE_FENCE_MISMATCH");
+      if (!dut.result_guard.active && !dut.result_fault) begin
+        idle_input_rows = idle_input_rows + 1;
+        if ((dut.core_aresetn && !dut.checked_input_complete) ||
+            dut.phase_input_fault_now !== (dut.external_fault_now ||
+              dut.certified_input_beat || dut.certified_input_complete))
+          $fatal(1, "RETIRED_SERVICE_IDLE_PREMISE_MISSING");
+      end
+      if ((dut.result_guard.active && dut.result_guard.return_valid &&
+           dut.result_guard.return_last && dut.result_guard.final_qualified) ||
+          dut.result_guard.awaiting_ack) begin
+        if (!dut.checked_input_complete ||
+            dut.phase_input_fault_now !== (dut.external_fault_now ||
+              dut.certified_input_beat || dut.certified_input_complete))
+          $fatal(1, "RETIRED_SERVICE_CALLER_PREMISE_MISSING");
+        if (dut.result_guard.awaiting_ack) retired_ack_rows = retired_ack_rows + 1;
+        else retired_final_rows = retired_final_rows + 1;
+      end
+    end
+  end
   reg [31:0] samples [0:1405];
   reg [35:0] forward_values [0:1535], products [0:1535], inverse_values [0:1535];
   reg [4:0] forward_exponents [0:2], inverse_exponents [0:2];
@@ -37,6 +99,8 @@ module tb_starlink_pss_shared_realtime_xfft_service;
   integer total_words = 0, healthy_jobs = 0, starvation_cases = 0, final_veto_cases = 0;
   integer reset_cases = 0, bad_bank_cases = 0, ack_fault_cases = 0;
   integer configure_reset_cases = 0, partial_input_reset_cases = 0;
+  integer duplicate_phase_cases = 0;
+  reg injecting_duplicate_start = 0;
   integer reset_clocks = 0, config_cycle = -1, admission_cycle = -1;
   integer first_local_fault = -1, first_vendor_halt = -1;
   integer max_job_interval = 0, max_pair_interval = 0, max_commit_latency = 0;
@@ -82,7 +146,7 @@ module tb_starlink_pss_shared_realtime_xfft_service;
         admitted = admitted + 1;
         delivered = 0; raw_words = 0; statuses = 0; frames = 0;
       end
-      if (dut.input_job_start) begin
+      if (dut.input_job_start && !injecting_duplicate_start) begin
         if (cycle != admission_cycle + 1 || !dut.core_aresetn ||
             dut.engine_metadata !== descriptors[current_job])
           $fatal(1, "registered checker admission / fast descriptor mismatch");
@@ -362,11 +426,37 @@ module tb_starlink_pss_shared_realtime_xfft_service;
     @(negedge fft_clk); expected_fault = 1; force dut.event_last_missing = 1'b1;
     tick(); @(negedge fft_clk); release dut.event_last_missing;
     await_fault(1); ack_fault_cases = ack_fault_cases + 1;
+    // Explicitly violate the input checker's one-job-per-reset public start
+    // contract at final retirement and during ACK. The scoreboard exception
+    // names only this injected duplicate token, not an admitted normal job.
+    for (kind = 0; kind < 2; kind = kind + 1) begin
+      reset_epoch(0); send_block(0, kind, kind != 0);
+      if (kind == 0) begin
+        while (!(dut.result_guard.return_valid && dut.result_guard.return_last)) @(negedge fft_clk);
+      end else begin
+        while (commits != 1 || dut.state != dut.ACK_DRAIN) tick();
+        @(negedge fft_clk);
+      end
+      expected_fault = 1; injecting_duplicate_start = 1;
+      force dut.input_job_start = 1'b1;
+      #0.1;
+      if (!dut.input_fault_now || !dut.phase_input_fault_now || dut.return_valid ||
+          (kind == 0 && dut.final_fence))
+        $fatal(1, "RETIRED_SERVICE_DUPLICATE_VETO_MISSING");
+      tick(); @(negedge fft_clk); release dut.input_job_start;
+      tick(); @(negedge fft_clk); injecting_duplicate_start = 0;
+      await_fault(kind); duplicate_phase_cases = duplicate_phase_cases + 1;
+    end
     healthy_recovery(2, 1);
     if (healthy_jobs != 26 || total_words != 13312 || starvation_cases != 6 ||
         final_veto_cases != 3 || bad_bank_cases != 2 || reset_cases != 6 ||
         configure_reset_cases != 2 || partial_input_reset_cases != 2 || ack_fault_cases != 1)
       $fatal(1, "service candidate test inventory mismatch");
+    if (shadow_rows < 1000 || retired_final_rows < 26 || retired_ack_rows < 26 || idle_input_rows < 26 || duplicate_phase_cases != 2)
+      $fatal(1, "RETIRED_SERVICE_SHADOW_COVERAGE_MISSING");
+    $display("RETIRED_SERVICE_SHADOW_PASS public_golden=1 original_fence=1 actual_input_checker=1 actual_FFT=1 idle_final_and_ACK_premises=1");
+    $display("RETIRED_SERVICE_DUPLICATE_PASS final=1 ACK=1 same_edge_veto=1 actual_checker_fault=1");
+    $display("RETIRED_SERVICE_SHADOW_COUNTS comparisons=%0d final_rows=%0d ACK_rows=%0d idle_rows=%0d", shadow_rows, retired_final_rows, retired_ack_rows, idle_input_rows);
     $display("REALTIME_SERVICE_CANDIDATE_PASS healthy_jobs=26 exact_words=13312 starvation_cases=6 final_veto_cases=3 malformed_bank_cases=2 independent_reset_cases=6 configure_reset_cases=2 partial_input_reset_cases=2 postcommit_ACK_fault_cases=1 CAUSE_FENCE_REVIEW_REQUIRED CAPACITY_AND_PHYSICAL_UNQUALIFIED");
     $fclose(trace_file); $finish;
   end

@@ -20,6 +20,7 @@ set source_dir [file join $output_dir frozen_sources]
 file mkdir $source_dir
 file copy [info script] [file join $source_dir probe_runner.tcl]
 file copy [file join $script_dir tb ${bench_name}.sv] $source_dir
+file copy [file join $script_dir tb starlink_pss_realtime_result_guard_ff4229_golden.v] $source_dir
 foreach name [concat $rtl_names {verify_realtime_probe_result.tcl}] {
   file copy [file join $script_dir $name] $source_dir
 }
@@ -88,6 +89,7 @@ close $channel
 report_property [get_ips $module_name] -file [file join $output_dir ip_properties.rpt]
 foreach name $rtl_names { add_files -fileset sim_1 -norecurse [file join $source_dir $name] }
 add_files -fileset sim_1 -norecurse [file join $source_dir ${bench_name}.sv]
+add_files -fileset sim_1 -norecurse [file join $source_dir starlink_pss_realtime_result_guard_ff4229_golden.v]
 foreach name $vector_names { add_files -fileset sim_1 -norecurse [file join $source_dir ${name}.mem] }
 set_property file_type {Memory Initialization Files} [get_files -of_objects [get_filesets sim_1] *.mem]
 set_property top $bench_name [get_filesets sim_1]
@@ -95,7 +97,9 @@ set_property xsim.simulate.runtime {all} [get_filesets sim_1]
 launch_simulation -simset sim_1 -mode behavioral
 close_sim
 require_realtime_probe_pass [file join $project_dir ${project_name}.sim sim_1 behav xsim simulate.log] \
-  [list {REALTIME_SERVICE_CANDIDATE_PASS healthy_jobs=26 exact_words=13312 starvation_cases=6 final_veto_cases=3 malformed_bank_cases=2 independent_reset_cases=6 configure_reset_cases=2 partial_input_reset_cases=2 postcommit_ACK_fault_cases=1 CAUSE_FENCE_REVIEW_REQUIRED CAPACITY_AND_PHYSICAL_UNQUALIFIED}] \
+  [list {RETIRED_SERVICE_SHADOW_PASS public_golden=1 original_fence=1 actual_input_checker=1 actual_FFT=1 idle_final_and_ACK_premises=1} \
+    {RETIRED_SERVICE_DUPLICATE_PASS final=1 ACK=1 same_edge_veto=1 actual_checker_fault=1} \
+    {REALTIME_SERVICE_CANDIDATE_PASS healthy_jobs=26 exact_words=13312 starvation_cases=6 final_veto_cases=3 malformed_bank_cases=2 independent_reset_cases=6 configure_reset_cases=2 partial_input_reset_cases=2 postcommit_ACK_fault_cases=1 CAUSE_FENCE_REVIEW_REQUIRED CAPACITY_AND_PHYSICAL_UNQUALIFIED}] \
   RT_SERVICE_RESULT 26
 close_project
 puts "REALTIME_SERVICE_CANDIDATE_SIMULATION_VERIFIED CAPACITY_AND_PHYSICAL_UNQUALIFIED"

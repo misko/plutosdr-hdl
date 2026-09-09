@@ -10,6 +10,7 @@ module tb_starlink_pss_realtime_occupancy;
   reg input_bank_reserved = 1, output_bank_reserved = 1;
   reg certified_input_beat = 0, certified_input_complete = 0;
   reg final_fence_certified = 1, external_fault_now = 0;
+  wire phase_input_fault_now = 1'bz; // Default mode must ignore this input.
   reg core_event_frame_started = 0;
   reg [47:0] core_output_tdata = 0;
   reg [23:0] core_output_tuser = 0;
