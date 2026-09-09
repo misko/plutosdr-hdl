@@ -94,9 +94,34 @@ module starlink_pss_block_mailbox #(
   reg [METADATA_WIDTH-1:0] metadata_out_hold;
   reg [ADDRESS_WIDTH-1:0] write_position;
   wire input_accept = input_valid && input_ready;
+  wire metadata_matches;
+  generate if (EXPLICIT_COMMIT) begin : balanced_metadata
+    // A three-bit equality fits one six-input LUT. Preserve that boundary and
+    // six-way reductions so the 75-bit private-link check does not become a
+    // long carry chain. This is purely combinational: no delayed fault veto,
+    // bypassed metadata bit, added state, or change to the publication edge.
+    localparam integer LEAF_COUNT = (METADATA_WIDTH + 2) / 3;
+    localparam integer GROUP_COUNT = (LEAF_COUNT + 5) / 6;
+    (* keep = "true" *) wire [LEAF_COUNT-1:0] leaf_equal;
+    (* keep = "true" *) wire [GROUP_COUNT-1:0] group_equal;
+    for (genvar leaf = 0; leaf < LEAF_COUNT; leaf = leaf + 1) begin : leaves
+      localparam integer BITS = (METADATA_WIDTH - 3 * leaf < 3) ?
+          METADATA_WIDTH - 3 * leaf : 3;
+      assign leaf_equal[leaf] = input_metadata[3*leaf +: BITS] ==
+          metadata_in_hold[3*leaf +: BITS];
+    end
+    for (genvar group_index = 0; group_index < GROUP_COUNT; group_index = group_index + 1) begin : groups
+      localparam integer BITS = (LEAF_COUNT - 6 * group_index < 6) ?
+          LEAF_COUNT - 6 * group_index : 6;
+      assign group_equal[group_index] = &leaf_equal[6*group_index +: BITS];
+    end
+    assign metadata_matches = &group_equal;
+  end else begin : legacy_metadata
+    assign metadata_matches = input_metadata == metadata_in_hold;
+  end endgenerate
   wire input_framing_valid = input_position == write_position &&
     input_last == (write_position == LAST_POSITION) &&
-    (write_position == 0 || input_metadata == metadata_in_hold);
+    (write_position == 0 || metadata_matches);
   // Explicit-mode caller may use this same-edge fault to keep its commit
   // receipt truthful even if the private link is corrupted after its checker.
   // This does not control RAM/cursor writes. Legacy mode is identically zero.
