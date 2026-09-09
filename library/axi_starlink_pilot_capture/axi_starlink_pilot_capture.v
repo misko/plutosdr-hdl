@@ -241,7 +241,9 @@ module axi_starlink_pilot_capture #(
   // Snapshot reads never mix cycles across high/low words. Generation is zero
   // until explicitly latched; CLEAR invalidates it. Snapshot is pre-edge state,
   // so a transfer on that same edge belongs to the next snapshot.
-  reg [31:0] snapshot [0:25];
+  // Retain snapshot semantics but put the hold mux on D. Replicated snapshot
+  // enables must not create a separate slice control set for each copy.
+  (* extract_enable = "no" *) reg [31:0] snapshot [0:25];
   reg [31:0] snapshot_generation;
   wire [31:0] status = {27'd0, used, admitted != 0, faults != 0, !empty, active};
   integer n;
