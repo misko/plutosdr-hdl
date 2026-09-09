@@ -1,15 +1,18 @@
 # Bounded physical implementation experiment on a saved, source-pinned design.
 # Own constraints are retained; no clocks, timing exceptions, or RTL are changed.
 # No bitstream is produced. Even positive slack is not deployment qualification.
-if {$argc != 3} { error "expected CHECKPOINT NEW_OUTPUT_DIRECTORY spread-high|spread-medium|post-route" }
+if {$argc != 3} { error "expected CHECKPOINT NEW_OUTPUT_DIRECTORY spread-high|spread-medium|place-explore|area-explore|post-route" }
 set script_dir [file dirname [file normalize [info script]]]
 set checkpoint [file normalize [lindex $argv 0]]
 set output_dir [file normalize [lindex $argv 1]]
 set mode [lindex $argv 2]
-if {$mode ni {spread-high spread-medium post-route}} { error "unsupported implementation experiment" }
+if {$mode ni {spread-high spread-medium place-explore area-explore post-route}} { error "unsupported implementation experiment" }
 if {![file isfile $checkpoint]} { error "missing input checkpoint" }
 if {[file exists $output_dir]} { error "refusing to overwrite experiment evidence" }
 file mkdir $output_dir
+if {$mode in {place-explore area-explore}} {
+  file copy [file normalize [info script]] [file join $output_dir trial_source.tcl.txt]
+}
 cd $output_dir
 open_checkpoint $checkpoint
 source [file join $script_dir shared_xfft_impl_gate.tcl]
@@ -19,11 +22,25 @@ puts $provenance "checkpoint_sha256=[exec sha256sum $checkpoint]"
 puts $provenance "mode=$mode"
 puts $provenance "timing_constraints_changed=false"
 puts $provenance "hardware_qualified=false"
+puts $provenance "additional_area_optimization=[expr {$mode eq {area-explore}}]"
 close $provenance
-if {$mode in {spread-high spread-medium}} {
+if {$mode ne "post-route"} {
   # Bounded UG904 spread-placement variants, followed by one post-route Explore
   # pass. Input must be the full receiver's pre-placement opt DCP.
-  if {$mode eq "spread-high"} {
+  # Explicit bounded alternatives after both spreading modes fail packing.
+  # UG835 v2022.2 documents Explore's extra placement effort and ExploreArea's
+  # LUT-area re-synthesis. Neither changes RTL, clocks, or timing exceptions.
+  # https://docs.amd.com/r/2022.2-English/ug835-vivado-tcl-commands/opt_design
+  # https://docs.amd.com/r/2022.2-English/ug835-vivado-tcl-commands/place_design
+  if {$mode eq "area-explore"} {
+    opt_design -directive ExploreArea
+    write_checkpoint area_optimized.dcp
+    # Recheck the complete receiver/CDC contract after netlist optimization.
+    source [file join $script_dir shared_xfft_impl_gate.tcl]
+  }
+  if {$mode eq "place-explore"} {
+    place_design -directive Explore
+  } elseif {$mode in {spread-high area-explore}} {
     place_design -directive AltSpreadLogic_high
   } else {
     place_design -directive AltSpreadLogic_medium
