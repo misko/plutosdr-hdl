@@ -4,7 +4,13 @@ module tb_axi_starlink_pss_tracker #(
   parameter integer RATE_MSPS = 15
 );
 
+`ifdef STARLINK_TRACKER_GLOBAL_NETLIST
+  // Actual paired board ties timestamps to the same source counter and removes
+  // injection. Exercise that compiled contract, not the generic RTL profile.
+  localparam [63:0] TIMESTAMP_BASE = 64'd0;
+`else
   localparam [63:0] TIMESTAMP_BASE = 64'h0000_0001_0000_0000;
+`endif
   localparam [31:0] REQUEST_ID = 32'h6161_0001;
   localparam integer RATE_MULTIPLIER = RATE_MSPS / 15;
   localparam [63:0] CENTER_INDEX = 64'd256 * RATE_MULTIPLIER;
@@ -12,7 +18,11 @@ module tb_axi_starlink_pss_tracker #(
   localparam integer CAPTURE_COUNT = 130 * RATE_MULTIPLIER;
   localparam integer QUALIFIED_LAG_COUNT = 60 * RATE_MULTIPLIER + 1;
   localparam integer TRACK_LAST_LAG = 30 * RATE_MULTIPLIER;
+`ifdef STARLINK_TRACKER_GLOBAL_NETLIST
+  localparam integer ENABLE_INJECTION = 0;
+`else
   localparam integer ENABLE_INJECTION = (RATE_MSPS == 15) ? 1 : 0;
+`endif
 
   reg sample_clk = 1'b0;
   reg s_axi_aclk = 1'b0;
@@ -54,10 +64,17 @@ module tb_axi_starlink_pss_tracker #(
   reg [63:0] telemetry_test_center_1;
   reg [63:0] telemetry_test_center_2;
 
+`ifdef STARLINK_TRACKER_GLOBAL_NETLIST
+  system_starlink_pss_tracker_0 dut (
+    // Global optimization exposes adc_rst_n from up_adc_common as lopt.
+    // Its actual source defines adc_rst = ~adc_rst_n; do not tie it constant.
+    .lopt             (!sample_reset),
+`else
   axi_starlink_pss_tracker #(
     .RATE_MSPS       (RATE_MSPS),
     .ENABLE_INJECTION (ENABLE_INJECTION)
   ) dut (
+`endif
     .sample_clk        (sample_clk),
     .sample_reset      (sample_reset),
     .sample_i          (sample_i),
@@ -216,6 +233,35 @@ module tb_axi_starlink_pss_tracker #(
     end
   endtask
 
+  // Inspect the descriptor metadata of later jobs through the public result
+  // bank. In a global netlist these fields may live in fused BRAM output
+  // registers; accepted/completed counters alone cannot detect stale metadata.
+  task automatic check_descriptor_metadata;
+    input [31:0] request_id;
+    input [63:0] center_index;
+    integer index;
+    reg [31:0] expected;
+    reg [31:0] actual;
+    begin
+      for (index = 2; index <= 6; index = index + 1) begin
+        case (index)
+          2: expected = request_id;
+          3: expected = center_index[31:0];
+          4: expected = center_index[63:32];
+          5: expected = TIMESTAMP_BASE + center_index;
+          6: expected = (TIMESTAMP_BASE + center_index) >> 32;
+        endcase
+        axi_write(8'h50, index);
+        axi_read(8'h54, actual);
+        if (actual !== expected) begin
+          $display("request=%08x word=%0d expected=%08x actual=%08x",
+                   request_id, index, expected, actual);
+          fail("later descriptor metadata mismatch");
+        end
+      end
+    end
+  endtask
+
   always @(negedge sample_clk) begin
     if (sample_reset || !sample_enable) begin
       sample_strobe = 1'b0;
@@ -242,7 +288,12 @@ module tb_axi_starlink_pss_tracker #(
     $dumpvars(0, tb_axi_starlink_pss_tracker);
     build_expected_packet();
 
+`ifdef STARLINK_TRACKER_GLOBAL_NETLIST
+    if (RATE_MSPS != 15) $fatal(1, "global netlist is pinned to 15 MS/s");
+    repeat (20) @(posedge sample_clk); // beyond UNISIM global startup reset
+`else
     repeat (6) @(posedge sample_clk);
+`endif
     @(negedge sample_clk);
     sample_reset = 1'b0;
     @(negedge s_axi_aclk);
@@ -404,7 +455,7 @@ module tb_axi_starlink_pss_tracker #(
     telemetry_test_center_2 =
         telemetry_test_center_1 + 64'd384 * RATE_MULTIPLIER;
 
-    axi_write(8'h20, 32'h6161_0002);
+    axi_write(8'h20, 32'h9282_0002);
     axi_write(8'h24, telemetry_test_center_1[31:0]);
     axi_write(8'h28, telemetry_test_center_1[63:32]);
     axi_write(8'h2c, TIMESTAMP_BASE + telemetry_test_center_1);
@@ -416,7 +467,7 @@ module tb_axi_starlink_pss_tracker #(
     if (!read_value[1] || read_value[0])
       fail("telemetry request did not enter busy/invalid state");
 
-    axi_write(8'h20, 32'h6161_0003);
+    axi_write(8'h20, 32'h4343_0003);
     axi_write(8'h24, telemetry_test_center_2[31:0]);
     axi_write(8'h28, telemetry_test_center_2[63:32]);
     axi_write(8'h2c, TIMESTAMP_BASE + telemetry_test_center_2);
@@ -480,6 +531,25 @@ module tb_axi_starlink_pss_tracker #(
     axi_read(8'hac, read_value);
     if (read_value !== 32'd3)
       fail("deferred candidate missing from follow-up published count");
+
+    // Capture completion precedes fine reduction/publication. Wait for both
+    // later packets, check their independent metadata, and release only the
+    // first so the following epoch-reset test still flushes a pending result.
+    timeout = 0;
+    read_value = 32'd0;
+    while ((read_value != 32'd3) && timeout < 100000 * RATE_MULTIPLIER) begin
+      axi_read(8'hd8, read_value);
+      timeout = timeout + 1;
+    end
+    if (timeout == 100000 * RATE_MULTIPLIER || !irq)
+      fail("later fine results did not publish");
+    check_descriptor_metadata(32'h9282_0002, telemetry_test_center_1);
+    axi_write(8'h58, 32'h0000_0001);
+    check_descriptor_metadata(32'h4343_0003, telemetry_test_center_2);
+    axi_read(8'he0, read_value);
+    if (read_value !== 32'd2 || !irq)
+      fail("later result release or retained result interrupt mismatch");
+    $display("AXI_TRACKER_METADATA_PASS checked_packets=3 retained_for_epoch_reset=1");
 
     // A sample-domain reset must assert the common epoch and flush CPU-side
     // command/result state even though the external AXI reset stays released.
