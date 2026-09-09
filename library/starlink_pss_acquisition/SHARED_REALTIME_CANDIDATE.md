@@ -8,6 +8,38 @@ selected and cannot authorize deployment before the remaining gates pass.
 The experimental firmware remains do-not-merge. Realtime is a candidate for
 the current packing/timing failure, not an assumed whole-chip solution.
 
+## First measured control-cone cut — 2026-09-09
+
+The explicitly integrated `ff4229bb` receiver fits and routes, but final timing
+fails at 200 MHz: WNS -3.531 ns, 577 setup endpoints. The 100 MHz domain passes
+by only +0.002 ns. The longest path crosses input-position certification,
+result-guard validation, and service admission; the private watchdog enable
+shares it. A read-only routed audit also finds independent vendor-internal
+(-1.932 ns), return-slot (-2.949 ns), publication (-2.590 ns), and output-RAM
+control (-3.255 ns) failures. No generated bitstream is qualified for deployment.
+
+The first targeted RTL trial changes only result-guard control factoring:
+
+- Admission already requires `!active`. There, the reservation/slot/watchdog
+  errors are false and every input/frame/status/output event is an error.
+  Use that exactly equivalent idle predicate for `job_ready`; do not delay
+  faults or weaken any idle rejection.
+- Update private `age` independently of current-cycle fault aggregation:
+  zero while inactive, increment while active. Admission starts at zero and
+  every healthy active age/deadline remains identical. Only faulted/inactive
+  private state may differ. The immediate watchdog veto stays unchanged.
+
+All output-publication checks, fault reasons, metadata, arithmetic, coefficients,
+mailbox/reset ownership, certificate latency, and constraints remain unchanged.
+Actual-core service, exact score, reduced-map and bursty 64-block replays pass
+for this trial. The immutable `ff4229bb` golden comparison preserves public
+controls, fault reasons and valid payloads across 23 healthy / 37 rejected jobs,
+12 resets, 12288 idle combinations and six exact watchdog configurations.
+This finite differential regression is not universal formal equivalence.
+Sustained >=120 ms capacity and fresh physical evidence remain separate gates.
+Removing two fanout consumers is not a claim that the remaining failing cones
+will meet timing. Preserve the failed baseline and measure the new route.
+
 ## Synthesizable persistent service — 2026-09-09
 
 `starlink_pss_shared_realtime_xfft_service.v` now owns admission, configuration

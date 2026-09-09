@@ -1,6 +1,9 @@
+// TEST-ONLY GOLDEN: ff4229bb230437fcd975413390a34c00ffcc226f.
+// Original acquisition/starlink_pss_realtime_result_guard.v SHA256:
+// a3637871ad72551987006b5d5c1e0de716f28a07e706c0decf036e072cd7f35c.
+// Only the module identifier below is renamed; never instantiate in production.
 // SPDX-License-Identifier: GPL-2.0
-// Used by the explicitly opted-in realtime shared-XFFT service; the default
-// non-realtime service is unchanged. Physical qualification is separate.
+// ISOLATED EXPERIMENT: not connected to the production shared-XFFT service.
 // One reserved result bank plus one 52-bit return slot; no extra payload RAM.
 // The unchanged block mailbox publishes on its final write, so word 511 stays
 // here until independent status and all explicitly certified premises pass.
@@ -19,7 +22,7 @@
 // transport stalls fault closed. A new job waits for the mailbox's actual ACK.
 `timescale 1ns/1ps
 
-module starlink_pss_realtime_result_guard #(
+module starlink_pss_realtime_result_guard_ff4229_golden #(
   parameter integer WATCHDOG_CYCLES = 8192
 ) (
   input wire clk,
@@ -104,15 +107,7 @@ module starlink_pss_realtime_result_guard #(
   wire fault_now = |faults_now;
   assign protocol_fault = |fault_reasons;
   assign busy = active || awaiting_ack;
-  // Admission already requires !active. In that phase reservation, slot and
-  // watchdog errors are false; every input/frame/status/output event is an
-  // error regardless of its payload. This is exactly faults_now restricted
-  // to idle, not a delayed or weaker admission fence. Keep active-job payload
-  // validation off this path to the caller's admission/state controls.
-  wire idle_fault_now = external_fault_now || mailbox_input_fault ||
-    certified_input_beat || certified_input_complete ||
-    core_event_frame_started || core_status_tvalid || core_output_tvalid;
-  assign job_ready = resetn && !protocol_fault && !idle_fault_now &&
+  assign job_ready = resetn && !protocol_fault && !fault_now &&
     !active && !awaiting_ack && !return_valid &&
     input_bank_reserved && output_bank_reserved && mailbox_input_ready;
   wire job_accept = job_valid && job_ready;
@@ -162,13 +157,6 @@ module starlink_pss_realtime_result_guard #(
       // or publish. Saturate beyond the one allowed block rather than wrap.
       if (active && !protocol_fault && core_output_tvalid && output_count < 513)
         output_count <= output_count + 1'b1;
-      // Private watchdog state need not wait for the complete current-cycle
-      // fault cone. Admission occurs while inactive, so it still starts at
-      // zero; every healthy active edge and the immediate deadline veto are
-      // unchanged. On a fault edge only this private age may advance before
-      // quarantine clears active. No publication or fault check is delayed.
-      if (!active) age <= 0;
-      else age <= age + 1'b1;
       if (protocol_fault || fault_now) begin
         active <= 0;
         return_valid <= 0;
@@ -183,8 +171,10 @@ module starlink_pss_realtime_result_guard #(
           frame_seen <= 0;
           status_seen <= 0;
           exponent_seen <= 0;
+          age <= 0;
         end
         if (active) begin
+          age <= age + 1'b1;
           if (certified_input_beat) input_count <= input_count + 1'b1;
           if (certified_input_complete) input_complete_seen <= 1;
           if (core_event_frame_started) frame_seen <= 1;
