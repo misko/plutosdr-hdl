@@ -37,8 +37,9 @@ counter, not host command-send time, remains the observation coordinate.
 
 The complete DDC output observation (IQ, newest source index, visit and support)
 crosses a one-clock register before capture admission. Signal coordinates and
-filter group delay are unchanged. STOP, current source faults and capture faults
-still suppress admission on their execution edge; a staged but not yet admitted
+filter group delay are unchanged. STOP, explicit source-gap/flush, registered
+DDC-halt indications and capture faults suppress admission on their execution
+edge; a staged but not yet admitted
 word is discarded on termination. Already offered AXIS words remain stable and
 drain normally. DDC-emitted telemetry may therefore lead capture accounting by
 one staged output, or include a final output discarded on termination; it is not
