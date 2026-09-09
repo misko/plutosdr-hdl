@@ -1,12 +1,12 @@
 # Bounded physical implementation experiment on a saved, source-pinned design.
 # Own constraints are retained; no clocks, timing exceptions, or RTL are changed.
 # No bitstream is produced. Even positive slack is not deployment qualification.
-if {$argc != 3} { error "expected CHECKPOINT NEW_OUTPUT_DIRECTORY spread-high|post-route" }
+if {$argc != 3} { error "expected CHECKPOINT NEW_OUTPUT_DIRECTORY spread-high|spread-medium|post-route" }
 set script_dir [file dirname [file normalize [info script]]]
 set checkpoint [file normalize [lindex $argv 0]]
 set output_dir [file normalize [lindex $argv 1]]
 set mode [lindex $argv 2]
-if {$mode ni {spread-high post-route}} { error "unsupported implementation experiment" }
+if {$mode ni {spread-high spread-medium post-route}} { error "unsupported implementation experiment" }
 if {![file isfile $checkpoint]} { error "missing input checkpoint" }
 if {[file exists $output_dir]} { error "refusing to overwrite experiment evidence" }
 file mkdir $output_dir
@@ -20,10 +20,14 @@ puts $provenance "mode=$mode"
 puts $provenance "timing_constraints_changed=false"
 puts $provenance "hardware_qualified=false"
 close $provenance
-if {$mode eq "spread-high"} {
-  # UG904 Congestion_SpreadLogic_high directives, followed by one post-route
-  # Explore pass. Input must be the full receiver's pre-placement opt DCP.
-  place_design -directive AltSpreadLogic_high
+if {$mode in {spread-high spread-medium}} {
+  # Bounded UG904 spread-placement variants, followed by one post-route Explore
+  # pass. Input must be the full receiver's pre-placement opt DCP.
+  if {$mode eq "spread-high"} {
+    place_design -directive AltSpreadLogic_high
+  } else {
+    place_design -directive AltSpreadLogic_medium
+  }
   write_checkpoint spread_placed.dcp
   phys_opt_design -directive AggressiveExplore
   route_design -directive AlternateCLBRouting
