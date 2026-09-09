@@ -53,6 +53,32 @@ No integrated actual-core service, sustained paired acquisition, whole-chip
 resource saving, timing closure or radio deployment is established by these
 dependency tests. The current nonrealtime receiver remains the runtime source.
 
+The subsequent **testbench-coordinated** joint replay in
+`build/realtime-guarded-mailbox-v4/` connects the actual core, both guards and both
+real mailboxes. Twelve healthy forward/inverse jobs preserve 6144 exact raw and
+published complex words, exponents, framing and block descriptors. Six missing-
+demand tests at input ordinals 1, 255 and 511 (both directions) immediately
+quarantine the result before any private write or publication; each is followed
+by a successful reset recovery. Once quarantine starts, remaining input is
+withheld too. The core's 3072 resulting wrong words are observed, not accepted.
+Final-word holds and delayed/bursty slow reads pass. The final fence remains a
+testbench-supplied premise, and all banks/guards reset between these jobs.
+
+The production candidate must instead retain mailbox/result ownership across
+per-job input-checker/core resets, preserve a prefetched next input, synchronize
+sticky cross-domain faults, and internally establish its final fence from
+coverage of the documented input-corruption causes. That cause-based argument
+requires correct fixed-size reset/configuration plus actual checked deliveries;
+it is not a universal theorem about delayed or spontaneous error indications.
+Raw vendor events must remain direct/sticky fault inputs through the job and
+ACK drain. Only fast-domain signals can supply a same-cycle fast commit veto.
+
+Both diagnostic runners now validate the explicit terminal bench marker, full
+job inventory and absence of fatal/error diagnostics after the simulator closes.
+Vivado previously returned zero for an assertion-stopped run. The original
+joint v1 failure and the first incompatible verifier attempts remain retained;
+guarded v4 and delivery-sweep v3 both pass the corrected Vivado-compatible gate.
+
 ## Evidence and its limits
 
 The standalone observer sources were committed in HDL `718c32e0`. Its retained

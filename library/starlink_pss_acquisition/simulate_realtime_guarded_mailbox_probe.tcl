@@ -1,4 +1,5 @@
-# Standalone realtime XFFT protocol/numeric observer; NOT the production service.
+# Isolated actual-core + input/result guards + two real CDC mailboxes.
+# TESTBENCH coordinator only. Never instantiate/replace production service/IP.
 # Usage: vivado ... -tclargs NEW_OUTPUT FROZEN_VECTOR_DIRECTORY
 if {$argc != 2} { error "expected NEW_OUTPUT FROZEN_VECTOR_DIRECTORY" }
 if {[version -short] ne "2022.2"} { error "requires Vivado 2022.2" }
@@ -7,26 +8,31 @@ set verifier_path [file join $script_dir verify_realtime_probe_result.tcl]
 source $verifier_path
 set output_dir [file normalize [lindex $argv 0]]
 set vector_dir [file normalize [lindex $argv 1]]
-if {[file exists $output_dir]} { error "refusing to overwrite protocol probe evidence" }
+if {[file exists $output_dir]} { error "refusing to overwrite guarded mailbox evidence" }
 set vector_names {samples_ci16 forward_q17 product_q17 inverse_q17 forward_exponents inverse_exponents}
 foreach name $vector_names {
   if {![file isfile [file join $vector_dir ${name}.mem]]} { error "missing vector $name" }
+}
+set bench_name tb_starlink_pss_realtime_guarded_mailbox_probe
+set rtl_names {starlink_pss_realtime_input_guard.v starlink_pss_realtime_result_guard.v starlink_pss_block_mailbox.v}
+foreach name $rtl_names {
+  if {![file isfile [file join $script_dir $name]]} { error "missing isolated RTL $name" }
 }
 file mkdir $output_dir
 set source_dir [file join $output_dir frozen_sources]
 file mkdir $source_dir
 file copy [info script] [file join $source_dir probe_runner.tcl]
 file copy $verifier_path $source_dir
-set bench_name tb_starlink_pss_realtime_xfft_protocol_probe
 file copy [file join $script_dir tb ${bench_name}.sv] $source_dir
+foreach name $rtl_names { file copy [file join $script_dir $name] $source_dir }
 foreach name $vector_names { file copy [file join $vector_dir ${name}.mem] $source_dir }
 
-set project_name realtime_xfft_protocol_probe
+set project_name realtime_guarded_mailbox_probe
 set project_dir [file join $output_dir project]
 create_project $project_name $project_dir -part xc7z010clg400-1
 set_property target_language Verilog [current_project]
 set_property simulator_language Mixed [current_project]
-set module_name starlink_pss_fft512_bfp18_rt_probe
+set module_name starlink_pss_fft512_bfp18_rt_guarded_probe
 create_ip -name xfft -vendor xilinx.com -library ip -version 9.1 -module_name $module_name
 set_property -dict [list \
   CONFIG.channels {1} CONFIG.transform_length {512} \
@@ -59,24 +65,27 @@ set required_generics {
 foreach {name value} $required_generics {
   if {![regexp "${name} => ${value}(,|\n)" $wrapper]} { error "unexpected generated generic $name" }
 }
-# Inspect the generated entity, not the underlying component's tied-off ports.
 set entity [string range $wrapper [string first "ENTITY $module_name IS" $wrapper] \
   [string first "END $module_name;" $wrapper]]
 foreach forbidden {m_axis_data_tready m_axis_status_tready event_status_channel_halt event_data_out_channel_halt} {
   if {[string first $forbidden $entity] >= 0} { error "unexpected realtime entity port $forbidden" }
 }
 set channel [open [file join $output_dir scope.txt] w]
-puts $channel "scope=standalone_actual_generated_realtime_fft_protocol_and_frozen_vector_probe"
+puts $channel "scope=isolated_actual_realtime_core_two_real_mailboxes_and_guards_with_testbench_coordinator"
 puts $channel "hdl_commit=[exec git -C $script_dir rev-parse HEAD]"
-puts $channel "actual_simulation_clock_period_ns=5"
+puts $channel "actual_fft_simulation_clock_period_ns=5"
+puts $channel "actual_slow_simulation_clock_period_ns=10"
+puts $channel "per_job_common_reset_and_registered_admission=true"
 puts $channel "no_synthesis_or_implementation_run=true"
 puts $channel "production_service_qualified=false"
-puts $channel "universal_input_halt_fault_rule_qualified=false"
+puts $channel "universal_event_fence_qualified=false"
+puts $channel "sustained_service_capacity_qualified=false"
 puts $channel "source_hashes=[exec sha256sum {*}[glob [file join $source_dir *]] $wrapper_path]"
 puts $channel "required_generics=$required_generics"
 puts $channel "generated_entity=$entity"
 close $channel
 report_property [get_ips $module_name] -file [file join $output_dir ip_properties.rpt]
+foreach name $rtl_names { add_files -fileset sim_1 -norecurse [file join $source_dir $name] }
 add_files -fileset sim_1 -norecurse [file join $source_dir ${bench_name}.sv]
 foreach name $vector_names { add_files -fileset sim_1 -norecurse [file join $source_dir ${name}.mem] }
 set_property file_type {Memory Initialization Files} [get_files -of_objects [get_filesets sim_1] *.mem]
@@ -85,9 +94,7 @@ set_property xsim.simulate.runtime {all} [get_filesets sim_1]
 launch_simulation -simset sim_1 -mode behavioral
 close_sim
 require_realtime_probe_pass [file join $project_dir ${project_name}.sim sim_1 behav xsim simulate.log] \
-  [list \
-    {REALTIME_XFFT_PROTOCOL_PROBE_PASS healthy_jobs=27 exact_words=13824 reset_jobs=45 no_reset_direction_jobs=3 starvation_output_words=10752 starvation_value_mismatches=10752 starvation_halt_cycles=228 SERVICE_UNQUALIFIED UNIVERSAL_HALT_RULE_UNQUALIFIED} \
-    {REALTIME_XFFT_DELIVERY_SWEEP_PASS starved_jobs=21 gap_geometries=10 transform_directions=2 explicit_reset_recoveries=20 LOCAL_DETECTOR_IS_TESTBENCH_ONLY}] \
-  RT_XFFT_JOB 48
+  [list {REALTIME_GUARDED_MAILBOX_PROBE_PASS healthy_jobs=12 exact_published_words=6144 starved_jobs=6 explicit_reset_recoveries=6 real_mailboxes=2 registered_admission=1 PRODUCTION_SERVICE_UNQUALIFIED EVENT_FENCE_PREMISE_UNQUALIFIED CAPACITY_UNQUALIFIED}] \
+  RT_GUARDED_JOB 18
 close_project
-puts "REALTIME_XFFT_PROTOCOL_PROBE_SIMULATION_VERIFIED SERVICE_UNQUALIFIED"
+puts "REALTIME_GUARDED_MAILBOX_SIMULATION_VERIFIED SERVICE_AND_EVENT_FENCE_UNQUALIFIED"
