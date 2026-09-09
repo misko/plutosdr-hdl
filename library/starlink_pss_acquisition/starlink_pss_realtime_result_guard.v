@@ -2,8 +2,9 @@
 // Used by the explicitly opted-in realtime shared-XFFT service; the default
 // non-realtime service is unchanged. Physical qualification is separate.
 // One reserved result bank plus one 52-bit return slot; no extra payload RAM.
-// The unchanged block mailbox publishes on its final write, so word 511 stays
-// here until independent status and all explicitly certified premises pass.
+// The final word stays here until independent status and all explicitly
+// certified premises pass. An explicit-commit mailbox may privately rewrite
+// that word before qualification, but must not publish on private-write valid.
 //
 // CALLER OBLIGATIONS (not established by this module):
 // - resetn is a common, synchronously released epoch for BOTH mailbox clocks;
@@ -41,6 +42,7 @@ module starlink_pss_realtime_result_guard #(
   input wire [7:0] core_status_tdata,
   input wire core_status_tvalid,
   output wire mailbox_input_valid,
+  output wire mailbox_private_valid,
   input wire mailbox_input_ready,
   input wire mailbox_input_fault,
   output wire [35:0] mailbox_input_data,
@@ -138,6 +140,11 @@ module starlink_pss_realtime_result_guard #(
     core_event_frame_started || core_status_tvalid || core_output_tvalid || watchdog_error;
   assign mailbox_input_valid = resetn && active && !protocol_fault && return_valid &&
     ((!return_last && !fault_now) || (return_last && final_qualified && !final_fault_now));
+  // A prior certified return word may enter exclusively owned private RAM on
+  // a simultaneous new fault. The full current fault still vetoes retirement
+  // and publication above, clears return_valid below, and quarantines the
+  // epoch. NEVER connect this signal to a legacy publish-on-final mailbox.
+  assign mailbox_private_valid = resetn && active && !protocol_fault && return_valid;
   assign mailbox_input_data = return_data;
   assign mailbox_input_position = return_position;
   assign mailbox_input_last = return_last;

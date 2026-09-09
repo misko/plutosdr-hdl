@@ -115,8 +115,8 @@ module starlink_pss_shared_realtime_xfft_service (
     .fault_now(input_fault_now), .protocol_fault(input_guard_fault), .fault_reasons()
   );
 
-  wire output_mailbox_ready, output_mailbox_fault;
-  wire return_valid, return_last;
+  wire output_mailbox_ready, output_mailbox_fault, output_mailbox_framing_fault_now;
+  wire return_valid, return_private_valid, return_last;
   wire [35:0] return_data;
   wire [8:0] return_position;
   wire [74:0] return_metadata;
@@ -143,19 +143,26 @@ module starlink_pss_shared_realtime_xfft_service (
     .core_output_tdata(core_output_data), .core_output_tuser(core_output_user),
     .core_output_tvalid(core_output_valid), .core_output_tlast(core_output_last),
     .core_status_tdata(core_status_data), .core_status_tvalid(core_status_valid),
-    .mailbox_input_valid(return_valid), .mailbox_input_ready(output_mailbox_ready),
-    .mailbox_input_fault(output_mailbox_fault), .mailbox_input_data(return_data),
+    .mailbox_input_valid(return_valid), .mailbox_private_valid(return_private_valid),
+    .mailbox_input_ready(output_mailbox_ready),
+    .mailbox_input_fault(output_mailbox_fault || output_mailbox_framing_fault_now),
+    .mailbox_input_data(return_data),
     .mailbox_input_position(return_position), .mailbox_input_last(return_last),
     .mailbox_input_metadata(return_metadata), .busy(result_busy),
     .commit_pulse(result_commit), .protocol_fault(result_fault), .fault_reasons()
   );
   wire slow_output_valid;
   assign output_valid = slow_running && slow_output_valid && !service_fault;
-  starlink_pss_block_mailbox #(.METADATA_WIDTH(75), .RESET_RELEASE_EXTERNAL(1)) output_mailbox (
-    .input_clk(fft_clk), .input_resetn(fast_running), .input_valid(return_valid),
+  // Only private bank writes bypass the current-cycle validation cone. Final
+  // authorization and guard retirement retain the exact same qualified valid.
+  starlink_pss_block_mailbox #(.METADATA_WIDTH(75), .RESET_RELEASE_EXTERNAL(1),
+    .EXPLICIT_COMMIT(1)) output_mailbox (
+    .input_clk(fft_clk), .input_resetn(fast_running), .input_valid(return_private_valid),
+    .input_commit_authorized(return_valid),
     .input_ready(output_mailbox_ready), .input_data(return_data),
     .input_position(return_position), .input_last(return_last),
     .input_metadata(return_metadata), .input_fault(output_mailbox_fault),
+    .input_framing_fault_now(output_mailbox_framing_fault_now),
     .output_clk(clk), .output_resetn(slow_running), .output_valid(slow_output_valid),
     .output_ready(output_ready && !service_fault), .output_data(output_data),
     .output_position(output_position), .output_last(output_last), .output_metadata(output_metadata)

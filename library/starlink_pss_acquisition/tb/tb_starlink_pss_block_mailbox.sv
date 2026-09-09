@@ -59,7 +59,8 @@ module tb_starlink_pss_block_mailbox;
     .RESET_RELEASE_EXTERNAL(RESET_RELEASE_EXTERNAL)
   ) dut (
     .input_resetn(RESET_RELEASE_EXTERNAL ? local_input_resetn : input_resetn),
-    .output_resetn(RESET_RELEASE_EXTERNAL ? local_output_resetn : output_resetn), .*
+    .output_resetn(RESET_RELEASE_EXTERNAL ? local_output_resetn : output_resetn),
+    .input_commit_authorized(1'b0), .input_framing_fault_now(), .*
   );
 
   function automatic [35:0] payload(input integer block_id, input integer position);

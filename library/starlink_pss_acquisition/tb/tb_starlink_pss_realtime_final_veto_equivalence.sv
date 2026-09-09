@@ -29,7 +29,8 @@ module tb_starlink_pss_realtime_final_veto_equivalence;
   wire [8:0] mailbox_input_position;
   wire [74:0] mailbox_input_metadata;
   wire [7:0] fault_reasons;
-  starlink_pss_realtime_result_guard #(.WATCHDOG_CYCLES(WATCHDOG_CYCLES)) dut (.*);
+  starlink_pss_realtime_result_guard #(.WATCHDOG_CYCLES(WATCHDOG_CYCLES)) dut (
+    .mailbox_private_valid(), .*);
 
   wire [8:0] final_veto_terms = {
     dut.watchdog_error, core_output_tvalid, core_status_tvalid,

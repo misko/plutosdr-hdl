@@ -13,17 +13,22 @@ module starlink_pss_block_mailbox #(
   parameter integer ADDRESS_WIDTH = 9,
   parameter integer DATA_WIDTH = 36,
   parameter integer METADATA_WIDTH = 70,
-  parameter integer RESET_RELEASE_EXTERNAL = 0
+  parameter integer RESET_RELEASE_EXTERNAL = 0,
+  parameter integer EXPLICIT_COMMIT = 0
 ) (
   input wire input_clk,
   input wire input_resetn,
   input wire input_valid,
+  // Optional private-write mode only: the caller separately certifies the
+  // final publication edge. Ignored completely in the legacy default mode.
+  input wire input_commit_authorized,
   output wire input_ready,
   input wire [DATA_WIDTH-1:0] input_data,
   input wire [ADDRESS_WIDTH-1:0] input_position,
   input wire input_last,
   input wire [METADATA_WIDTH-1:0] input_metadata,
   output reg input_fault,
+  output wire input_framing_fault_now,
   input wire output_clk,
   input wire output_resetn,
   output wire output_valid,
@@ -40,6 +45,8 @@ module starlink_pss_block_mailbox #(
       $fatal(1, "unsupported block mailbox geometry");
     if (RESET_RELEASE_EXTERNAL != 0 && RESET_RELEASE_EXTERNAL != 1)
       $fatal(1, "RESET_RELEASE_EXTERNAL must be zero or one");
+    if (EXPLICIT_COMMIT !== 0 && EXPLICIT_COMMIT !== 1)
+      $fatal(1, "EXPLICIT_COMMIT must be zero or one");
   end
 
   wire in_running;
@@ -90,6 +97,10 @@ module starlink_pss_block_mailbox #(
   wire input_framing_valid = input_position == write_position &&
     input_last == (write_position == LAST_POSITION) &&
     (write_position == 0 || input_metadata == metadata_in_hold);
+  // Explicit-mode caller may use this same-edge fault to keep its commit
+  // receipt truthful even if the private link is corrupted after its checker.
+  // This does not control RAM/cursor writes. Legacy mode is identically zero.
+  assign input_framing_fault_now = EXPLICIT_COMMIT && input_accept && !input_framing_valid;
   assign input_ready = in_running && !input_fault && request_toggle == acknowledge_sync[1];
   // For the FIRST word, framing validity is exactly position zero / no TLAST;
   // the previous held metadata is irrelevant. Do not put the wide per-block
@@ -100,17 +111,31 @@ module starlink_pss_block_mailbox #(
   always @(posedge input_clk) begin
     if (!in_running) begin
       request_toggle <= 0;
-      write_position <= 0;
+      if (!EXPLICIT_COMMIT) write_position <= 0;
       input_fault <= 0;
     end else if (input_accept) begin
       if (!input_framing_valid) begin
         input_fault <= 1;
       end else begin
         if (write_position == LAST_POSITION) begin
-          request_toggle <= !request_toggle;
-          write_position <= 0;
-        end else write_position <= write_position + 1'b1;
+          if (!EXPLICIT_COMMIT || input_commit_authorized)
+            request_toggle <= !request_toggle;
+          if (!EXPLICIT_COMMIT) write_position <= 0;
+        end else if (!EXPLICIT_COMMIT) write_position <= write_position + 1'b1;
       end
+    end
+    // Explicit mode counts private writes, not certified publication. A bad
+    // beat may advance this unpublished cursor on its fault edge; sticky fault
+    // blocks every later write/commit/reuse. Saturate at the final slot so it
+    // can be rewritten while independent status/fence evidence is pending.
+    // Reset the cursor only in reset or while the consumer owns the published
+    // bank. The existing ownership READY gate forbids BRAM writes throughout
+    // that interval, including the synchronized ACK transition. This removes
+    // the current framing/authorization cone from the cursor enable/reset.
+    if (EXPLICIT_COMMIT) begin
+      if (!in_running || request_toggle != acknowledge_sync[1]) write_position <= 0;
+      else if (input_accept && write_position != LAST_POSITION)
+        write_position <= write_position + 1'b1;
     end
     // This RAM is exclusively producer-owned until a fully checked final beat
     // commits it. Even a malformed beat may write an unpublished word: the
