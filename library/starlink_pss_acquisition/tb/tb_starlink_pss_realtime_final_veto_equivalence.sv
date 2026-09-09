@@ -2,9 +2,13 @@
 // TEST ONLY: conditional algebra against the real result guard, not a service.
 // Baseline: HDL 2e552234336a5426adcecb538f5da5ced844b7d1 (fault tree unchanged
 // from ff4229). No golden or runtime module is modified. Hierarchical deposits
-// below deliberately establish active/final-qualified/held-last state while
+// below deliberately establish private-active/final-qualified/held-last state while
 // clk is stopped. They do NOT prove reachability, caller certificates, a vendor
 // event-latency bound, physical timing, or complete mailbox transactions.
+// Registered quarantine now masks effective active/return_valid: sticky rows
+// test exact inactive orphan reasons and no publication, not an impossible
+// simultaneous sticky-fault + effective-active premise. Clean rows retain the
+// full conditioned-veto identity, all nine mutations and all 512 actual edges.
 `timescale 1ns/1ps
 module tb_starlink_pss_realtime_final_veto_equivalence;
   parameter integer WATCHDOG_CYCLES = 5;
@@ -42,6 +46,7 @@ module tb_starlink_pss_realtime_final_veto_equivalence;
     dut.return_valid && dut.return_last && dut.final_qualified && !proposed_final_fault;
   wire proposed_final_commit = proposed_final_valid && mailbox_input_ready;
   integer rows = 0, edges = 0, mutation_witnesses = 0, boundaries = 0;
+  integer quarantined_rows = 0;
   integer exponent, events, gates, bit_index;
   reg [8:0] event_bits;
   reg [7:0] expected_reasons;
@@ -76,7 +81,7 @@ module tb_starlink_pss_realtime_final_veto_equivalence;
       mailbox_input_ready = gate_number[1]; // must affect commit, not held-final valid
       job_valid = gate_number[3]; // must not admit/reuse an active result
       final_fence_certified = 1;
-      dut.active = 1;
+      dut.active_private = 1;
       dut.awaiting_ack = 0;
       dut.descriptor = {6'b101010, 64'h0123456789abcdef};
       dut.input_count = 512;
@@ -88,7 +93,7 @@ module tb_starlink_pss_realtime_final_veto_equivalence;
       dut.status_exponent = exponent_value;
       dut.output_exponent = exponent_value;
       dut.age = event_bits[8] ? WATCHDOG_CYCLES - 1 : WATCHDOG_CYCLES - 2;
-      dut.return_valid = 1;
+      dut.return_occupied = 1;
       dut.return_last = 1;
       dut.return_position = 511;
       dut.return_exponent = exponent_value;
@@ -113,14 +118,25 @@ module tb_starlink_pss_realtime_final_veto_equivalence;
 
   task automatic check_conditioned_row;
     begin
-      if (!(dut.active && dut.final_qualified && dut.return_valid && dut.return_last))
+      if (!(dut.active_private && dut.final_qualified && dut.return_occupied && dut.return_last))
         $fatal(1, "FINAL_VETO_MISSING_PREMISE");
-      if (dut.faults_now !== expected_reasons)
-        $fatal(1, "FINAL_VETO_REASON_MISMATCH events=%h actual=%h expected=%h",
-          event_bits, dut.faults_now, expected_reasons);
-      if (dut.fault_now !== proposed_final_fault)
-        $fatal(1, "FINAL_VETO_EQ_MISMATCH omit=%0d events=%h actual=%b proposed=%b",
-          OMIT_VETO, event_bits, dut.fault_now, proposed_final_fault);
+      if (protocol_fault) begin
+        if (dut.active || dut.return_valid || busy || commit_pulse || job_ready ||
+            mailbox_input_valid || dut.mailbox_private_valid || dut.final_commit)
+          $fatal(1, "FINAL_VETO_QUARANTINE_ESCAPED");
+        if (dut.faults_now !== {2'b00, event_bits[7], event_bits[6], event_bits[5],
+            event_bits[4] || event_bits[3], 1'b0, event_bits[1] || event_bits[0]})
+          $fatal(1, "FINAL_VETO_QUARANTINE_ORPHAN_REASONS");
+        quarantined_rows = quarantined_rows + 1;
+      end else begin
+        if (!(dut.active && dut.return_valid)) $fatal(1, "FINAL_VETO_CLEAN_OCCUPANCY_MISSING");
+        if (dut.faults_now !== expected_reasons)
+          $fatal(1, "FINAL_VETO_REASON_MISMATCH events=%h actual=%h expected=%h",
+            event_bits, dut.faults_now, expected_reasons);
+        if (dut.fault_now !== proposed_final_fault)
+          $fatal(1, "FINAL_VETO_EQ_MISMATCH omit=%0d events=%h actual=%b proposed=%b",
+            OMIT_VETO, event_bits, dut.fault_now, proposed_final_fault);
+      end
       if (mailbox_input_valid !== proposed_final_valid ||
           dut.final_commit !== proposed_final_commit || job_ready !== 0)
         $fatal(1, "FINAL_VETO_PUBLIC_MISMATCH events=%h", event_bits);
@@ -182,8 +198,8 @@ module tb_starlink_pss_realtime_final_veto_equivalence;
         5: dut.status_seen = 0;
         6: dut.status_exponent = 8;
         7: final_fence_certified = 0;
-        8: dut.active = 0;
-        9: dut.return_valid = 0;
+        8: dut.active_private = 0;
+        9: dut.return_occupied = 0;
       endcase
       #1;
       if (mailbox_input_valid !== 0 || dut.final_commit !== 0)
@@ -196,8 +212,9 @@ module tb_starlink_pss_realtime_final_veto_equivalence;
     if (mailbox_input_valid !== 0 || commit_pulse !== 0 || busy !== 0 ||
         protocol_fault !== 0 || dut.return_valid !== 0)
       $fatal(1, "FINAL_VETO_RESET_ESCAPED");
-    $display("FINAL_VETO_EQ_PASS watchdog=%0d rows=%0d edges=%0d mutation_witnesses=%0d boundaries=%0d reset=1",
-      WATCHDOG_CYCLES, rows, edges, mutation_witnesses, boundaries);
+    if (quarantined_rows != 131072) $fatal(1, "FINAL_VETO_QUARANTINE_INVENTORY_MISSING");
+    $display("FINAL_VETO_EQ_PASS watchdog=%0d rows=%0d edges=%0d mutation_witnesses=%0d boundaries=%0d reset=1 quarantined_rows=%0d",
+      WATCHDOG_CYCLES, rows, edges, mutation_witnesses, boundaries, quarantined_rows);
     $finish;
   end
 endmodule

@@ -60,13 +60,20 @@ module starlink_pss_realtime_result_guard #(
       $fatal(1, "realtime result guard requires a finite 2..1048576 cycle watchdog");
   end
 
-  reg active, awaiting_ack;
+  reg active_private, awaiting_ack;
+  // faults_now is captured in fault_reasons on the same edge that formerly
+  // cleared active. Quarantine that private occupancy through the registered
+  // fault bank instead of routing the complete fault tree to another D pin.
+  // Effective active still falls on that edge, including for exact next-cycle
+  // orphan-event classification. The private bit never authorizes publication.
+  wire active = active_private && !protocol_fault;
   reg [69:0] descriptor;
   reg [9:0] input_count, output_count;
   reg input_complete_seen, frame_seen, status_seen, exponent_seen;
   reg [4:0] status_exponent, output_exponent;
   reg [AGE_WIDTH-1:0] age;
-  reg return_valid, return_last;
+  reg return_occupied, return_last;
+  wire return_valid = return_occupied && active;
   reg [35:0] return_data;
   reg [8:0] return_position;
   reg [4:0] return_exponent;
@@ -155,7 +162,7 @@ module starlink_pss_realtime_result_guard #(
 
   always @(posedge clk or negedge resetn) begin
     if (!resetn) begin
-      active <= 0;
+      active_private <= 0;
       awaiting_ack <= 0;
       descriptor <= 0;
       input_count <= 0;
@@ -167,7 +174,7 @@ module starlink_pss_realtime_result_guard #(
       status_exponent <= 0;
       output_exponent <= 0;
       age <= 0;
-      return_valid <= 0;
+      return_occupied <= 0;
       return_last <= 0;
       return_data <= 0;
       return_position <= 0;
@@ -175,7 +182,7 @@ module starlink_pss_realtime_result_guard #(
       commit_pulse <= 0;
       fault_reasons <= 0;
     end else begin
-      commit_pulse <= 0;
+      commit_pulse <= final_commit;
       fault_reasons <= fault_reasons | faults_now;
       // Stage only private descriptor bits while idle. Every admitted job
       // satisfies this predicate and captures the same descriptor on the same
@@ -244,26 +251,27 @@ module starlink_pss_realtime_result_guard #(
           exponent_seen <= 1;
         end
       end
-      if (protocol_fault || fault_now) begin
-        active <= 0;
-        return_valid <= 0;
-      end else begin
-        if (awaiting_ack && mailbox_input_ready) awaiting_ack <= 0;
-        if (job_accept) begin
-          active <= 1;
-        end
-        if (active) begin
-          if (mailbox_accept) return_valid <= 0;
-          if (core_output_tvalid) begin
-            return_valid <= 1;
-          end
-          if (final_commit) begin
-            active <= 0;
-            awaiting_ack <= 1;
-            commit_pulse <= 1;
-          end
-        end
+      // job_accept is already qualified while idle. final_commit is already
+      // qualified by the unchanged same-edge final publication fence. A new
+      // fault clears effective active/return_valid through fault_reasons on
+      // this edge; clearing these hidden occupancy bits can wait until next.
+      if (protocol_fault) active_private <= 0;
+      else if (job_accept) active_private <= 1;
+      else if (final_commit) active_private <= 0;
+
+      if (!active) return_occupied <= 0;
+      else begin
+        if (!return_last && mailbox_input_ready) return_occupied <= 0;
+        if (core_output_tvalid) return_occupied <= 1;
+        // Final commit clears effective active, hence return_valid, on this
+        // edge. The hidden occupied bit is cleared on the next idle edge.
       end
+
+      // ACK wait is inactive, where idle_fault_now exactly equals fault_now.
+      // Retain a faulted ACK wait and never clear it on a coincident orphan.
+      if (awaiting_ack && mailbox_input_ready && !protocol_fault && !idle_fault_now)
+        awaiting_ack <= 0;
+      if (final_commit) awaiting_ack <= 1;
     end
   end
 endmodule

@@ -95,7 +95,7 @@ set core_registers [get_cells -quiet -hier -filter \
   {IS_SEQUENTIAL && NAME =~ *transform_service/shared_xfft/*}]
 audit_paths vendor_internal $core_registers $core_registers 5.0
 set return_registers [get_cells -quiet -hier -regexp \
-  {.*transform_service/result_guard/return_(valid|last|data|position|exponent)_reg(\[[0-9]+\])?$}]
+  {.*transform_service/result_guard/return_(valid|occupied|last|data|position|exponent)_reg(\[[0-9]+\])?$}]
 audit_paths return_slot {} $return_registers 5.0
 set publish [audit_one {.*transform_service/output_mailbox/request_toggle_reg$}]
 audit_period $publish 5.0
