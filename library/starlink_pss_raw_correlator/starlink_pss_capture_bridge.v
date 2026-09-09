@@ -143,7 +143,9 @@ module starlink_pss_capture_bridge #(
 
   starlink_pss_async_fifo #(
     .DATA_WIDTH    (DESCRIPTOR_WIDTH),
-    .ADDRESS_WIDTH (2)
+    .ADDRESS_WIDTH (2),
+    // Same synchronous prefetch/held payload, now absorbed into spare BRAM.
+    .RAM_STYLE     ("block")
   ) i_descriptor_fifo (
     .i_write_clk    (i_sample_clk),
     .i_write_resetn (i_sample_resetn),

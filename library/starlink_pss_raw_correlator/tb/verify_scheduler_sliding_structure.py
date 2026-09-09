@@ -132,6 +132,7 @@ def main() -> None:
             "CAPTURE_MEMORY_ADDRESS_WIDTH = CAPTURE_SLOT_WIDTH + 1",
             "CAPTURE_LAST_SLOT =",
             ".ADDRESS_WIDTH (2)",
+            '.RAM_STYLE     ("block")',
             ".DATA_WIDTH    (96)",
             ".ADDRESS_WIDTH (CAPTURE_MEMORY_ADDRESS_WIDTH)",
             "capture_memory_write = capture_first_write || capture_active_write",
@@ -250,7 +251,7 @@ def main() -> None:
 
     print(
         "SCHEDULER_SLIDING_STRUCTURE_PASS queue_payload_bits=160 "
-        "small_async_fifo=1 command_memory=block descriptor_memory=distributed "
+        "small_async_fifo=1 command_memory=block descriptor_memory=block "
         "descriptor_payload_bits=161 capture_banks=2 "
         "capture_samples=rate_scaled multipliers=3 cached_eh=1 "
         "sliding_ex=1 exact_reducer=1 reducer_multipliers=0 shared_serial=1"

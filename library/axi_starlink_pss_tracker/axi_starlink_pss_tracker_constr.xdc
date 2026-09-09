@@ -15,7 +15,7 @@ set_property ASYNC_REG TRUE $pss_tracker_sync_first
 set_property SHREG_EXTRACT NO $pss_tracker_sync_first
 set_false_path -quiet -to $pss_tracker_sync_first
 
-# The distributed capture-descriptor RAM is intentionally sampled only after
+# Legacy distributed capture-descriptor RAM is intentionally sampled only after
 # its Gray write pointer has crossed two engine clocks.  Cut only the RAM-write
 # clock -> read-data D bundled-data arc.  The engine-clock read address and CE
 # paths into the same destination registers remain normally timed.
@@ -26,9 +26,18 @@ set pss_tracker_descriptor_read_data [get_cells -quiet -hier -regexp \
 set pss_tracker_descriptor_read_data_d [get_pins -quiet \
   -of_objects $pss_tracker_descriptor_read_data \
   -filter {REF_PIN_NAME == D}]
-set_false_path -quiet \
-  -from $pss_tracker_descriptor_payload_memory \
-  -to $pss_tracker_descriptor_read_data_d
+# With block storage, the destination payload register is absorbed into the
+# read-clock BRAM port. There is no external bundled-data D endpoint to cut;
+# its address/enable and output paths retain normal destination-clock timing.
+# Never issue a partial exception with an empty destination collection.
+if {[llength $pss_tracker_descriptor_read_data_d] != 0} {
+  if {[llength $pss_tracker_descriptor_payload_memory] == 0} {
+    error "descriptor payload D endpoints exist without their source memory"
+  }
+  set_false_path -quiet \
+    -from $pss_tracker_descriptor_payload_memory \
+    -to $pss_tracker_descriptor_read_data_d
+}
 
 # AXI-reset assertion into the reset synchronizers is asynchronous by
 # construction; only their D-stage deassertion path is timed. Downstream state
