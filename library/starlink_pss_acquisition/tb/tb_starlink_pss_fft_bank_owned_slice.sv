@@ -48,6 +48,65 @@ module tb_starlink_pss_fft_bank_owned_slice;
     .join_invalid_differences(payload_join_invalid), .product_invalid_differences(payload_product_invalid)
   );
   // END PAYLOAD_BUBBLE_SHADOW
+  // BEGIN FORWARD_RETIREMENT_SHADOW: additive frozen old full guard/chain.
+  wire forward_old_valid, forward_old_private;
+  wire [31:0] forward_checks, forward_cycles, forward_current, forward_sticky;
+  starlink_pss_forward_retirement_shadow #(.ENABLED(REGISTERED_SCHEDULING),
+    .COMPLETED(1), .PREFLIGHT(REGISTERED_SCHEDULING)) forward_shadow (
+    .clk(fft_clk), .resetn(dut.fast_running), .job_valid(dut.job_valid),
+    .job_descriptor(dut.result_guard.job_descriptor),
+    .input_bank_reserved(dut.result_guard.input_bank_reserved),
+    .output_bank_reserved(dut.result_guard.output_bank_reserved),
+    .certified_input_beat(dut.certified_input_beat), .certified_input_complete(dut.certified_input_complete),
+    .final_fence_certified(dut.final_fence), .external_fault_now(dut.external_fault_now),
+    .phase_input_fault_now(1'b0), .completed_input_certified(dut.checked_input_complete),
+    .completed_input_fault_now(dut.completed_input_fault_now),
+    .preflight_fault_evidence_now(dut.preparation_fault_now),
+    .core_event_frame_started(dut.event_frame), .core_output_tdata(dut.core_output_data),
+    .core_output_tuser(dut.core_output_user), .core_output_tvalid(dut.core_output_valid),
+    .core_output_tlast(dut.core_output_last), .core_status_tdata(dut.core_status_data),
+    .core_status_tvalid(dut.core_status_valid), .mailbox_input_ready(dut.result_destination_ready),
+    .mailbox_input_fault(dut.output_bank_fault || dut.output_bank_framing_fault_now),
+    .inverse_phase(dut.next_inverse), .forward_mailbox_fault(dut.output_bank_fault),
+    .mailbox_current_fault_now(dut.output_bank_framing_fault_now),
+    .actual_public({dut.job_ready, dut.return_valid, dut.return_private_valid, dut.return_commit_valid,
+      dut.return_data, dut.return_position, dut.return_last, dut.return_metadata,
+      dut.result_busy, dut.result_commit, dut.result_fault, dut.result_guard.fault_reasons}),
+    .actual_forward_valid(dut.forward_retirement_valid), .old_valid(forward_old_valid),
+    .old_private_valid(forward_old_private), .checks(forward_checks), .forward_cycles(forward_cycles),
+    .inverse_current_faults(forward_current), .sticky_forward_faults(forward_sticky)
+  );
+  // This second frozen arithmetic chain is driven by OLD certified retirement,
+  // not by the candidate join input. All existing shadows remain untouched.
+  starlink_pss_payload_bubble_shadow forward_chain_shadow (
+    .clk(fft_clk), .resetn(dut.fast_running), .flush(1'b0),
+    .input_valid(forward_old_valid && !dut.next_inverse && !dut.fast_fault && dut.product_bank_ready),
+    .product_enable(!dut.fast_fault), .output_ready(dut.product.output_ready),
+    .input_i(dut.joiner.input_i), .input_q(dut.joiner.input_q),
+    .input_position(dut.joiner.input_bin_index), .input_exponent(dut.joiner.input_block_exponent),
+    .input_last(dut.joiner.input_last), .input_start(dut.joiner.input_block_start_index),
+    .join_controls({dut.joiner.input_ready, dut.joiner.output_valid, dut.joiner.output_bin_index,
+      dut.joiner.output_block_exponent, dut.joiner.output_last, dut.joiner.output_block_start_index,
+      dut.joiner.accepted_pulse, dut.joiner.emitted_pulse, dut.joiner.input_block_complete_pulse,
+      dut.joiner.sequence_error_pulse, dut.joiner.metadata_error_pulse, dut.joiner.protocol_fault}),
+    .join_payload({dut.joiner.output_i, dut.joiner.output_q, dut.joiner.output_kernel_i, dut.joiner.output_kernel_q}),
+    .product_outputs({dut.product.input_ready, dut.product.output_valid, dut.product.output_i,
+      dut.product.output_q, dut.product.output_bin_index, dut.product.output_block_exponent,
+      dut.product.output_last, dut.product.output_block_start_index, dut.product.output_overflow,
+      dut.product.overflow_pulse}),
+    .product_private({dut.product.product_valid, dut.product.product_ii, dut.product.product_qq,
+      dut.product.product_iq, dut.product.product_qi}),
+    .checks(), .join_occupied(), .product_occupied(), .join_invalid_differences(), .product_invalid_differences()
+  );
+  always @(posedge fft_clk) begin
+    #0.001;
+    if (dut.joiner.input_valid !==
+        (forward_old_valid && !dut.next_inverse && !dut.fast_fault && dut.product_bank_ready))
+      $fatal(1, "FORWARD_ACTUAL_JOIN_INPUT_MISMATCH");
+    if (dut.output_bank.input_valid !== (dut.return_private_valid && dut.next_inverse))
+      $fatal(1, "FORWARD_ACTUAL_BANK_PHASE_WIRING_BROKEN");
+  end
+  // END FORWARD_RETIREMENT_SHADOW
   // Frozen old state-mux expression from tested cee639e4. This witness is
   // independent of the DUT's new guard mux and its selected_* discovery wires.
   wire old_input_phase = REGISTERED_SCHEDULING && dut.state != dut.WAIT_BANK &&
@@ -889,6 +948,13 @@ module tb_starlink_pss_fft_bank_owned_slice;
     $display("PAYLOAD_BUBBLES_ACTUAL_PASS registered=%0d checks=%0d join_occupied=%0d product_occupied=%0d invalid_join=%0d invalid_product=%0d frozen_old_chain=1 logical_retirement_unchanged=1",REGISTERED_SCHEDULING,
       payload_checks,payload_join_occupied,payload_product_occupied,payload_join_invalid,payload_product_invalid);
     // END PAYLOAD_BUBBLE_RECEIPT
+    // BEGIN FORWARD_RETIREMENT_RECEIPT
+    if (dut.result_guard.USE_FORWARD_RETIREMENT != REGISTERED_SCHEDULING ||
+        !forward_checks || !forward_cycles)
+      $fatal(1, "missing frozen forward-retirement actual evidence");
+    $display("FORWARD_RETIREMENT_ACTUAL_PASS registered=%0d checks=%0d forward=%0d inverse_current=%0d sticky_forward=%0d all_old_outputs_literal=1 frozen_old_guard_chain=1",REGISTERED_SCHEDULING,
+      forward_checks, forward_cycles, forward_current, forward_sticky);
+    // END FORWARD_RETIREMENT_RECEIPT
     $fclose(trace); $finish;
   end
 endmodule

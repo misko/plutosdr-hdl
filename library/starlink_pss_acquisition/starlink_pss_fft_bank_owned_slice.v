@@ -182,6 +182,7 @@ module starlink_pss_fft_bank_owned_slice #(
   );
 
   wire return_valid, return_private_valid, return_commit_valid, return_last;
+  wire forward_retirement_valid;
   wire [35:0] return_data;
   wire [8:0] return_position;
   wire [74:0] return_metadata;
@@ -228,7 +229,8 @@ module starlink_pss_fft_bank_owned_slice #(
     source_fault_fast[1] || vendor_fault_now || fast_fault || kernel_fault ||
     product_overflow || product_bank_fault || product_bank_framing_fault_now;
   starlink_pss_realtime_result_guard #(.USE_COMPLETED_INPUT_FAULT(1),
-    .USE_PREFLIGHT_REASON_ONLY(REGISTERED_SCHEDULING)) result_guard (
+    .USE_PREFLIGHT_REASON_ONLY(REGISTERED_SCHEDULING),
+    .USE_FORWARD_RETIREMENT(REGISTERED_SCHEDULING)) result_guard (
     .clk(fft_clk), .resetn(fast_running), .job_valid(job_valid), .job_ready(job_ready),
     .job_descriptor(REGISTERED_SCHEDULING ? engine_metadata : selected_metadata),
     .input_bank_reserved(!REGISTERED_SCHEDULING && state == WAIT_BANK ? selected_valid : engine_input_reserved),
@@ -245,6 +247,8 @@ module starlink_pss_fft_bank_owned_slice #(
     .mailbox_input_valid(return_valid), .mailbox_private_valid(return_private_valid),
     .mailbox_commit_valid(return_commit_valid), .mailbox_input_ready(result_destination_ready),
     .mailbox_input_fault(output_bank_fault || output_bank_framing_fault_now),
+    .inverse_phase(next_inverse), .forward_mailbox_fault(output_bank_fault),
+    .forward_retirement_valid(forward_retirement_valid),
     .mailbox_input_data(return_data), .mailbox_input_position(return_position),
     .mailbox_input_last(return_last), .mailbox_input_metadata(return_metadata),
     .busy(result_busy), .commit_pulse(result_commit), .protocol_fault(result_fault), .fault_reasons()
@@ -258,7 +262,8 @@ module starlink_pss_fft_bank_owned_slice #(
     // Match the guard's exact retirement event, including a held final word.
     // An owned bank should remain ready, but a readiness fault/stall must never
     // let the joiner consume a word that the guard has not retired.
-    .input_valid(return_valid && !next_inverse && !fast_fault && product_bank_ready),
+    .input_valid((REGISTERED_SCHEDULING ? forward_retirement_valid :
+      (return_valid && !next_inverse)) && !fast_fault && product_bank_ready),
     .input_ready(kernel_ready),
     .input_i(return_data[17:0]), .input_q(return_data[35:18]),
     .input_bin_index(return_position), .input_block_exponent(return_metadata[4:0]),

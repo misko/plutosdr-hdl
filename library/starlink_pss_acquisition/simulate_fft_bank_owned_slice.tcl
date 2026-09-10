@@ -20,13 +20,16 @@ set rtl_names {starlink_pss_fft_bank_owned_slice starlink_pss_realtime_input_gua
 foreach name $rtl_names { file copy [file join $script_dir ${name}.v] $source_dir }
 set payload_shadow_names {starlink_pss_forward_kernel_join_7ee87258_golden.v
   starlink_pss_kernel_rom_7ee87258_golden.v starlink_pss_spectrum_product_7ee87258_golden.v
-  starlink_pss_payload_bubble_shadow.sv}
+  starlink_pss_payload_bubble_shadow.sv
+  starlink_pss_realtime_result_guard_ce6a885e_golden.v starlink_pss_forward_retirement_shadow.sv}
 foreach name $payload_shadow_names { file copy [file join $script_dir tb $name] $source_dir }
 if {$mutation} {
   set mutation_path [file join $source_dir starlink_pss_fft_bank_owned_slice.v]
   set channel [open $mutation_path r]; set candidate [read $channel]; close $channel
-  set old {.input_valid(return_valid && !next_inverse && !fast_fault && product_bank_ready)}
-  set new {.input_valid(return_valid && !next_inverse && !fast_fault)}
+  set old {.input_valid((REGISTERED_SCHEDULING ? forward_retirement_valid :
+      (return_valid && !next_inverse)) && !fast_fault && product_bank_ready)}
+  set new {.input_valid((REGISTERED_SCHEDULING ? forward_retirement_valid :
+      (return_valid && !next_inverse)) && !fast_fault)}
   if {[string first $old $candidate] < 0} { error "mutation target missing" }
   if {[string first $old $candidate] != [string last $old $candidate]} { error "mutation target not unique" }
   set candidate [string map [list $old $new] $candidate]
@@ -100,6 +103,9 @@ if {[string first "HELD_PREFLIGHT_ACTUAL_PASS registered=$registered " $log] < 0
 }
 if {[string first "PAYLOAD_BUBBLES_ACTUAL_PASS registered=$registered " $log] < 0} {
   error "data-only payload/ROM frozen-chain actual comparison did not complete"
+}
+if {[string first "FORWARD_RETIREMENT_ACTUAL_PASS registered=$registered " $log] < 0} {
+  error "frozen old guard/public-return/forward-chain comparison did not complete"
 }
 close_project
 puts "FFT_BANK_OWNED_ACTUAL_CORE_VERIFIED_NO_PHYSICAL_OR_RF_CLAIM"

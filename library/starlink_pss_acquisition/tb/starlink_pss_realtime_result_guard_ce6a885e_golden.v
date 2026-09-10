@@ -20,7 +20,7 @@
 // transport stalls fault closed. A new job waits for the mailbox's actual ACK.
 `timescale 1ns/1ps
 
-module starlink_pss_realtime_result_guard #(
+module starlink_pss_realtime_result_guard_ce6a885e_golden #(
   parameter integer WATCHDOG_CYCLES = 8192,
   // Opt in only when the caller proves idle input is reset/completed, and
   // final qualification and the full ACK interval imply completed input.
@@ -38,12 +38,7 @@ module starlink_pss_realtime_result_guard #(
   // A rejected preflight may privately admit on this edge, but this reason Q
   // must quarantine it before any emitted start or public evidence. This input
   // is deliberately NOT a combinational admission/active-publication predicate.
-  parameter integer USE_PREFLIGHT_REASON_ONLY = 0,
-  // Parallel forward-only retirement, never a replacement for global faults.
-  // Caller proves mailbox_input_fault == forward_mailbox_fault | C and
-  // C implies inverse_phase from actual mailbox input-valid wiring. Sticky
-  // mailbox faults remain in forward_mailbox_fault in EVERY phase.
-  parameter integer USE_FORWARD_RETIREMENT = 0
+  parameter integer USE_PREFLIGHT_REASON_ONLY = 0
 ) (
   input wire clk,
   input wire resetn,
@@ -74,9 +69,6 @@ module starlink_pss_realtime_result_guard #(
   output wire mailbox_commit_valid,
   input wire mailbox_input_ready,
   input wire mailbox_input_fault,
-  input wire inverse_phase,
-  input wire forward_mailbox_fault,
-  output wire forward_retirement_valid,
   output wire [35:0] mailbox_input_data,
   output wire [8:0] mailbox_input_position,
   output wire mailbox_input_last,
@@ -94,8 +86,6 @@ module starlink_pss_realtime_result_guard #(
       $fatal(1, "USE_COMPLETED_INPUT_FAULT must be zero or one");
     if (USE_PREFLIGHT_REASON_ONLY != 0 && USE_PREFLIGHT_REASON_ONLY != 1)
       $fatal(1, "USE_PREFLIGHT_REASON_ONLY must be zero or one");
-    if (USE_FORWARD_RETIREMENT != 0 && USE_FORWARD_RETIREMENT != 1)
-      $fatal(1, "USE_FORWARD_RETIREMENT must be zero or one");
     if (WATCHDOG_CYCLES < 2 || WATCHDOG_CYCLES > 1048576)
       $fatal(1, "realtime result guard requires a finite 2..1048576 cycle watchdog");
   end
@@ -229,24 +219,6 @@ module starlink_pss_realtime_result_guard #(
   assign mailbox_commit_valid = resetn && active && !protocol_fault && return_valid &&
     return_phase_allowed && return_last && final_qualified && !final_public_fault;
   wire final_commit = mailbox_commit_valid && mailbox_input_ready;
-
-  // BEGIN FORWARD_RETIREMENT: existing public outputs/state stay literal.
-  // The inverse mailbox's CURRENT framing fault is structurally impossible
-  // when !inverse_phase. Keep its sticky fault and every other current veto.
-  // This equals mailbox_input_valid && !inverse_phase under that interface
-  // invariant, including held-final qualification. It is NOT private_valid.
-  wire forward_nonfinal_fault = USE_COMPLETED_INPUT_FAULT ?
-    (completed_input_fault_now || forward_mailbox_fault || !output_bank_reserved ||
-     core_event_frame_started || status_error || completed_output_error || slot_error || watchdog_error) :
-    ((|faults_now[7:1]) || external_fault_now || forward_mailbox_fault);
-  wire forward_final_fault = (USE_COMPLETED_INPUT_FAULT ? completed_input_fault_now : phase_input_fault) ||
-    forward_mailbox_fault || !output_bank_reserved || core_event_frame_started ||
-    core_status_tvalid || core_output_tvalid || watchdog_error;
-  assign forward_retirement_valid = USE_FORWARD_RETIREMENT && !inverse_phase &&
-    resetn && active && !protocol_fault && return_valid && return_phase_allowed &&
-    ((!return_last && !forward_nonfinal_fault) ||
-     (return_last && final_qualified && !forward_final_fault));
-  // END FORWARD_RETIREMENT
 
   always @(posedge clk or negedge resetn) begin
     if (!resetn) begin
