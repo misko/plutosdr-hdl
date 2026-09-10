@@ -51,11 +51,11 @@ module starlink_pss_local_admission_actual_observer #(
   end
   // No valid/reset/fault/phase masks: both edges before and after NBA settlement.
   always @(posedge clk or negedge clk) begin
-    compare(0); pre_checks=pre_checks+1;
+    #0; compare(0); pre_checks=pre_checks+1;
     #0.001; compare(1); post_checks=post_checks+1;
   end
   always @(negedge resetn) begin
-    compare(2);
+    #0; compare(2);
     #0.001; compare(3); reset_checks=reset_checks+1;
   end
   always @(posedge clk) begin
