@@ -108,6 +108,7 @@ module starlink_pss_fft_retained_output_impl #(
   wire [7:0] cutover_reasons, retained_reasons;
   wire retained_reusable, retained_reserved, retained_published, retained_fault_now;
   wire producer_transfer_receipt, reader_release;
+  wire completion_accept;
   wire forward_fault_now, inverse_fault_now, common_current_fault;
   wire config_valid = state == CONFIGURE && core_aresetn && !fast_fault && cutover_configuration_allowed;
   wire config_ready;
@@ -405,7 +406,7 @@ module starlink_pss_fft_retained_output_impl #(
   wire any_fast_fault = common_current_fault;
   wire registered_quarantine = fast_fault || result_fault || (|epoch_input_reasons) ||
     (|epoch_preflight_reasons) || (|cutover_reasons) || (|retained_reasons);
-  wire completion_accept = state == ACK_DRAIN && !completion_receipt &&
+  assign completion_accept = state == ACK_DRAIN && !completion_receipt &&
     (next_inverse ? producer_transfer_receipt : (!guard_busy[0] && forward_handoff_ack)) && !any_fast_fault &&
     !certified_input_beat && !certified_input_complete && !event_frame &&
     !core_status_valid && !core_output_valid;
