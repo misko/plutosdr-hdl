@@ -39,6 +39,7 @@ set_property file_type {Memory Initialization Files} [get_files -of_objects [get
 set_property top tb_starlink_pss_bank_arithmetic_actual [get_filesets sim_1]
 set_property generic [list FAST_MHZ=$fast_mhz R=$R B=$B O=$O] [get_filesets sim_1]
 set_property xsim.simulate.runtime all [get_filesets sim_1]
+set_property xsim.simulate.custom_tcl [file join $source_dir simulate_bank_arithmetic_diagnostics.tcl] [get_filesets sim_1]
 launch_simulation -simset sim_1 -mode behavioral
 close_sim
 if {[lindex [exec sha256sum $wrapper] 0] ne $wrapper_hash} { error "generated FFT wrapper changed during run" }
