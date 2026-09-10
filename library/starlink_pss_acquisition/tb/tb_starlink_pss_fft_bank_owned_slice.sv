@@ -23,6 +23,64 @@ module tb_starlink_pss_fft_bank_owned_slice;
   reg allow_provisional_prefix_after_fault = 0;
   wire output_ready = reader_enable && (profile == 0 || slow_cycle % 17 < 13);
   starlink_pss_fft_bank_owned_slice #(.REGISTERED_SCHEDULING(REGISTERED_SCHEDULING)) dut (.*);
+  // Frozen old state-mux expression from tested cee639e4. This witness is
+  // independent of the DUT's new guard mux and its selected_* discovery wires.
+  wire old_input_phase = REGISTERED_SCHEDULING && dut.state != dut.WAIT_BANK &&
+    dut.state != dut.RESET0 && dut.state != dut.RESET1 ? dut.held_phase : dut.next_inverse;
+  wire old_input_valid = old_input_phase ? dut.product_bank_valid : dut.source_valid;
+  wire [35:0] old_input_data = old_input_phase ? dut.product_bank_data : dut.source_data;
+  wire [8:0] old_input_position = old_input_phase ? dut.product_bank_position : dut.source_position;
+  wire old_input_last = old_input_phase ? dut.product_bank_last : dut.source_last;
+  wire [69:0] old_input_metadata = old_input_phase ? dut.product_bank_metadata : dut.source_metadata;
+  wire old_transport_ready, old_input_complete, old_certified_beat, old_certified_complete;
+  wire old_input_fault_now, old_input_fault, old_duplicate, old_core_valid, old_core_last;
+  wire [2:0] old_input_events, old_input_reasons;
+  wire [47:0] old_core_data;
+  integer input_shadow_checks = 0, input_open_checks = 0, input_quarantine_open_checks = 0;
+  integer active_fault_cases = 0, active_inverse, active_kind, active_ready;
+  starlink_pss_realtime_input_guard #(.CHECK_INPUT_BLOCK_IDENTITY(1)) old_input_guard (
+    .clk(fft_clk), .resetn(dut.core_aresetn), .job_start(dut.input_job_start),
+    .job_descriptor(dut.engine_metadata), .input_enable(dut.engine_input_enable),
+    .input_valid(old_input_valid), .input_ready(), .input_transport_ready(old_transport_ready),
+    .input_data(old_input_data), .input_position(old_input_position), .input_last(old_input_last),
+    .input_metadata(old_input_metadata), .core_input_tdata(old_core_data),
+    .core_input_tvalid(old_core_valid), .core_input_tready(dut.core_input_ready),
+    .core_input_tlast(old_core_last), .certified_input_beat(old_certified_beat),
+    .certified_input_complete(old_certified_complete), .input_complete(old_input_complete),
+    .fault_now(old_input_fault_now), .duplicate_start_fault_now(old_duplicate),
+    .fault_events_now(old_input_events), .protocol_fault(old_input_fault), .fault_reasons(old_input_reasons)
+  );
+  always @(posedge fft_clk or negedge fft_clk) begin
+    #0.001;
+    if (dut.fast_running) begin
+      input_shadow_checks = input_shadow_checks + 1;
+      if ({dut.transport_ready, dut.checked_input_complete, dut.certified_input_beat,
+           dut.certified_input_complete, dut.input_fault_now, dut.input_guard_fault,
+           dut.duplicate_start_fault_now, dut.input_fault_events_now,
+           dut.input_guard.fault_reasons, dut.core_input_valid} !==
+          {old_transport_ready, old_input_complete, old_certified_beat,
+           old_certified_complete, old_input_fault_now, old_input_fault,
+           old_duplicate, old_input_events, old_input_reasons, old_core_valid})
+        $fatal(1, "held-phase input checker current/sticky/certificate mismatch");
+      if (dut.input_guard.slot_open !== old_input_guard.slot_open)
+        $fatal(1, "held-phase slot-open mismatch");
+      if (dut.input_guard.slot_open) begin
+        input_open_checks = input_open_checks + 1;
+        if (dut.state == dut.QUARANTINE) input_quarantine_open_checks = input_quarantine_open_checks + 1;
+        if ({dut.guard_phase, dut.guard_valid, dut.guard_data, dut.guard_position,
+             dut.guard_last, dut.guard_metadata} !==
+            {old_input_phase, old_input_valid, old_input_data, old_input_position,
+             old_input_last, old_input_metadata})
+          $fatal(1, "held-phase full open-slot tuple differs from frozen state mux");
+      end
+      if (dut.core_input_valid && {dut.core_input_data, dut.core_input_last} !== {old_core_data, old_core_last})
+        $fatal(1, "held-phase certified core payload/TLAST mismatch");
+      if ({dut.source_valid && dut.source_read_ready, dut.product_bank_valid && dut.product_bank_read_ready} !==
+          {dut.source_valid && !old_input_phase && old_transport_ready && dut.engine_input_enable,
+           dut.product_bank_valid && old_input_phase && old_transport_ready && dut.engine_input_enable})
+        $fatal(1, "held-phase actual bank read handshake changed");
+    end
+  end
   // Default-mode shadow retains the original full nonfinal predicate and full
   // final fence. Compare before and after every edge, including injected faults.
   wire shadow_ready, shadow_valid, shadow_private, shadow_commit_valid;
@@ -439,8 +497,9 @@ module tb_starlink_pss_fft_bank_owned_slice;
     // Missing active input and loss of reserved product-write readiness.
     reset_epoch(0); expected_fault = 1; expected_results = 0; send_words(0, 512);
     wait(dut.certified_input_beat); repeat (128) tick();
-    @(negedge fft_clk); force dut.selected_valid = 0;
-    repeat (2) tick(); release dut.selected_valid; await_fault();
+    // Inject the actual forward bank transport, not discovery-only mux wires.
+    @(negedge fft_clk); force dut.source_valid = 0;
+    repeat (2) tick(); release dut.source_valid; await_fault();
     reset_epoch(0); expected_fault = 1; expected_results = 0; send_words(0, 512);
     wait(dut.core_output_valid); @(negedge fft_clk);
     injecting_readiness = 1; force dut.product_bank_ready = 0;
@@ -659,6 +718,54 @@ module tb_starlink_pss_fft_bank_owned_slice;
       $display("PREFLIGHT_REASON_SPLIT_PASS matrix_cases=%0d transform_phases=2 reason_bits=6 simultaneous_orphan_and_next_status=1 one_sided_fault_recoveries=2 private_ready_differences=%0d private_admits=%0d masked_start_samples=%0d exact_public_and_reason_shadow=1",
         preflight_matrix_cases, preflight_ready_differences, preflight_private_admits, preflight_masked_starts);
     end
+    // Live RUN input faults must still be rejected on the presenting edge,
+    // with real source/product bank corruption seen by BOTH checker paths.
+    for (active_inverse = 0; active_inverse < 2; active_inverse = active_inverse + 1)
+    for (active_kind = 0; active_kind < 3; active_kind = active_kind + 1)
+    for (active_ready = 0; active_ready < 2; active_ready = active_ready + 1) begin
+      reset_epoch(0); expected_fault = 1; expected_results = 0; send_words(0, 512);
+      wait(dut.state == dut.RUN_JOB && dut.next_inverse == active_inverse && dut.input_guard.expected_position == 37);
+      @(negedge fft_clk);
+      if (active_ready == 0) force dut.core_input_ready = 0;
+      else force dut.core_input_ready = 1;
+      if (active_inverse) begin
+        if (active_kind == 0) force dut.product_bank_metadata = 70'h123;
+        if (active_kind == 1) force dut.product_bank_position = 9'd7;
+        if (active_kind == 2) force dut.product_bank_last = 1;
+      end else begin
+        if (active_kind == 0) force dut.source_metadata = 70'h123;
+        if (active_kind == 1) force dut.source_position = 9'd7;
+        if (active_kind == 2) force dut.source_last = 1;
+      end
+      #0.001;
+      if (!dut.input_fault_now || dut.input_fault_events_now !== (active_ready ? 3'b011 : 3'b010) ||
+          dut.certified_input_beat || dut.certified_input_complete || dut.core_input_valid || dut.return_commit_valid)
+        $fatal(1, "active identity/position/TLAST did not veto same edge");
+      tick();
+      if (dut.input_guard.fault_reasons !== (active_ready ? 3'b011 : 3'b010))
+        $fatal(1, "active corruption lost exact framing/delivery reasons");
+      @(negedge fft_clk);
+      release dut.core_input_ready; release dut.product_bank_metadata; release dut.product_bank_position;
+      release dut.product_bank_last; release dut.source_metadata; release dut.source_position; release dut.source_last;
+      await_fault(); active_fault_cases = active_fault_cases + 1;
+    end
+    // Vendor-only quarantine can leave the input checker slot open. Hold raw
+    // ready low so it does not add a delivery fault before this premise check.
+    for (active_inverse = 0; active_inverse < 2; active_inverse = active_inverse + 1) begin
+      reset_epoch(0); expected_fault = 1; expected_results = 0; send_words(0, 512);
+      wait(dut.state == dut.RUN_JOB && dut.next_inverse == active_inverse && dut.input_guard.expected_position == 37);
+      @(negedge fft_clk); force dut.core_input_ready = 0; force dut.event_last_missing = 1;
+      repeat (4) tick();
+      if (dut.state != dut.QUARANTINE || !dut.input_guard.slot_open)
+        $fatal(1, "missing vendor-quarantine open-slot witness");
+      @(negedge fft_clk); release dut.core_input_ready; release dut.event_last_missing; await_fault();
+    end
+    reset_epoch(1); send_words(0, 512); await_results(1);
+    reset_epoch(2); send_words(0, 512); await_results(1);
+    if (active_fault_cases != 12 || !input_shadow_checks || !input_open_checks || !input_quarantine_open_checks)
+      $fatal(1, "missing held-phase input tuple/active fault evidence");
+    $display("HELD_PHASE_INPUT_PASS registered=%0d active_fault_cases=12 vendor_open_quarantine_cases=2 reset_recoveries=2 input_shadow_checks=%0d full_open_tuple_checks=%0d quarantine_open_checks=%0d exact_certified_and_bank_reads=1", REGISTERED_SCHEDULING,
+      input_shadow_checks, input_open_checks, input_quarantine_open_checks);
     $fclose(trace); $finish;
   end
 endmodule

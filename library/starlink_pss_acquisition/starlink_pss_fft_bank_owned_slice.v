@@ -99,6 +99,15 @@ module starlink_pss_fft_bank_owned_slice #(
   wire [8:0] selected_position = selected_phase ? product_bank_position : source_position;
   wire selected_last = selected_phase ? product_bank_last : source_last;
   wire [69:0] selected_metadata = selected_phase ? product_bank_metadata : source_metadata;
+  // Discovery/preflight may select by scheduler state. Every open checker slot
+  // instead owns the immutable admitted phase, including quarantine. Retain the
+  // original next_inverse selection for default callers; no beat check changes.
+  wire guard_phase = REGISTERED_SCHEDULING ? held_phase : next_inverse;
+  wire guard_valid = guard_phase ? product_bank_valid : source_valid;
+  wire [35:0] guard_data = guard_phase ? product_bank_data : source_data;
+  wire [8:0] guard_position = guard_phase ? product_bank_position : source_position;
+  wire guard_last = guard_phase ? product_bank_last : source_last;
+  wire [69:0] guard_metadata = guard_phase ? product_bank_metadata : source_metadata;
   wire selected_lease = selected_phase ? product_consume_generation : source_consume_generation;
   wire preparing = state == VERIFY_LEASE || state == ARM_JOB;
   wire descriptor_header_valid = engine_metadata[69] == held_phase &&
@@ -131,9 +140,9 @@ module starlink_pss_fft_bank_owned_slice #(
   starlink_pss_realtime_input_guard #(.CHECK_INPUT_BLOCK_IDENTITY(1)) input_guard (
     .clk(fft_clk), .resetn(core_aresetn), .job_start(input_job_start),
     .job_descriptor(engine_metadata), .input_enable(engine_input_enable),
-    .input_valid(selected_valid), .input_ready(), .input_transport_ready(transport_ready),
-    .input_data(selected_data), .input_position(selected_position), .input_last(selected_last),
-    .input_metadata(selected_metadata), .core_input_tdata(core_input_data),
+    .input_valid(guard_valid), .input_ready(), .input_transport_ready(transport_ready),
+    .input_data(guard_data), .input_position(guard_position), .input_last(guard_last),
+    .input_metadata(guard_metadata), .core_input_tdata(core_input_data),
     .core_input_tvalid(core_input_valid), .core_input_tready(core_input_ready),
     .core_input_tlast(core_input_last), .certified_input_beat(certified_input_beat),
     .certified_input_complete(certified_input_complete), .input_complete(checked_input_complete),
