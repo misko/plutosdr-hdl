@@ -30,6 +30,7 @@ module tb_starlink_pss_rom_read_ahead;
     g.protocol_error_now,g.block_identity_equal}
   wire [1023:0] old_view=`VIEW(original), default_view=`VIEW(default_rom), new_view=`VIEW(candidate);
   integer checks=0, cycles=0, healthy=0, stalls=0, faults=0, unknowns=0;
+  integer occupied_unknown_ready=0, flush_selector_zero=0, flush_selector_one=0;
   reg [2*WIDTH-1:0] words[0:511];
   reg [31:0] rng=32'h7e571eaf;
   function automatic [31:0] step(input [31:0] x);
@@ -43,6 +44,62 @@ module tb_starlink_pss_rom_read_ahead;
         $fatal(1,"unconditional visible and old-private-state mismatch");
       end
       checks=checks+1;
+    end
+  endtask
+  task prime_occupied;
+    begin
+      reset_epoch(); input_valid=1; output_ready=1; input_bin_index=0;
+      input_last=0; input_block_exponent=3; input_block_start_index=64'h123;
+      tick();
+      if(candidate.output_valid!==1 || candidate.protocol_fault!==0 ||
+         candidate.private_rom_read_ahead.use_speculative!==1 ||
+         candidate.output_kernel_word!==words[0])
+        $fatal(1,"directed occupied selector-one precondition missing");
+      input_bin_index=1;
+    end
+  endtask
+  task occupied_unknown_ready_case(input reg ready_value);
+    begin
+      prime_occupied(); output_ready=ready_value;
+      #1;
+      if(candidate.input_accept!==1'bx || candidate.output_stage_ready!==1'bx)
+        $fatal(1,"directed active unknown-ready boundary missing");
+      tick();
+      if(candidate.output_valid!==1 || candidate.protocol_fault!==0 ||
+         candidate.expected_bin_index!==1 ||
+         candidate.private_rom_read_ahead.use_speculative!==0 ||
+         candidate.output_kernel_word!==words[0])
+        $fatal(1,"unknown-ready must retain occupied coefficient");
+      output_ready=0; tick();
+      if(candidate.output_valid!==1 || candidate.output_kernel_word!==words[0])
+        $fatal(1,"known stall after unknown-ready changed coefficient");
+      input_valid=0; output_ready=1; tick();
+      if(candidate.output_valid!==0 || candidate.output_kernel_word!==words[0])
+        $fatal(1,"known drain after unknown-ready changed coefficient");
+      input_valid=1; tick();
+      if(candidate.output_valid!==1 || candidate.output_kernel_word!==words[1] ||
+         candidate.protocol_fault!==0)
+        $fatal(1,"healthy refill after unknown-ready failed");
+      occupied_unknown_ready=occupied_unknown_ready+1;
+    end
+  endtask
+  task flush_occupied_selector(input integer selected);
+    begin
+      prime_occupied();
+      if(!selected) begin output_ready=0; tick(); end
+      if(candidate.output_valid!==1 || candidate.protocol_fault!==0 ||
+         candidate.private_rom_read_ahead.use_speculative!==selected[0])
+        $fatal(1,"directed occupied flush selector precondition missing");
+      flush=1; tick();
+      if(candidate.output_valid!==0 || candidate.output_kernel_word!==0 ||
+         candidate.private_rom_read_ahead.use_speculative!==0)
+        $fatal(1,"occupied flush did not clear visible coefficient");
+      if(selected) flush_selector_one=flush_selector_one+1;
+      else flush_selector_zero=flush_selector_zero+1;
+      flush=0; input_valid=1; output_ready=1; input_bin_index=0; tick();
+      if(candidate.output_valid!==1 || candidate.output_kernel_word!==words[0] ||
+         candidate.protocol_fault!==0)
+        $fatal(1,"healthy refill after occupied flush failed");
     end
   endtask
   always @(posedge clk) begin
@@ -101,6 +158,10 @@ module tb_starlink_pss_rom_read_ahead;
       if(candidate.output_kernel_word!==words[1]) $fatal(1,"unknown metadata branch changed");
       unknowns=unknowns+1;
     end
+    occupied_unknown_ready_case(1'bx);
+    occupied_unknown_ready_case(1'bz);
+    flush_occupied_selector(0);
+    flush_occupied_selector(1);
     // Deterministic unconstrained input stream, explicitly not all healthy jobs.
     for(n=0;n<20000;n=n+1) begin
       rng=step(rng); resetn=(n%137!=0); flush=(n%193==0);
@@ -122,6 +183,9 @@ module tb_starlink_pss_rom_read_ahead;
     reset_epoch(); block(64'h2468,5'd2,1); flush=1; tick(); flush=0; tick();
     if(healthy!=3 || faults!=64 || unknowns!=2 || stalls==0)
       $fatal(1,"missing coverage");
+    if(occupied_unknown_ready!=2 || flush_selector_zero!=1 || flush_selector_one!=1)
+      $fatal(1,"missing directed active four-state/flush coverage");
+    $display("ROM_READ_AHEAD_ACTIVE_BOUNDARIES_PASS occupied_unknown_ready=%0d flush_selector_zero=%0d flush_selector_one=%0d",occupied_unknown_ready,flush_selector_zero,flush_selector_one);
     $display("ROM_READ_AHEAD_OFFLINE_PASS width=%0d balanced=%0d scratch=%0d healthy=%0d faults=%0d unknown_metadata=%0d stalls=%0d cycles=%0d checks=%0d",WIDTH,BALANCED,SCRATCH,healthy,faults,unknowns,stalls,cycles,checks);
     $finish(0);
   end
