@@ -1,6 +1,6 @@
 # Isolated actual-core numerical and continuous canonical15 capacity study.
-# OUTPUT numeric VECTOR_DIR FAST_MHZ or OUTPUT capacity PROFILE FAST_MHZ
-if {$argc != 4} { error "expected NEW_OUTPUT numeric VECTORS FAST_MHZ or NEW_OUTPUT capacity nominal|bursty-stalled FAST_MHZ" }
+# OUTPUT numeric VECTOR_DIR FAST_MHZ or OUTPUT capacity PROFILE FAST_MHZ ?64|4096?
+if {$argc ni {4 5}} { error "expected NEW_OUTPUT numeric VECTORS FAST_MHZ or NEW_OUTPUT capacity nominal|bursty-stalled FAST_MHZ ?64|4096?" }
 if {[version -short] ne "2022.2"} { error "requires Vivado 2022.2" }
 set_param general.maxThreads 2
 set script_dir [file dirname [file normalize [info script]]]
@@ -8,6 +8,12 @@ set output_dir [file normalize [lindex $argv 0]]
 set mode [lindex $argv 1]
 set profile [lindex $argv 2]
 set fast_mhz [lindex $argv 3]
+set capacity_blocks 64
+if {$argc == 5} {
+  if {$mode ne "capacity"} { error "numeric mode has no capacity block override" }
+  set capacity_blocks [lindex $argv 4]
+}
+if {$capacity_blocks ni {64 4096}} { error "capacity supports only 64 or 4096 blocks" }
 if {$mode ni {numeric capacity} || $fast_mhz ni {175 200}} { error "unsupported bank composition probe" }
 if {$mode eq "capacity" && $profile ni {nominal bursty-stalled}} { error "unsupported capacity profile" }
 if {[file exists $output_dir]} { error "refusing to overwrite bank composition evidence" }
@@ -62,11 +68,12 @@ foreach name $vector_names { add_files -fileset sim_1 -norecurse [file join $sou
 set_property file_type {Memory Initialization Files} [get_files -of_objects [get_filesets sim_1] *.mem]
 set channel [open [file join $output_dir scope.txt] w]
 puts $channel "scope=actual_core_bank_owned_complete_coarse_pipeline mode=$mode profile=$profile fast_mhz=$fast_mhz slow_mhz=100 source_msps=15"
-puts $channel "capacity_blocks=64 numerical_fixture_blocks=3 source15_30_60_adapters_not_included=true no_receiver_no_physical_no_RF=true"
+puts $channel "capacity_blocks=$capacity_blocks numerical_fixture_blocks=3 source15_30_60_adapters_not_included=true no_receiver_no_physical_no_RF=true"
 puts $channel "hdl_commit=[exec git -C $script_dir rev-parse HEAD]"
 puts $channel "source_hashes=[exec sha256sum {*}[glob [file join $source_dir *]] $bench_path $wrapper]"
 close $channel
 set generics [list FAST_MHZ=$fast_mhz]
+if {$mode eq "capacity"} { lappend generics CAPACITY_BLOCKS=$capacity_blocks }
 if {$mode eq "capacity" && $profile eq "bursty-stalled"} {
   lappend generics SOURCE_BURST_MODE=1 SCORE_STALL_MODE=1
 }
@@ -86,8 +93,10 @@ if {$mode eq "numeric"} {
   require_realtime_probe_pass $logfile $terminal_markers IQ_TO_SCORE_XFFT_PASS 1
   require_realtime_probe_pass $logfile $terminal_markers BANK_IQ_EXACT_REPLAY_PASS 3
 } else {
-  set terminal_markers [list {BANK_IQ_CAPACITY_COMPLETE blocks=64 samples=28673 scores=28608}]
-  require_realtime_probe_pass $logfile $terminal_markers IQ_TO_SCORE_XFFT_LONGRUN_PROGRESS 64
+  set capacity_scores [expr {$capacity_blocks * 447}]
+  set capacity_samples [expr {$capacity_scores + 65}]
+  set terminal_markers [list "BANK_IQ_CAPACITY_COMPLETE blocks=$capacity_blocks samples=$capacity_samples scores=$capacity_scores"]
+  require_realtime_probe_pass $logfile $terminal_markers IQ_TO_SCORE_XFFT_LONGRUN_PROGRESS $capacity_blocks
   require_realtime_probe_pass $logfile $terminal_markers IQ_TO_SCORE_XFFT_LONGRUN_PASS 1
   require_realtime_probe_pass $logfile $terminal_markers IQ_TO_SCORE_XFFT_BACKLOG_PASS 1
   require_realtime_probe_pass $logfile $terminal_markers BANK_IQ_CAPACITY_METADATA_PASS 1

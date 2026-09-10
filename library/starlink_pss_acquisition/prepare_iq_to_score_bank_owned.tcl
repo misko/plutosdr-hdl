@@ -64,6 +64,11 @@ proc prepare_bank_owned_bench {bench mode} {
     set bench [bank_replace_once $bench {  always #5 clk = ~clk;} {  `include "bank_owned_iq_fault_scenarios.svh"
   always #5 clk = ~clk;}]
   } else {
+    set bench [bank_replace_once $bench {  localparam integer BLOCK_COUNT = 64;} {  parameter integer CAPACITY_BLOCKS = 64;
+  localparam integer BLOCK_COUNT = CAPACITY_BLOCKS;
+  initial if (CAPACITY_BLOCKS != 64 && CAPACITY_BLOCKS != 4096)
+    $fatal(1, "capacity bench supports only 64 or 4096 blocks");}]
+    set bench [bank_replace_once $bench {cycle_count > 1000000} {cycle_count > BLOCK_COUNT * 4000 + 100000}]
     set bench [bank_replace_once $bench {  always #5 clk = ~clk;} {  `include "bank_owned_iq_capacity_checks.svh"
   always #5 clk = ~clk;}]
     set bench [bank_replace_once $bench {  wire score_ready = !SCORE_STALL_MODE || cycle_count % 97 >= 3;} {  reg score_ready = 1;
@@ -78,9 +83,13 @@ proc prepare_bank_owned_bench {bench mode} {
     set bench [bank_replace_once $bench {    $display("IQ_TO_SCORE_XFFT_LONGRUN_PASS} {    if (cap_forward_words != BLOCK_COUNT * 512 || cap_product_words != BLOCK_COUNT * 512 ||
         cap_inverse_words != BLOCK_COUNT * 512)
       report_and_fail("independent_frame_counter_totals");
-    $display("BANK_IQ_CAPACITY_METADATA_PASS blocks=64 forward=32768 product=32768 inverse=32768 admission_interval_fast_min=%0d admission_interval_fast_max=%0d capture_next_epoch_words=%0d three_epoch_overlap_words=%0d",
+    $display("BANK_IQ_CAPACITY_METADATA_PASS blocks=%0d forward=%0d product=%0d inverse=%0d admission_interval_fast_min=%0d admission_interval_fast_max=%0d capture_next_epoch_words=%0d three_epoch_overlap_words=%0d",
+      BLOCK_COUNT, cap_forward_words, cap_product_words, cap_inverse_words,
       cap_min_interval, cap_max_interval, cap_overlap_capture, cap_three_epoch_overlap);
-    $display("BANK_IQ_CAPACITY_COMPLETE blocks=64 samples=28673 scores=28608");
+    if (BLOCK_COUNT == 64)
+      $display("BANK_IQ_CAPACITY_COMPLETE blocks=64 samples=28673 scores=28608");
+    else
+      $display("BANK_IQ_CAPACITY_COMPLETE blocks=4096 samples=1830977 scores=1830912");
     $display("IQ_TO_SCORE_XFFT_LONGRUN_PASS}]
   }
   return $bench
