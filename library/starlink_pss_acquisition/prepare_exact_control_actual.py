@@ -38,6 +38,11 @@ VECTORS = (
 )
 TOP = "tb_starlink_pss_fft_bank_owned_slice"
 REFERENCE = "tb_starlink_pss_exact_control_reference"
+EXTRA_PARAMETER_CHECK = """  initial begin
+    if (EXACT_EXTRA_EPOCHS !== 0 && EXACT_EXTRA_EPOCHS !== 1)
+      $fatal(1, "EXACT_EXTRA_EPOCHS_REQUIRES_ZERO_OR_ONE");
+  end
+"""
 TB_FIELDS = [
     "resetn",
     "fft_resetn",
@@ -276,7 +281,7 @@ def candidate_bench(original):
         "PARAMETERS",
         "  parameter integer DISTRIBUTED_FAST_FAULT = 0;\n"
         "  parameter integer PRIVATE_NEXT_START_SCRATCH = 0;\n"
-        "  parameter integer EXACT_EXTRA_EPOCHS = 0;\n",
+        "  parameter integer EXACT_EXTRA_EPOCHS = 0;\n" + EXTRA_PARAMETER_CHECK,
     )
     text = once(
         original, "  reg clk = 0, fft_clk = 0;", params + "  reg clk = 0, fft_clk = 0;"
@@ -354,7 +359,8 @@ def reference_bench(original):
         text,
         "  reg clk = 0, fft_clk = 0;",
         "  parameter integer EXACT_EXTRA_EPOCHS = 0;\n"
-        "  reg exact_reference_done = 0;\n"
+        + EXTRA_PARAMETER_CHECK
+        + "  reg exact_reference_done = 0;\n"
         '  `include "starlink_pss_exact_control_extra_epochs.svh"\n'
         "  reg clk = 0, fft_clk = 0;",
     )
