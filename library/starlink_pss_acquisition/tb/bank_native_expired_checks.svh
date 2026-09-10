@@ -47,8 +47,29 @@
         native.reducer_emitted_result_count !== 0 || native.reducer_invalid_tuple_count !== 0 ||
         native.reducer_bound_error_count !== 0 || native.reducer_protocol_error_count !== 0 ||
         native.result_published_count !== 0 || native.result_overrun_count !== 0 ||
-        native.result_consumed_count !== 0 || `EN_RAW.correlator_busy !== 0)
+        native.result_consumed_count !== 0 || `EN_RAW.correlator_busy !== 0) begin
+      // Diagnostic-only: retain the original predicate and fatal result.
+      $display("BANK_EXPIRED_EMPTY_DIAGNOSTIC time=%0t injected=%b irq=%b available=%b word_read=%b release=%b command_overrun=%0d coefficient_overrun=%0d queue_overrun=%0d engine_consumed=%0d correlator_bound=%0d reducer_processed=%0d reducer_emitted=%0d reducer_invalid=%0d reducer_bound=%0d reducer_protocol=%0d result_published=%0d result_overrun=%0d result_consumed=%0d correlator_busy=%b",
+        $time, native_injected, native_irq, native.result_available,
+        native.result_word_read, native.result_release,
+        native.candidate_command_overrun_count, native.coefficient_write_overrun_count,
+        native.queue_overrun_count, native.engine_consumed_count,
+        native.correlator_bound_error_count, native.reducer_processed_job_count,
+        native.reducer_emitted_result_count, native.reducer_invalid_tuple_count,
+        native.reducer_bound_error_count, native.reducer_protocol_error_count,
+        native.result_published_count, native.result_overrun_count,
+        native.result_consumed_count, `EN_RAW.correlator_busy);
+      $display("BANK_EXPIRED_CONFIG_DIAGNOSTIC configured=%b source_enable=%b strobe=%b issued=%b state=%0d coefficient_commit=%b commit_ready=%b commit_accepted=%b commit_rejected=%b active_valid=%b active_generation=%08x active_energy=%0d shadow_count=%0d clear_pending=%b push_pending=%b commit_pending=%b generation_stage=%08x",
+        native_configured, source_enable, sample_strobe, expired_issued,
+        `EN_RAW.i_sliding_correlator.state, native.coefficient_commit,
+        native.coefficient_commit_ready, native.coefficient_commit_accepted,
+        native.coefficient_commit_rejected, native.active_coefficient_valid,
+        native.active_coefficient_generation, native.active_coefficient_energy,
+        native.shadow_coefficient_count, native.coefficient_clear_pending,
+        native.coefficient_push_pending, native.coefficient_commit_pending,
+        native.coefficient_generation_stage);
       fail("expired request unexpectedly produced work/result/IRQ or control fault");
+    end
     if (native_configured && (native.active_coefficient_valid !== 1 ||
         native.active_coefficient_generation !== NATIVE_GENERATION ||
         native.active_coefficient_energy !== 48'd1073742825))
