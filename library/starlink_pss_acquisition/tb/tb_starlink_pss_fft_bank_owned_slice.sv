@@ -23,6 +23,31 @@ module tb_starlink_pss_fft_bank_owned_slice;
   reg allow_provisional_prefix_after_fault = 0;
   wire output_ready = reader_enable && (profile == 0 || slow_cycle % 17 < 13);
   starlink_pss_fft_bank_owned_slice #(.REGISTERED_SCHEDULING(REGISTERED_SCHEDULING)) dut (.*);
+  // BEGIN PAYLOAD_BUBBLE_SHADOW: additive independent frozen arithmetic chain.
+  wire [31:0] payload_checks, payload_join_occupied, payload_product_occupied;
+  wire [31:0] payload_join_invalid, payload_product_invalid;
+  starlink_pss_payload_bubble_shadow payload_shadow (
+    .clk(fft_clk), .resetn(dut.fast_running), .flush(1'b0),
+    .input_valid(dut.joiner.input_valid), .product_enable(!dut.fast_fault),
+    .output_ready(dut.product.output_ready),
+    .input_i(dut.joiner.input_i), .input_q(dut.joiner.input_q),
+    .input_position(dut.joiner.input_bin_index), .input_exponent(dut.joiner.input_block_exponent),
+    .input_last(dut.joiner.input_last), .input_start(dut.joiner.input_block_start_index),
+    .join_controls({dut.joiner.input_ready, dut.joiner.output_valid, dut.joiner.output_bin_index,
+      dut.joiner.output_block_exponent, dut.joiner.output_last, dut.joiner.output_block_start_index,
+      dut.joiner.accepted_pulse, dut.joiner.emitted_pulse, dut.joiner.input_block_complete_pulse,
+      dut.joiner.sequence_error_pulse, dut.joiner.metadata_error_pulse, dut.joiner.protocol_fault}),
+    .join_payload({dut.joiner.output_i, dut.joiner.output_q, dut.joiner.output_kernel_i, dut.joiner.output_kernel_q}),
+    .product_outputs({dut.product.input_ready, dut.product.output_valid, dut.product.output_i,
+      dut.product.output_q, dut.product.output_bin_index, dut.product.output_block_exponent,
+      dut.product.output_last, dut.product.output_block_start_index, dut.product.output_overflow,
+      dut.product.overflow_pulse}),
+    .product_private({dut.product.product_valid, dut.product.product_ii, dut.product.product_qq,
+      dut.product.product_iq, dut.product.product_qi}),
+    .checks(payload_checks), .join_occupied(payload_join_occupied), .product_occupied(payload_product_occupied),
+    .join_invalid_differences(payload_join_invalid), .product_invalid_differences(payload_product_invalid)
+  );
+  // END PAYLOAD_BUBBLE_SHADOW
   // Frozen old state-mux expression from tested cee639e4. This witness is
   // independent of the DUT's new guard mux and its selected_* discovery wires.
   wire old_input_phase = REGISTERED_SCHEDULING && dut.state != dut.WAIT_BANK &&
@@ -855,6 +880,15 @@ module tb_starlink_pss_fft_bank_owned_slice;
       $fatal(1, "missing held-preflight current-cause/cache qualification evidence");
     $display("HELD_PREFLIGHT_ACTUAL_PASS registered=%0d global_current_cause_checks=%0d preparing_tuple_checks=%0d expected_cache_cases=%0d raw_bank_boundary_rows=%0d independent_old_reason_shadow=1", REGISTERED_SCHEDULING,
       preflight_cause_checks, preflight_tuple_checks, cache_phase_cases, preflight_matrix_cases);
+    // BEGIN PAYLOAD_BUBBLE_RECEIPT
+    if (dut.joiner.PRIVATE_PAYLOAD_BUBBLES != REGISTERED_SCHEDULING ||
+        dut.product.PRIVATE_PAYLOAD_BUBBLES != REGISTERED_SCHEDULING ||
+        dut.joiner.kernel_rom.BALANCED_BLOCK_IDENTITY_EQ != REGISTERED_SCHEDULING ||
+        !payload_checks || !payload_join_occupied || !payload_product_occupied)
+      $fatal(1, "missing data-only payload/ROM actual parameter or occupied-payload evidence");
+    $display("PAYLOAD_BUBBLES_ACTUAL_PASS registered=%0d checks=%0d join_occupied=%0d product_occupied=%0d invalid_join=%0d invalid_product=%0d frozen_old_chain=1 logical_retirement_unchanged=1",REGISTERED_SCHEDULING,
+      payload_checks,payload_join_occupied,payload_product_occupied,payload_join_invalid,payload_product_invalid);
+    // END PAYLOAD_BUBBLE_RECEIPT
     $fclose(trace); $finish;
   end
 endmodule

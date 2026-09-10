@@ -9,10 +9,9 @@
 
 `timescale 1ns/1ps
 
-module starlink_pss_kernel_rom #(
+module starlink_pss_kernel_rom_7ee87258_golden #(
   parameter ROM_FILE = "upper_edge_pss_kernel_q23.mem",
-  parameter integer DATA_WIDTH = 24,
-  parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0
+  parameter integer DATA_WIDTH = 24
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -60,30 +59,7 @@ module starlink_pss_kernel_rom #(
   wire metadata_error_now;
   wire protocol_error_now;
 
-  wire [1:0] block_identity_equal;
-  generate if (BALANCED_BLOCK_IDENTITY_EQ) begin : balanced_block_identity
-    for (genvar comparison = 0; comparison < 2; comparison = comparison + 1) begin : comparisons
-      wire [63:0] rhs = comparison == 0 ? block_start_index : expected_next_block_start;
-      (* keep = "true" *) wire [21:0] leaf_equal;
-      (* keep = "true" *) wire [3:0] group_equal;
-      for (genvar leaf = 0; leaf < 22; leaf = leaf + 1) begin : leaves
-        localparam integer BITS = leaf == 21 ? 1 : 3;
-        assign leaf_equal[leaf] = input_block_start_index[3*leaf +: BITS] == rhs[3*leaf +: BITS];
-      end
-      for (genvar group_index = 0; group_index < 4; group_index = group_index + 1) begin : groups
-        localparam integer BITS = group_index == 3 ? 4 : 6;
-        assign group_equal[group_index] = &leaf_equal[6*group_index +: BITS];
-      end
-      assign block_identity_equal[comparison] = &group_equal;
-    end
-  end else begin : legacy_block_identity
-    assign block_identity_equal[0] = input_block_start_index == block_start_index;
-    assign block_identity_equal[1] = input_block_start_index == expected_next_block_start;
-  end endgenerate
-
   initial begin
-    if (BALANCED_BLOCK_IDENTITY_EQ != 0 && BALANCED_BLOCK_IDENTITY_EQ != 1)
-      $fatal(1, "BALANCED_BLOCK_IDENTITY_EQ must be zero or one");
     if (DATA_WIDTH < 2 || DATA_WIDTH > 24)
       $fatal(1, "kernel DATA_WIDTH must lie in [2,24]");
     $readmemh(ROM_FILE, kernel_memory, 0, 511);
@@ -101,9 +77,9 @@ module starlink_pss_kernel_rom #(
     input_last != (expected_bin_index == 9'd511);
   assign metadata_error_now = at_block_start ?
     (have_previous_block &&
-     !block_identity_equal[1]) :
+     input_block_start_index != expected_next_block_start) :
     (input_block_exponent != block_exponent ||
-     !block_identity_equal[0]);
+     input_block_start_index != block_start_index);
   assign protocol_error_now = sequence_error_now || metadata_error_now;
 
   always @(posedge clk) begin

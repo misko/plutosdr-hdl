@@ -18,6 +18,10 @@ set rtl_names {starlink_pss_fft_bank_owned_slice starlink_pss_realtime_input_gua
   starlink_pss_realtime_result_guard starlink_pss_block_mailbox
   starlink_pss_forward_kernel_join starlink_pss_kernel_rom starlink_pss_spectrum_product}
 foreach name $rtl_names { file copy [file join $script_dir ${name}.v] $source_dir }
+set payload_shadow_names {starlink_pss_forward_kernel_join_7ee87258_golden.v
+  starlink_pss_kernel_rom_7ee87258_golden.v starlink_pss_spectrum_product_7ee87258_golden.v
+  starlink_pss_payload_bubble_shadow.sv}
+foreach name $payload_shadow_names { file copy [file join $script_dir tb $name] $source_dir }
 if {$mutation} {
   set mutation_path [file join $source_dir starlink_pss_fft_bank_owned_slice.v]
   set channel [open $mutation_path r]; set candidate [read $channel]; close $channel
@@ -45,6 +49,7 @@ set wrapper [file join $project_dir ${project_name}.gen sources_1 ip \
 pss_create_shared_realtime_xfft_ip $wrapper
 foreach name $rtl_names { add_files -fileset sim_1 -norecurse [file join $source_dir ${name}.v] }
 add_files -fileset sim_1 -norecurse [file join $source_dir tb_starlink_pss_fft_bank_owned_slice.sv]
+foreach name $payload_shadow_names { add_files -fileset sim_1 -norecurse [file join $source_dir $name] }
 foreach name $vector_names { add_files -fileset sim_1 -norecurse [file join $source_dir ${name}.mem] }
 set_property file_type {Memory Initialization Files} [get_files -of_objects [get_filesets sim_1] *.mem]
 set channel [open [file join $output_dir scope.txt] w]
@@ -92,6 +97,9 @@ if {[string first "BALANCED_IDENTITY_ACTUAL_PASS enabled=$registered " $log] < 0
 }
 if {[string first "HELD_PREFLIGHT_ACTUAL_PASS registered=$registered " $log] < 0} {
   error "held-preflight full current-cause/phase qualification comparison did not complete"
+}
+if {[string first "PAYLOAD_BUBBLES_ACTUAL_PASS registered=$registered " $log] < 0} {
+  error "data-only payload/ROM frozen-chain actual comparison did not complete"
 }
 close_project
 puts "FFT_BANK_OWNED_ACTUAL_CORE_VERIFIED_NO_PHYSICAL_OR_RF_CLAIM"

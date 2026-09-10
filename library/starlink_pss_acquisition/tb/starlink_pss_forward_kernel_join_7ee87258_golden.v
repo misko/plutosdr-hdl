@@ -8,11 +8,9 @@
 
 `timescale 1ns/1ps
 
-module starlink_pss_forward_kernel_join #(
+module starlink_pss_forward_kernel_join_7ee87258_golden #(
   parameter KERNEL_ROM_FILE = "upper_edge_pss_kernel_q23.mem",
-  parameter integer DATA_WIDTH = 24,
-  parameter integer PRIVATE_PAYLOAD_BUBBLES = 0,
-  parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0
+  parameter integer DATA_WIDTH = 24
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -51,19 +49,13 @@ module starlink_pss_forward_kernel_join #(
 
   wire input_accept;
 
-  initial begin
-    if (PRIVATE_PAYLOAD_BUBBLES != 0 && PRIVATE_PAYLOAD_BUBBLES != 1)
-      $fatal(1, "PRIVATE_PAYLOAD_BUBBLES must be zero or one");
-  end
-
   assign input_accept = input_valid && input_ready;
   assign output_i = captured_i;
   assign output_q = captured_q;
 
-  starlink_pss_kernel_rom #(
+  starlink_pss_kernel_rom_7ee87258_golden #(
     .ROM_FILE  (KERNEL_ROM_FILE),
-    .DATA_WIDTH(DATA_WIDTH),
-    .BALANCED_BLOCK_IDENTITY_EQ(BALANCED_BLOCK_IDENTITY_EQ)
+    .DATA_WIDTH(DATA_WIDTH)
   ) kernel_rom (
     .clk                       (clk),
     .resetn                    (resetn),
@@ -94,9 +86,7 @@ module starlink_pss_forward_kernel_join #(
     if (!resetn || flush) begin
       captured_i <= 0;
       captured_q <= 0;
-    // Only private I/Q may sample a bubble. Occupied/stalled output still holds;
-    // the unchanged ROM checker/validity controls every logical acceptance.
-    end else if (PRIVATE_PAYLOAD_BUBBLES ? input_ready : input_accept) begin
+    end else if (input_accept) begin
       captured_i <= input_i;
       captured_q <= input_q;
     end

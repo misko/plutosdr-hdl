@@ -251,7 +251,9 @@ module starlink_pss_fft_bank_owned_slice #(
   );
   // Nonfinal checked results may compute privately before independent status.
   // The final result is admitted ONLY on the original guard's qualified commit.
-  starlink_pss_forward_kernel_join #(.KERNEL_ROM_FILE(KERNEL_ROM_FILE), .DATA_WIDTH(18)) joiner (
+  starlink_pss_forward_kernel_join #(.KERNEL_ROM_FILE(KERNEL_ROM_FILE), .DATA_WIDTH(18),
+    .PRIVATE_PAYLOAD_BUBBLES(REGISTERED_SCHEDULING),
+    .BALANCED_BLOCK_IDENTITY_EQ(REGISTERED_SCHEDULING)) joiner (
     .clk(fft_clk), .resetn(fast_running), .flush(1'b0),
     // Match the guard's exact retirement event, including a held final word.
     // An owned bank should remain ready, but a readiness fault/stall must never
@@ -268,7 +270,8 @@ module starlink_pss_fft_bank_owned_slice #(
     .accepted_pulse(), .emitted_pulse(), .input_block_complete_pulse(),
     .sequence_error_pulse(), .metadata_error_pulse(), .protocol_fault(kernel_fault)
   );
-  starlink_pss_spectrum_product #(.DATA_WIDTH(18)) product (
+  starlink_pss_spectrum_product #(.DATA_WIDTH(18),
+    .PRIVATE_PAYLOAD_BUBBLES(REGISTERED_SCHEDULING)) product (
     .clk(fft_clk), .resetn(fast_running), .flush(1'b0),
     .input_valid(joined_valid && !fast_fault), .input_ready(joined_ready),
     .input_i(joined_i), .input_q(joined_q), .kernel_i(kernel_i), .kernel_q(kernel_q),

@@ -9,9 +9,8 @@
 
 `timescale 1ns/1ps
 
-module starlink_pss_spectrum_product #(
-  parameter integer DATA_WIDTH = 24,
-  parameter integer PRIVATE_PAYLOAD_BUBBLES = 0
+module starlink_pss_spectrum_product_7ee87258_golden #(
+  parameter integer DATA_WIDTH = 24
 ) (
   input  wire                 clk,
   input  wire                 resetn,
@@ -75,11 +74,6 @@ module starlink_pss_spectrum_product #(
   wire product_stage_ready;
   wire [DATA_WIDTH:0] rounded_real;
   wire [DATA_WIDTH:0] rounded_imag;
-
-  initial begin
-    if (PRIVATE_PAYLOAD_BUBBLES != 0 && PRIVATE_PAYLOAD_BUBBLES != 1)
-      $fatal(1, "PRIVATE_PAYLOAD_BUBBLES must be zero or one");
-  end
 
   assign output_stage_ready = !output_valid || output_ready;
   assign sum_stage_ready = !sum_valid || output_stage_ready;
@@ -179,16 +173,11 @@ module starlink_pss_spectrum_product #(
 
       if (product_stage_ready) begin
         product_valid <= input_valid;
-        // Bubble computation changes only invalid numerical payload. A stalled
-        // occupied stage holds; validity, metadata and all later stages retain
-        // their original enables and consume only the preceding valid payload.
-        if (PRIVATE_PAYLOAD_BUBBLES || input_valid) begin
+        if (input_valid) begin
           product_ii <= input_i * kernel_i;
           product_qq <= input_q * kernel_q;
           product_iq <= input_i * kernel_q;
           product_qi <= input_q * kernel_i;
-        end
-        if (input_valid) begin
           product_bin_index <= input_bin_index;
           product_block_exponent <= input_block_exponent;
           product_last <= input_last;
