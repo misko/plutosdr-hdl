@@ -25,8 +25,11 @@ proc pss_verify_paired_outputs {simulation_dir expected_binary {map_bins 447} {b
   }
   if {$bank_owned} {
     require_realtime_probe_pass $log_path [list \
+      {PAIRED_BANK_QUIESCENCE_PASS reset_held=1 minimum_fast_cycles=32 no_fast_restart=1} \
       "PAIRED_BANK_PASS map_bins=$map_bins selected_scores=$tile_scores exact_pilot_bytes=2048 fast_mhz=$fast_mhz TEST_ONLY_SELECTOR_NOT_RECEIVER"] PAIRED_BANK_PASS 1
   }
+  require_realtime_probe_pass $log_path [list \
+    "PAIRED_REALTIME_PSMA_STOP_PASS source_words=4096 pilot_words=512 map_words=$map_bins NO_ADC_DMA_IIO_FINE_PRODUCTION_OR_PHYSICAL_CLAIM"] PAIRED_STOP_TAIL 1
   set actual_binary [file join $simulation_dir paired_pilot_actual.ci16]
   if {![file isfile $actual_binary] || [file size $actual_binary] != 2048} {
     error "actual pilot AXIS sink byte count mismatch"

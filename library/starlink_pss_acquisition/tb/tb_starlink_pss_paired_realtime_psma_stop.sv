@@ -46,6 +46,7 @@ module tb_starlink_pss_paired_realtime_psma_stop #(
   reg gap_seen = 0, pilot_armed = 0, expected_late_fault = 0;
   reg third_started = 0, third_returned = 0, second_started = 0, prior_stalled = 0;
   integer produced_at_ack = -1, candidate_fifo_at_ack = -1;
+  integer bank_quiet_cycles = 0;
   reg inverse_busy_at_ack = 0;
   reg [31:0] held_data;
   reg [63:0] expected_canonical = PRE_FIRST - 2;
@@ -83,6 +84,24 @@ module tb_starlink_pss_paired_realtime_psma_stop #(
 
   wire observed_third_inverse_final, observed_inverse_busy, observed_pipeline_active;
   generate if (USE_BANK_OWNED_XFFT) begin : engine_observer
+    // Allow eight actual fast clocks after slow teardown, then require the
+    // bank and vendor reset epoch to stay closed through the late-fault case.
+    // This is a bounded digital witness, not physical reset/CDC signoff.
+    always @(posedge fft_clk) begin
+      #0.001;
+      if (!resetn || ack_count < 2) bank_quiet_cycles = 0;
+      else if (!observed_pipeline_active) begin
+        bank_quiet_cycles = bank_quiet_cycles + 1;
+        if (bank_quiet_cycles >= 8 &&
+            (dut.acquisition.bank_transform.iq_to_score.island.fast_running !== 1'b0 ||
+             dut.acquisition.bank_transform.iq_to_score.island.core_aresetn !== 1'b0 ||
+             dut.acquisition.bank_transform.iq_to_score.island.config_valid !== 1'b0 ||
+             dut.acquisition.bank_transform.iq_to_score.island.core_input_valid !== 1'b0 ||
+             dut.acquisition.bank_transform.iq_to_score.island.core_output_valid !== 1'b0))
+          fail("bank fast domain not quiescent after bounded local teardown");
+      end else if (bank_quiet_cycles != 0)
+        fail("bank pipeline reactivated after terminal teardown");
+    end
     // Witness actual core consumption at fft_clk, not slow source-bank capture.
     always @(posedge fft_clk)
       if (!resetn) begin second_started = 0; third_started = 0; end
@@ -196,7 +215,9 @@ module tb_starlink_pss_paired_realtime_psma_stop #(
         dut.map_overrun_count || dut.score_protocol_error_count || dut.map_arithmetic_overflow_count ||
         dut.map_read_error_count || dut.map_release_error_count || dut.ingress_overflow_sticky ||
         dut.ingress_dropped_sample_count || dut.phase_map_control.bridge_read_error_count ||
-        dut.phase_map_control.bridge_release_error_count || dut.phase_map_control.snapshot_request_overrun_count)
+        (expected_late_fault ? dut.phase_map_control.bridge_release_error_count > 1 :
+          dut.phase_map_control.bridge_release_error_count != 0) ||
+        dut.phase_map_control.snapshot_request_overrun_count)
       fail("unexpected acquisition/map/bridge/CDC health");
     if (canonical_flush || pilot.faults || pilot.ddc_fault || pilot.ddc_clips || pilot_irq)
       fail("pilot or shared canonical flush fault");
@@ -206,7 +227,11 @@ module tb_starlink_pss_paired_realtime_psma_stop #(
     cycles = cycles + 1;
     if (cycles > 160000) fail("bounded watchdog");
     if (resetn) begin
-      if (!expected_late_fault) healthy();
+      healthy();
+      if (expected_late_fault && (dut.acquisition_enable || observed_pipeline_active ||
+          dut.acquisition.score_valid || dut.map_publish_count != 1 || dut.map_ready_mask ||
+          pilot_enable || delivered_count != PILOT_COUNT || dut.accepted_score_count != TILE_SCORES))
+        fail("late bridge fault reactivated or corrupted the stopped paired capture");
       if (canonical_valid) begin
         if (canonical_index !== expected_canonical || canonical_gap !== !gap_seen)
           fail("canonical ordinal or first-gap marker mismatch");
@@ -386,8 +411,11 @@ module tb_starlink_pss_paired_realtime_psma_stop #(
     if (MAP_BINS == 343)
       $display("PAIRED_RESIDUE_PASS selected_scores=686 map_words=343 residue=239 post_fence_tail_not_map_admission=1");
     $display("PAIRED_REALTIME_PSMA_STOP_PASS source_words=4096 pilot_words=512 map_words=%0d NO_ADC_DMA_IIO_FINE_PRODUCTION_OR_PHYSICAL_CLAIM", MAP_BINS);
-    if (USE_BANK_OWNED_XFFT)
+    if (USE_BANK_OWNED_XFFT) begin
+      if (bank_quiet_cycles < 32) fail("insufficient fast-clock teardown observations");
+      $display("PAIRED_BANK_QUIESCENCE_PASS reset_held=1 minimum_fast_cycles=32 no_fast_restart=1");
       $display("PAIRED_BANK_PASS map_bins=%0d selected_scores=%0d exact_pilot_bytes=2048 fast_mhz=%0d TEST_ONLY_SELECTOR_NOT_RECEIVER", MAP_BINS, TILE_SCORES, FAST_MHZ);
+    end
     $finish;
   end
 endmodule
