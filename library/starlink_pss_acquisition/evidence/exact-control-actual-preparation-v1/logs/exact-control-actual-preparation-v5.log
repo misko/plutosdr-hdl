@@ -1,0 +1,257 @@
+......................FFFF.............................................. [ 77%]
+.....................                                                    [100%]
+=================================== FAILURES ===================================
+_ test_each_generated_extra_parameter_entry_fails_closed_without_fft[1'bx-False] _
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/exact-control-actual-preparation-v5/test_each_generated_extra_para8')
+reference = False, value = "1'bx"
+
+    @pytest.mark.parametrize("reference", [False, True])
+    @pytest.mark.parametrize("value", ["0", "1", "-1", "2", "1'bx", "1'bz"])
+    def test_each_generated_extra_parameter_entry_fails_closed_without_fft(
+        tmp_path, reference, value
+    ):
+        original = PREPARE.git_file(
+            HDL, PREPARE.BASE, f"library/starlink_pss_acquisition/tb/{PREPARE.TOP}.sv"
+        ).decode()
+        generate = PREPARE.reference_bench if reference else PREPARE.candidate_bench
+        generated = generate(original)
+        assert generated.count(PREPARE.EXTRA_PARAMETER_CHECK) == 1
+        # Execute only the literal entry check, never either actual bench/stub.
+        entry = tmp_path / "extra_entry.sv"
+        entry.write_text(
+            "module extra_entry; parameter integer EXACT_EXTRA_EPOCHS=0;\n"
+            + PREPARE.EXTRA_PARAMETER_CHECK
+            + 'initial begin #1; $display("EXTRA_PARAMETER_VALID_NO_FFT"); $finish; end\nendmodule\n'
+        )
+        executable = tmp_path / "extra_entry.vvp"
+        subprocess.run(
+            [
+                "iverilog",
+                "-g2012",
+                "-s",
+                "extra_entry",
+                f"-Pextra_entry.EXACT_EXTRA_EPOCHS={value}",
+                "-o",
+                str(executable),
+                str(entry),
+            ],
+            check=True,
+            timeout=10,
+        )
+        result = subprocess.run(
+            ["vvp", str(executable)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        log = result.stdout + result.stderr
+        (tmp_path / "simulate.log").write_text(log)
+        if value in ("0", "1"):
+            assert result.returncode == 0 and "EXTRA_PARAMETER_VALID_NO_FFT" in log
+        else:
+>           assert (
+                result.returncode != 0 and "EXACT_EXTRA_EPOCHS_REQUIRES_ZERO_OR_ONE" in log
+            ), log
+E           AssertionError: EXTRA_PARAMETER_VALID_NO_FFT
+E             /tmp/starlink-completed-input.5EaJuD/exact-control-actual-preparation-v5/test_each_generated_extra_para8/extra_entry.sv:6: $finish called at 1 (1s)
+E             
+E           assert (0 != 0)
+E            +  where 0 = CompletedProcess(args=['vvp', '/tmp/starlink-completed-input.5EaJuD/exact-control-actual-preparation-v5/test_each_gene...control-actual-preparation-v5/test_each_generated_extra_para8/extra_entry.sv:6: $finish called at 1 (1s)\n', stderr='').returncode
+
+tests/starlink_oracle/test_exact_control_actual_preparation.py:309: AssertionError
+----------------------------- Captured stderr call -----------------------------
+<command line>: error: invalid digit in binary value specified for defparam: extra_entry.EXACT_EXTRA_EPOCHS
+_ test_each_generated_extra_parameter_entry_fails_closed_without_fft[1'bx-True] _
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/exact-control-actual-preparation-v5/test_each_generated_extra_para9')
+reference = True, value = "1'bx"
+
+    @pytest.mark.parametrize("reference", [False, True])
+    @pytest.mark.parametrize("value", ["0", "1", "-1", "2", "1'bx", "1'bz"])
+    def test_each_generated_extra_parameter_entry_fails_closed_without_fft(
+        tmp_path, reference, value
+    ):
+        original = PREPARE.git_file(
+            HDL, PREPARE.BASE, f"library/starlink_pss_acquisition/tb/{PREPARE.TOP}.sv"
+        ).decode()
+        generate = PREPARE.reference_bench if reference else PREPARE.candidate_bench
+        generated = generate(original)
+        assert generated.count(PREPARE.EXTRA_PARAMETER_CHECK) == 1
+        # Execute only the literal entry check, never either actual bench/stub.
+        entry = tmp_path / "extra_entry.sv"
+        entry.write_text(
+            "module extra_entry; parameter integer EXACT_EXTRA_EPOCHS=0;\n"
+            + PREPARE.EXTRA_PARAMETER_CHECK
+            + 'initial begin #1; $display("EXTRA_PARAMETER_VALID_NO_FFT"); $finish; end\nendmodule\n'
+        )
+        executable = tmp_path / "extra_entry.vvp"
+        subprocess.run(
+            [
+                "iverilog",
+                "-g2012",
+                "-s",
+                "extra_entry",
+                f"-Pextra_entry.EXACT_EXTRA_EPOCHS={value}",
+                "-o",
+                str(executable),
+                str(entry),
+            ],
+            check=True,
+            timeout=10,
+        )
+        result = subprocess.run(
+            ["vvp", str(executable)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        log = result.stdout + result.stderr
+        (tmp_path / "simulate.log").write_text(log)
+        if value in ("0", "1"):
+            assert result.returncode == 0 and "EXTRA_PARAMETER_VALID_NO_FFT" in log
+        else:
+>           assert (
+                result.returncode != 0 and "EXACT_EXTRA_EPOCHS_REQUIRES_ZERO_OR_ONE" in log
+            ), log
+E           AssertionError: EXTRA_PARAMETER_VALID_NO_FFT
+E             /tmp/starlink-completed-input.5EaJuD/exact-control-actual-preparation-v5/test_each_generated_extra_para9/extra_entry.sv:6: $finish called at 1 (1s)
+E             
+E           assert (0 != 0)
+E            +  where 0 = CompletedProcess(args=['vvp', '/tmp/starlink-completed-input.5EaJuD/exact-control-actual-preparation-v5/test_each_gene...control-actual-preparation-v5/test_each_generated_extra_para9/extra_entry.sv:6: $finish called at 1 (1s)\n', stderr='').returncode
+
+tests/starlink_oracle/test_exact_control_actual_preparation.py:309: AssertionError
+----------------------------- Captured stderr call -----------------------------
+<command line>: error: invalid digit in binary value specified for defparam: extra_entry.EXACT_EXTRA_EPOCHS
+_ test_each_generated_extra_parameter_entry_fails_closed_without_fft[1'bz-False] _
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/exact-control-actual-preparation-v5/test_each_generated_extra_para10')
+reference = False, value = "1'bz"
+
+    @pytest.mark.parametrize("reference", [False, True])
+    @pytest.mark.parametrize("value", ["0", "1", "-1", "2", "1'bx", "1'bz"])
+    def test_each_generated_extra_parameter_entry_fails_closed_without_fft(
+        tmp_path, reference, value
+    ):
+        original = PREPARE.git_file(
+            HDL, PREPARE.BASE, f"library/starlink_pss_acquisition/tb/{PREPARE.TOP}.sv"
+        ).decode()
+        generate = PREPARE.reference_bench if reference else PREPARE.candidate_bench
+        generated = generate(original)
+        assert generated.count(PREPARE.EXTRA_PARAMETER_CHECK) == 1
+        # Execute only the literal entry check, never either actual bench/stub.
+        entry = tmp_path / "extra_entry.sv"
+        entry.write_text(
+            "module extra_entry; parameter integer EXACT_EXTRA_EPOCHS=0;\n"
+            + PREPARE.EXTRA_PARAMETER_CHECK
+            + 'initial begin #1; $display("EXTRA_PARAMETER_VALID_NO_FFT"); $finish; end\nendmodule\n'
+        )
+        executable = tmp_path / "extra_entry.vvp"
+        subprocess.run(
+            [
+                "iverilog",
+                "-g2012",
+                "-s",
+                "extra_entry",
+                f"-Pextra_entry.EXACT_EXTRA_EPOCHS={value}",
+                "-o",
+                str(executable),
+                str(entry),
+            ],
+            check=True,
+            timeout=10,
+        )
+        result = subprocess.run(
+            ["vvp", str(executable)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        log = result.stdout + result.stderr
+        (tmp_path / "simulate.log").write_text(log)
+        if value in ("0", "1"):
+            assert result.returncode == 0 and "EXTRA_PARAMETER_VALID_NO_FFT" in log
+        else:
+>           assert (
+                result.returncode != 0 and "EXACT_EXTRA_EPOCHS_REQUIRES_ZERO_OR_ONE" in log
+            ), log
+E           AssertionError: EXTRA_PARAMETER_VALID_NO_FFT
+E             /tmp/starlink-completed-input.5EaJuD/exact-control-actual-preparation-v5/test_each_generated_extra_para10/extra_entry.sv:6: $finish called at 1 (1s)
+E             
+E           assert (0 != 0)
+E            +  where 0 = CompletedProcess(args=['vvp', '/tmp/starlink-completed-input.5EaJuD/exact-control-actual-preparation-v5/test_each_gene...ontrol-actual-preparation-v5/test_each_generated_extra_para10/extra_entry.sv:6: $finish called at 1 (1s)\n', stderr='').returncode
+
+tests/starlink_oracle/test_exact_control_actual_preparation.py:309: AssertionError
+----------------------------- Captured stderr call -----------------------------
+<command line>: error: invalid digit in binary value specified for defparam: extra_entry.EXACT_EXTRA_EPOCHS
+_ test_each_generated_extra_parameter_entry_fails_closed_without_fft[1'bz-True] _
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/exact-control-actual-preparation-v5/test_each_generated_extra_para11')
+reference = True, value = "1'bz"
+
+    @pytest.mark.parametrize("reference", [False, True])
+    @pytest.mark.parametrize("value", ["0", "1", "-1", "2", "1'bx", "1'bz"])
+    def test_each_generated_extra_parameter_entry_fails_closed_without_fft(
+        tmp_path, reference, value
+    ):
+        original = PREPARE.git_file(
+            HDL, PREPARE.BASE, f"library/starlink_pss_acquisition/tb/{PREPARE.TOP}.sv"
+        ).decode()
+        generate = PREPARE.reference_bench if reference else PREPARE.candidate_bench
+        generated = generate(original)
+        assert generated.count(PREPARE.EXTRA_PARAMETER_CHECK) == 1
+        # Execute only the literal entry check, never either actual bench/stub.
+        entry = tmp_path / "extra_entry.sv"
+        entry.write_text(
+            "module extra_entry; parameter integer EXACT_EXTRA_EPOCHS=0;\n"
+            + PREPARE.EXTRA_PARAMETER_CHECK
+            + 'initial begin #1; $display("EXTRA_PARAMETER_VALID_NO_FFT"); $finish; end\nendmodule\n'
+        )
+        executable = tmp_path / "extra_entry.vvp"
+        subprocess.run(
+            [
+                "iverilog",
+                "-g2012",
+                "-s",
+                "extra_entry",
+                f"-Pextra_entry.EXACT_EXTRA_EPOCHS={value}",
+                "-o",
+                str(executable),
+                str(entry),
+            ],
+            check=True,
+            timeout=10,
+        )
+        result = subprocess.run(
+            ["vvp", str(executable)],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        log = result.stdout + result.stderr
+        (tmp_path / "simulate.log").write_text(log)
+        if value in ("0", "1"):
+            assert result.returncode == 0 and "EXTRA_PARAMETER_VALID_NO_FFT" in log
+        else:
+>           assert (
+                result.returncode != 0 and "EXACT_EXTRA_EPOCHS_REQUIRES_ZERO_OR_ONE" in log
+            ), log
+E           AssertionError: EXTRA_PARAMETER_VALID_NO_FFT
+E             /tmp/starlink-completed-input.5EaJuD/exact-control-actual-preparation-v5/test_each_generated_extra_para11/extra_entry.sv:6: $finish called at 1 (1s)
+E             
+E           assert (0 != 0)
+E            +  where 0 = CompletedProcess(args=['vvp', '/tmp/starlink-completed-input.5EaJuD/exact-control-actual-preparation-v5/test_each_gene...ontrol-actual-preparation-v5/test_each_generated_extra_para11/extra_entry.sv:6: $finish called at 1 (1s)\n', stderr='').returncode
+
+tests/starlink_oracle/test_exact_control_actual_preparation.py:309: AssertionError
+----------------------------- Captured stderr call -----------------------------
+<command line>: error: invalid digit in binary value specified for defparam: extra_entry.EXACT_EXTRA_EPOCHS
+=========================== short test summary info ============================
+FAILED tests/starlink_oracle/test_exact_control_actual_preparation.py::test_each_generated_extra_parameter_entry_fails_closed_without_fft[1'bx-False]
+FAILED tests/starlink_oracle/test_exact_control_actual_preparation.py::test_each_generated_extra_parameter_entry_fails_closed_without_fft[1'bx-True]
+FAILED tests/starlink_oracle/test_exact_control_actual_preparation.py::test_each_generated_extra_parameter_entry_fails_closed_without_fft[1'bz-False]
+FAILED tests/starlink_oracle/test_exact_control_actual_preparation.py::test_each_generated_extra_parameter_entry_fails_closed_without_fft[1'bz-True]
+4 failed, 89 passed in 19.90s
