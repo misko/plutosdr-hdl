@@ -174,8 +174,14 @@
     write_reg(2,8'h28,NATIVE_CENTER[63:32]); write_reg(2,8'h2c,NATIVE_CENTER[31:0]);
     write_reg(2,8'h30,NATIVE_CENTER[63:32]);
     native_command_issued=1; write_reg(2,8'h34,1);
-    wait(late_handshakes==1); repeat(8) @(negedge clk); late_snapshot(1);
-    wait(source_finished && coarse_stopped && map_retained); repeat(8) @(negedge clk); late_snapshot(2);
+    wait(late_handshakes==1); repeat(8) @(negedge clk);
+    // Eight falling edges can span only seven labels after a sample-domain
+    // event. Preserve those edges, then meet the ORIGINAL >=8-label bound.
+    while(cycles-late_handshake_cycle<8) @(negedge clk);
+    late_snapshot(1);
+    wait(source_finished && coarse_stopped && map_retained); repeat(8) @(negedge clk);
+    while(cycles-source_off_cycle<8) @(negedge clk);
+    late_snapshot(2);
     native_healthy();
     if(late_public_submits!=1 || late_wrapper_handshakes!=1 || late_fifo_accepts!=1 ||
         late_handshakes!=1 || late_register_reads!=62 || late_snapshots!=2 ||
