@@ -24,7 +24,7 @@ module tb_starlink_pss_bank_clock_epoch;
     .output_metadata(output_metadata), .fault(fault)
   );
   task automatic fail(input string reason);
-    $display("BANK_CLOCK_EPOCH_FAIL %s time_ns=%0t epochs=%0d", reason, $time, epochs);
+    $display("BANK_CLOCK_EPOCH_FAIL %s time_ns=%0.3f epochs=%0d", reason, $realtime, epochs);
     $fatal(1, "bank clock/epoch assertion failed");
   endtask
   initial begin
@@ -33,13 +33,16 @@ module tb_starlink_pss_bank_clock_epoch;
   end
   always @(posedge clk)
     if (resetn && (output_valid || fault)) fail("idle bank published data or faulted");
+  always @(posedge fft_clk)
+    if ((!locked || !manual_fft_resetn || !resetn) && bank.fast_running === 1'b1)
+      fail("fast epoch released without clock lock and reset release");
   task automatic wait_healthy_epoch;
     wait(locked === 1'b1);
     wait(bank.fast_running === 1'b1 && bank.slow_running === 1'b1 && input_ready === 1'b1);
     repeat (8) @(posedge fft_clk);
     if (!locked || !fft_resetn || fault || output_valid) fail("unhealthy released epoch");
     epochs = epochs + 1;
-    $display("BANK_CLOCK_EPOCH_READY epoch=%0d time_ns=%0t", epochs, $time);
+    $display("BANK_CLOCK_EPOCH_READY epoch=%0d time_ns=%0.3f", epochs, $realtime);
   endtask
   task automatic check_reset_asserted;
     #0.002;
