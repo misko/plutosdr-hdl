@@ -43,7 +43,12 @@ set status [catch {
   set f [open [file join $output generated_ip_before.txt] {WRONLY CREAT EXCL}]
   puts $f $generated_before; close $f
   source [file join $inputs profile.tcl]
-  foreach name $compiled_names { add_files -fileset sim_1 -norecurse [file join $inputs $name] }
+  foreach name $compiled_names {
+    set compiled_file [file join $inputs $name]
+    if {[file extension $compiled_file] ni {.v .sv}} { error "unexpected compiled HDL extension" }
+    add_files -fileset sim_1 -norecurse $compiled_file
+    set_property file_type SystemVerilog [get_files -of_objects [get_filesets sim_1] $compiled_file]
+  }
   foreach name $vector_names { add_files -fileset sim_1 -norecurse [file join $inputs $name] }
   set_property file_type {Memory Initialization Files} [get_files -of_objects [get_filesets sim_1] *.mem]
   set_property top tb [get_filesets sim_1]
