@@ -1,0 +1,32 @@
+F................................................                        [100%]
+=================================== FAILURES ===================================
+_______ test_literal_seven_module_inverse_and_actual_stimulus_unchanged ________
+
+    def test_literal_seven_module_inverse_and_actual_stimulus_unchanged():
+        for kind in KINDS:
+            name = f"starlink_pss_{kind}.v"
+            source = (ACQ / name).read_text()
+>           assert restore_exact_control(source, kind) == frozen(name)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_exact_control.py:28: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/starlink_oracle/exact_control_contract.py:13: in restore_exact_control
+    source = once(source, "  parameter integer REGISTERED_SCHEDULING = 0,\n"
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+source = '// SPDX-License-Identifier: GPL-2.0\n// Experimental three-bank, one-core FFT/product/IFFT island. No receiver use.\n...cted),\n    .event_tlast_missing(event_last_missing), .event_data_in_channel_halt(event_input_halt)\n  );\nendmodule\n'
+new = '  parameter integer REGISTERED_SCHEDULING = 0,\n  parameter integer DISTRIBUTED_FAST_FAULT = 0,\n  parameter integer PRIVATE_NEXT_START_SCRATCH = 0\n'
+old = '  parameter integer REGISTERED_SCHEDULING = 0\n'
+
+    def once(source, new, old=""):
+>       assert source.count(new) == 1, new
+               ^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError:   parameter integer REGISTERED_SCHEDULING = 0,
+E         parameter integer DISTRIBUTED_FAST_FAULT = 0,
+E         parameter integer PRIVATE_NEXT_START_SCRATCH = 0
+
+tests/starlink_oracle/exact_control_contract.py:7: AssertionError
+=========================== short test summary info ============================
+FAILED tests/starlink_oracle/test_exact_control.py::test_literal_seven_module_inverse_and_actual_stimulus_unchanged
+1 failed, 48 passed in 14.80s

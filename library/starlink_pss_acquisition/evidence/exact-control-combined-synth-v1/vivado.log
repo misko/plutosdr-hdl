@@ -1,0 +1,1211 @@
+#-----------------------------------------------------------
+# Vivado v2022.2 (64-bit)
+# SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+# IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+# Start of session at: Thu Sep 10 09:43:16 2026
+# Process ID: 4097399
+# Current directory: /tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1
+# Command line: vivado -mode batch -source /tmp/starlink-completed-input.5EaJuD/exact-control-physical-prepared-v1/synthesize_exact_control_prepared.tcl -log /tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/vivado.log -journal /tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/vivado.jou -tclargs /tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis /tmp/starlink-completed-input.5EaJuD/exact-control-physical-prepared-v1 99862b8d88414de6b2b4171df2a1a61bf5849ef2effed3c875de9904c366f158
+# Log file: /tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/vivado.log
+# Journal file: /tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/vivado.jou
+# Running On: gauss, OS: Linux, CPU Frequency: 5482.890 MHz, CPU Physical cores: 24, Host memory: 132067 MB
+#-----------------------------------------------------------
+source /tmp/starlink-completed-input.5EaJuD/exact-control-physical-prepared-v1/synthesize_exact_control_prepared.tcl
+# if {$argc != 3} { error "expected NEW_OUTPUT PREPARED EXPECTED_PREPARED_SHA256" }
+# if {[version -short] ne "2022.2"} { error "requires Vivado 2022.2" }
+# set_param general.maxThreads 2
+# set script_dir [file join [file dirname [file normalize [info script]]] frozen_sources]
+# set output_dir [file normalize [lindex $argv 0]]
+# set evidence_dir [file normalize [lindex $argv 1]]
+# if {[file exists $output_dir]} { error "refusing to overwrite synthesis evidence" }
+# set expected_prepared [lindex $argv 2]
+# set prepared_inventory [file join $evidence_dir SHA256SUMS]
+# if {![regexp {^[0-9a-f]{64}$} $expected_prepared] ||
+#     [lindex [exec sha256sum $prepared_inventory] 0] ne $expected_prepared} {
+#   error "unexpected exact-control physical preparation"
+# }
+# set audit_helper [file join $evidence_dir prepare_exact_control_physical.py]
+# set old_directory [pwd];
+# cd $evidence_dir
+# exec sha256sum -c SHA256SUMS --quiet
+# cd $old_directory
+# puts [exec env -u PYTHONHOME -u PYTHONPATH -u LD_LIBRARY_PATH /home/mouse9911/gits/pluto-plus-utils/.venv/bin/python -B $audit_helper --verify $evidence_dir --expected $expected_prepared]
+{"distributed": 1, "qualified_observer": {"invalid_only": 292463, "raw_equal": 953795, "samples": 1246258}, "registered": 1, "rtl_count": 7, "scope": "verified_preparation_NOT_physical_execution", "scratch": 1}
+# source [file join $evidence_dir exact_physical_settings.tcl]
+## set registered 1
+## set distributed 1
+## set scratch 1
+## set simlog {/tmp/starlink-completed-input.5EaJuD/extra-edge-combined-prepared-v1/project/exact_control_actual.sim/sim_1/behav/xsim/simulate.log}
+# if {$registered != 1 || $distributed != 1 || $scratch != 1} { error "wrong combined physical options" }
+# set prior_sources [file join $evidence_dir frozen_sources]
+# set source_dir [file join $output_dir frozen_sources]
+# file mkdir $source_dir
+# set rtl_names {starlink_pss_fft_bank_owned_slice starlink_pss_realtime_input_guard
+#   starlink_pss_realtime_result_guard starlink_pss_block_mailbox
+#   starlink_pss_forward_kernel_join starlink_pss_kernel_rom starlink_pss_spectrum_product}
+# foreach name $rtl_names { file copy [file join $prior_sources ${name}.v] $source_dir }
+# foreach name {create_shared_realtime_xfft_ip.tcl upper_edge_pss_kernel_q17.mem} {
+#   file copy [file join $prior_sources $name] $source_dir
+# }
+# foreach name {fft_bank_owned_synth_threads.tcl fft_bank_owned_resource_probe.xdc} {
+#   file copy [file join $script_dir $name] $source_dir
+# }
+# file copy [info script] $source_dir
+# set project_name fft_bank_owned_synthesis
+# set project_dir [file join $output_dir project]
+# create_project $project_name $project_dir -part xc7z010clg400-1
+# set_property target_language Verilog [current_project]
+# source [file join $source_dir create_shared_realtime_xfft_ip.tcl]
+## proc pss_create_shared_realtime_xfft_ip {wrapper_path} {
+##   if {[version -short] ne "2022.2"} { error "realtime XFFT requires Vivado 2022.2" }
+##   set module_name starlink_pss_fft512_bfp18_rt_candidate
+##   if {[llength [get_ips -quiet $module_name]]} {
+##     error "refusing to reuse an existing realtime XFFT IP"
+##   }
+##   create_ip -name xfft -vendor xilinx.com -library ip -version 9.1 -module_name $module_name
+##   set_property -dict [list \
+##     CONFIG.channels {1} CONFIG.transform_length {512} \
+##     CONFIG.target_clock_frequency {200} CONFIG.implementation_options {automatically_select} \
+##     CONFIG.target_data_throughput {40} CONFIG.run_time_configurable_transform_length {false} \
+##     CONFIG.data_format {fixed_point} CONFIG.input_width {18} CONFIG.phase_factor_width {16} \
+##     CONFIG.scaling_options {block_floating_point} CONFIG.rounding_modes {convergent_rounding} \
+##     CONFIG.aresetn {true} CONFIG.xk_index {true} CONFIG.throttle_scheme {realtime} \
+##     CONFIG.output_ordering {natural_order} CONFIG.cyclic_prefix_insertion {false} \
+##     CONFIG.memory_options_data {block_ram} CONFIG.memory_options_phase_factors {block_ram} \
+##     CONFIG.memory_options_reorder {block_ram} CONFIG.complex_mult_type {use_mults_resources} \
+##     CONFIG.butterfly_type {use_xtremedsp_slices} \
+##   ] [get_ips $module_name]
+##   generate_target all [get_ips $module_name]
+##   if {![file isfile $wrapper_path]} { error "missing generated realtime XFFT wrapper" }
+##   set channel [open $wrapper_path r]
+##   set wrapper [read $channel]
+##   close $channel
+##   set required_generics {
+##     C_S_AXIS_CONFIG_TDATA_WIDTH 8 C_S_AXIS_DATA_TDATA_WIDTH 48
+##     C_M_AXIS_DATA_TDATA_WIDTH 48 C_M_AXIS_DATA_TUSER_WIDTH 24 C_M_AXIS_STATUS_TDATA_WIDTH 8
+##     C_THROTTLE_SCHEME 0 C_CHANNELS 1 C_NFFT_MAX 9 C_ARCH 1 C_HAS_NFFT 0
+##     C_USE_FLT_PT 0 C_INPUT_WIDTH 18 C_TWIDDLE_WIDTH 16 C_OUTPUT_WIDTH 18
+##     C_HAS_SCALING 1 C_HAS_BFP 1 C_HAS_ROUNDING 1 C_HAS_ACLKEN 0 C_HAS_ARESETN 1
+##     C_HAS_OVFLO 0 C_HAS_NATURAL_INPUT 1 C_HAS_NATURAL_OUTPUT 1 C_HAS_CYCLIC_PREFIX 0
+##     C_HAS_XK_INDEX 1 C_DATA_MEM_TYPE 1 C_TWIDDLE_MEM_TYPE 1 C_BRAM_STAGES 0
+##     C_REORDER_MEM_TYPE 1 C_USE_HYBRID_RAM 0 C_OPTIMIZE_GOAL 0 C_CMPY_TYPE 1 C_BFLY_TYPE 1
+##   }
+##   foreach {name value} $required_generics {
+##     if {![regexp "${name} => ${value}(,|\n)" $wrapper]} {
+##       error "unexpected generated realtime XFFT generic $name"
+##     }
+##   }
+##   set entity_start [string first "ENTITY $module_name IS" $wrapper]
+##   set entity_stop [string first "END $module_name;" $wrapper]
+##   if {$entity_start < 0 || $entity_stop <= $entity_start} {
+##     error "missing generated realtime XFFT entity"
+##   }
+##   set entity [string range $wrapper $entity_start $entity_stop]
+##   foreach forbidden {m_axis_data_tready m_axis_status_tready event_status_channel_halt event_data_out_channel_halt} {
+##     if {[string first $forbidden $entity] >= 0} {
+##       error "unexpected realtime XFFT entity port $forbidden"
+##     }
+##   }
+##   return $module_name
+## }
+# set wrapper [file join $project_dir ${project_name}.gen sources_1 ip \
+#   starlink_pss_fft512_bfp18_rt_candidate synth starlink_pss_fft512_bfp18_rt_candidate.vhd]
+# pss_create_shared_realtime_xfft_ip $wrapper
+INFO: [IP_Flow 19-234] Refreshing IP repositories
+INFO: [IP_Flow 19-1704] No user IP repositories specified
+INFO: [IP_Flow 19-2313] Loaded Vivado IP repository '/opt/Xilinx/Vivado/2022.2/data/ip'.
+WARNING: [IP_Flow 19-4832] The IP name 'starlink_pss_fft512_bfp18_rt_candidate' you have specified is long. The Windows operating system has path length limitations. It is recommended you use shorter names to reduce the likelihood of issues.
+INFO: [IP_Flow 19-1686] Generating 'Instantiation Template' target for IP 'starlink_pss_fft512_bfp18_rt_candidate'...
+INFO: [IP_Flow 19-1686] Generating 'Synthesis' target for IP 'starlink_pss_fft512_bfp18_rt_candidate'...
+INFO: [IP_Flow 19-1686] Generating 'Simulation' target for IP 'starlink_pss_fft512_bfp18_rt_candidate'...
+INFO: [IP_Flow 19-1686] Generating 'C Simulation' target for IP 'starlink_pss_fft512_bfp18_rt_candidate'...
+INFO: [IP_Flow 19-1686] Generating 'Test Bench' target for IP 'starlink_pss_fft512_bfp18_rt_candidate'...
+INFO: [IP_Flow 19-1686] Generating 'Change Log' target for IP 'starlink_pss_fft512_bfp18_rt_candidate'...
+# foreach name $rtl_names { add_files -norecurse [file join $source_dir ${name}.v] }
+# add_files -fileset constrs_1 -norecurse [file join $source_dir fft_bank_owned_resource_probe.xdc]
+# set_property top starlink_pss_fft_bank_owned_slice [get_filesets sources_1]
+# set_property generic [list KERNEL_ROM_FILE=[file join $source_dir upper_edge_pss_kernel_q17.mem] \
+#   REGISTERED_SCHEDULING=$registered DISTRIBUTED_FAST_FAULT=$distributed \
+#   PRIVATE_NEXT_START_SCRATCH=$scratch] [get_filesets sources_1]
+# set physical_generics [get_property GENERIC [get_filesets sources_1]]
+# foreach {name value} [list REGISTERED_SCHEDULING $registered DISTRIBUTED_FAST_FAULT $distributed PRIVATE_NEXT_START_SCRATCH $scratch] {
+#   if {[lsearch -exact $physical_generics ${name}=$value] < 0} { error "missing physical parameter $name" }
+# }
+# set_property STEPS.SYNTH_DESIGN.ARGS.FLATTEN_HIERARCHY rebuilt [get_runs synth_1]
+# set_property STEPS.SYNTH_DESIGN.ARGS.DIRECTIVE AreaOptimized_high [get_runs synth_1]
+# set_property -dict [list {STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS} {-mode out_of_context}] [get_runs synth_1]
+# create_ip_run [get_ips starlink_pss_fft512_bfp18_rt_candidate]
+# set ip_run [get_runs starlink_pss_fft512_bfp18_rt_candidate_synth_1]
+# set_property strategy Flow_AreaOptimized_high $ip_run
+# foreach run [list $ip_run [get_runs synth_1]] {
+#   set_property STEPS.SYNTH_DESIGN.ARGS.CONTROL_SET_OPT_THRESHOLD 4 $run
+#   set_property STEPS.SYNTH_DESIGN.TCL.PRE [file join $source_dir fft_bank_owned_synth_threads.tcl] $run
+# }
+WARNING: [Runs 36-537] File /tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/fft_bank_owned_synth_threads.tcl is not part of fileset utils_1, but has specified as a Tcl hook script for run(s) starlink_pss_fft512_bfp18_rt_candidate_synth_1. This file will not be handled as part of the project for archive and other project based functionality.
+WARNING: [Runs 36-537] File /tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/fft_bank_owned_synth_threads.tcl is not part of fileset utils_1, but has specified as a Tcl hook script for run(s) synth_1. This file will not be handled as part of the project for archive and other project based functionality.
+# set channel [open [file join $output_dir scope.txt] w]
+# puts $channel "scope=actual_generated_fft_plus_three_bank_island_synthesis_resources"
+# puts $channel "source_preparation=$evidence_dir"
+# puts $channel "expected_preparation_sha256=$expected_prepared"
+# puts $channel "source_simulation_log=$simlog"
+# puts $channel "registered_scheduling=$registered"
+# puts $channel "distributed_fast_fault=$distributed; private_next_start_scratch=$scratch"
+# puts $channel "effective_top_generics=$physical_generics"
+# puts $channel "source_simulation_hash=[exec sha256sum $simlog]"
+# puts $channel "source_hashes_before_synthesis=[exec sha256sum {*}[glob [file join $source_dir *]] $wrapper]"
+# puts $channel "top_resource_probe_clocks_MHz=100,175; generated_IP_OOC_clock_unchanged=true"
+# puts $channel "no_place_no_route_no_receiver_no_RF_no_timing_pass_claim=true"
+# puts $channel "maxThreads_each_synthesis_process=2"
+# close $channel
+# puts [exec env -u PYTHONHOME -u PYTHONPATH -u LD_LIBRARY_PATH /home/mouse9911/gits/pluto-plus-utils/.venv/bin/python -B $audit_helper --verify $evidence_dir --expected $expected_prepared --copied $source_dir]
+{"distributed": 1, "qualified_observer": {"invalid_only": 292463, "raw_equal": 953795, "samples": 1246258}, "registered": 1, "rtl_count": 7, "scope": "verified_preparation_NOT_physical_execution", "scratch": 1}
+# launch_runs $ip_run -jobs 2
+[Thu Sep 10 09:43:26 2026] Launched starlink_pss_fft512_bfp18_rt_candidate_synth_1...
+Run output will be captured here: /tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.runs/starlink_pss_fft512_bfp18_rt_candidate_synth_1/runme.log
+# wait_on_run $ip_run
+[Thu Sep 10 09:43:26 2026] Waiting for starlink_pss_fft512_bfp18_rt_candidate_synth_1 to finish...
+
+*** Running vivado
+    with args -log starlink_pss_fft512_bfp18_rt_candidate.vds -m64 -product Vivado -mode batch -messageDb vivado.pb -notrace -source starlink_pss_fft512_bfp18_rt_candidate.tcl
+
+
+****** Vivado v2022.2 (64-bit)
+  **** SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+  **** IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+
+source starlink_pss_fft512_bfp18_rt_candidate.tcl -notrace
+source /tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/fft_bank_owned_synth_threads.tcl
+Command: synth_design -top starlink_pss_fft512_bfp18_rt_candidate -part xc7z010clg400-1 -directive AreaOptimized_high -control_set_opt_threshold 4 -incremental_mode off -mode out_of_context
+Starting synth_design
+Attempting to get a license for feature 'Synthesis' and/or device 'xc7z010'
+INFO: [Common 17-349] Got license for feature 'Synthesis' and/or device 'xc7z010'
+INFO: [Device 21-403] Loading part xc7z010clg400-1
+INFO: [Synth 8-7079] Multithreading enabled for synth_design using a maximum of 2 processes.
+INFO: [Synth 8-7078] Launching helper process for spawning children vivado processes
+INFO: [Synth 8-7075] Helper process launched with PID 4098560
+INFO: [Synth 8-11241] undeclared symbol 'REGCCE', assumed default net type 'wire' [/opt/Xilinx/Vivado/2022.2/data/verilog/src/unimacro/BRAM_SINGLE_MACRO.v:2170]
+---------------------------------------------------------------------------------
+Starting RTL Elaboration : Time (s): cpu = 00:00:02 ; elapsed = 00:00:03 . Memory (MB): peak = 1933.148 ; gain = 369.801 ; free physical = 4071 ; free virtual = 162459
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1356.746; parent = 1153.245; children = 203.501
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 2904.238; parent = 1936.121; children = 968.117
+---------------------------------------------------------------------------------
+INFO: [Synth 8-638] synthesizing module 'starlink_pss_fft512_bfp18_rt_candidate' [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.gen/sources_1/ip/starlink_pss_fft512_bfp18_rt_candidate/synth/starlink_pss_fft512_bfp18_rt_candidate.vhd:83]
+WARNING: [Synth 8-3819] Generic 'KERNEL_ROM_FILE' not present in instantiated entity will be ignored
+WARNING: [Synth 8-3819] Generic 'REGISTERED_SCHEDULING' not present in instantiated entity will be ignored
+WARNING: [Synth 8-3819] Generic 'DISTRIBUTED_FAST_FAULT' not present in instantiated entity will be ignored
+WARNING: [Synth 8-3819] Generic 'PRIVATE_NEXT_START_SCRATCH' not present in instantiated entity will be ignored
+	Parameter C_XDEVICEFAMILY bound to: zynq - type: string 
+	Parameter C_PART bound to: xc7z010clg400-1 - type: string 
+	Parameter C_S_AXIS_CONFIG_TDATA_WIDTH bound to: 8 - type: integer 
+	Parameter C_S_AXIS_DATA_TDATA_WIDTH bound to: 48 - type: integer 
+	Parameter C_M_AXIS_DATA_TDATA_WIDTH bound to: 48 - type: integer 
+	Parameter C_M_AXIS_DATA_TUSER_WIDTH bound to: 24 - type: integer 
+	Parameter C_M_AXIS_STATUS_TDATA_WIDTH bound to: 8 - type: integer 
+	Parameter C_THROTTLE_SCHEME bound to: 0 - type: integer 
+	Parameter C_CHANNELS bound to: 1 - type: integer 
+	Parameter C_NFFT_MAX bound to: 9 - type: integer 
+	Parameter C_ARCH bound to: 1 - type: integer 
+	Parameter C_HAS_NFFT bound to: 0 - type: integer 
+	Parameter C_USE_FLT_PT bound to: 0 - type: integer 
+	Parameter C_INPUT_WIDTH bound to: 18 - type: integer 
+	Parameter C_TWIDDLE_WIDTH bound to: 16 - type: integer 
+	Parameter C_OUTPUT_WIDTH bound to: 18 - type: integer 
+	Parameter C_HAS_SCALING bound to: 1 - type: integer 
+	Parameter C_HAS_BFP bound to: 1 - type: integer 
+	Parameter C_HAS_ROUNDING bound to: 1 - type: integer 
+	Parameter C_HAS_ACLKEN bound to: 0 - type: integer 
+	Parameter C_HAS_ARESETN bound to: 1 - type: integer 
+	Parameter C_HAS_OVFLO bound to: 0 - type: integer 
+	Parameter C_HAS_NATURAL_INPUT bound to: 1 - type: integer 
+	Parameter C_HAS_NATURAL_OUTPUT bound to: 1 - type: integer 
+	Parameter C_HAS_CYCLIC_PREFIX bound to: 0 - type: integer 
+	Parameter C_HAS_XK_INDEX bound to: 1 - type: integer 
+	Parameter C_DATA_MEM_TYPE bound to: 1 - type: integer 
+	Parameter C_TWIDDLE_MEM_TYPE bound to: 1 - type: integer 
+	Parameter C_BRAM_STAGES bound to: 0 - type: integer 
+	Parameter C_REORDER_MEM_TYPE bound to: 1 - type: integer 
+	Parameter C_USE_HYBRID_RAM bound to: 0 - type: integer 
+	Parameter C_OPTIMIZE_GOAL bound to: 0 - type: integer 
+	Parameter C_CMPY_TYPE bound to: 1 - type: integer 
+	Parameter C_BFLY_TYPE bound to: 1 - type: integer 
+INFO: [Synth 8-3491] module 'xfft_v9_1_8' declared at '/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.gen/sources_1/ip/starlink_pss_fft512_bfp18_rt_candidate/hdl/xfft_v9_1_vh_rfs.vhd:103739' bound to instance 'U0' of component 'xfft_v9_1_8' [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.gen/sources_1/ip/starlink_pss_fft512_bfp18_rt_candidate/synth/starlink_pss_fft512_bfp18_rt_candidate.vhd:190]
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-3919] null assignment ignored
+INFO: [Synth 8-256] done synthesizing module 'starlink_pss_fft512_bfp18_rt_candidate' (0#1) [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.gen/sources_1/ip/starlink_pss_fft512_bfp18_rt_candidate/synth/starlink_pss_fft512_bfp18_rt_candidate.vhd:83]
+WARNING: [Synth 8-3301] Unused top level parameter/generic KERNEL_ROM_FILE
+WARNING: [Synth 8-3301] Unused top level parameter/generic REGISTERED_SCHEDULING
+WARNING: [Synth 8-3301] Unused top level parameter/generic DISTRIBUTED_FAST_FAULT
+WARNING: [Synth 8-3301] Unused top level parameter/generic PRIVATE_NEXT_START_SCRATCH
+WARNING: [Synth 8-7129] Port LUT_SCLR in module mux_bus4__parameterized4 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port LUT_SCLR in module mux_bus4__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port clk in module c_addsub_v12_0_14_lut6_legacy__parameterized11 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port add in module c_addsub_v12_0_14_lut6_legacy__parameterized11 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port c_in in module c_addsub_v12_0_14_lut6_legacy__parameterized11 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port ce in module c_addsub_v12_0_14_lut6_legacy__parameterized11 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port bypass in module c_addsub_v12_0_14_lut6_legacy__parameterized11 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port aclr in module c_addsub_v12_0_14_lut6_legacy__parameterized11 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port aset in module c_addsub_v12_0_14_lut6_legacy__parameterized11 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port ainit in module c_addsub_v12_0_14_lut6_legacy__parameterized11 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port sclr in module c_addsub_v12_0_14_lut6_legacy__parameterized11 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port sset in module c_addsub_v12_0_14_lut6_legacy__parameterized11 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port sinit in module c_addsub_v12_0_14_lut6_legacy__parameterized11 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port c_in in module c_addsub_v12_0_14_legacy__parameterized11 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port b_in in module c_addsub_v12_0_14_legacy__parameterized11 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port a_signed in module c_addsub_v12_0_14_legacy__parameterized11 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port b_signed in module c_addsub_v12_0_14_legacy__parameterized11 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port C_IN in module c_addsub_v12_0_14_viv__parameterized5 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port Q1 in module shift_ram__parameterized28 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port D1 in module shift_ram__parameterized28 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port COMBI_SCLR in module shift_ram__parameterized28 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port DEPTHx2 in module shift_ram__parameterized28 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port clk in module logic_gate__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port ce in module logic_gate__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port clk in module logic_gate is either unconnected or has no load
+WARNING: [Synth 8-7129] Port ce in module logic_gate is either unconnected or has no load
+WARNING: [Synth 8-7129] Port LUT_SCLR in module mux_bus4__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SUB_Ai in module bf_dsp is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SUB_Bi in module bf_dsp is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SUB_B in module butterfly_DSP48E_SIMD_bypass is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SUB_Ai in module bf_dsp_bypass is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SUB_Bi in module bf_dsp_bypass is either unconnected or has no load
+WARNING: [Synth 8-7129] Port D1 in module shift_ram__parameterized27 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SCLR in module shift_ram__parameterized27 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port COMBI_SCLR in module shift_ram__parameterized27 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port DEPTHx2 in module shift_ram__parameterized27 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port CLK in module cmpy_v6_0_21_delay_line__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port CE in module cmpy_v6_0_21_delay_line__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SCLR in module cmpy_v6_0_21_delay_line__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port CLK in module mult_gen_v12_0_18_delay_line__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port CE in module mult_gen_v12_0_18_delay_line__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SCLR in module mult_gen_v12_0_18_delay_line__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SCLR in module mult_gen_v12_0_18_delay_line__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SCLR in module mult_gen_v12_0_18_delay_line is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SUBTRACT in module dsp__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port CARRY_IN in module dsp__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port CLK in module cmpy_v6_0_21_delay_line__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port CE in module cmpy_v6_0_21_delay_line__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SCLR in module cmpy_v6_0_21_delay_line__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SCLR in module cmpy_v6_0_21_delay_line__parameterized1 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port CLK in module mult_gen_v12_0_18_delay_line__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port CE in module mult_gen_v12_0_18_delay_line__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SCLR in module mult_gen_v12_0_18_delay_line__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port CLK in module mult_gen_v12_0_18_delay_line__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port CE in module mult_gen_v12_0_18_delay_line__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SCLR in module mult_gen_v12_0_18_delay_line__parameterized2 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SUBTRACT in module dsp__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port CARRY_IN in module dsp__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port C[11] in module cmpy_3_dsp48_mult__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port C[10] in module cmpy_3_dsp48_mult__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port C[9] in module cmpy_3_dsp48_mult__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port C[8] in module cmpy_3_dsp48_mult__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port C[7] in module cmpy_3_dsp48_mult__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port C[6] in module cmpy_3_dsp48_mult__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port C[5] in module cmpy_3_dsp48_mult__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port C[4] in module cmpy_3_dsp48_mult__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port C[3] in module cmpy_3_dsp48_mult__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port C[2] in module cmpy_3_dsp48_mult__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port C[1] in module cmpy_3_dsp48_mult__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port C[0] in module cmpy_3_dsp48_mult__parameterized0 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port CARRY_IN in module dsp is either unconnected or has no load
+WARNING: [Synth 8-7129] Port CLK in module cmpy_v6_0_21_delay_line is either unconnected or has no load
+WARNING: [Synth 8-7129] Port CE in module cmpy_v6_0_21_delay_line is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SCLR in module cmpy_v6_0_21_delay_line is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SCLR in module cmpy_v6_0_21_synth is either unconnected or has no load
+WARNING: [Synth 8-7129] Port ROUND_CY in module cmpy_v6_0_21_synth is either unconnected or has no load
+WARNING: [Synth 8-7129] Port SO_START in module cmpy_v6_0_21_synth is either unconnected or has no load
+WARNING: [Synth 8-7129] Port round_cy in module cmpy is either unconnected or has no load
+WARNING: [Synth 8-7129] Port Q1 in module shift_ram__parameterized26 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port D1 in module shift_ram__parameterized26 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port COMBI_SCLR in module shift_ram__parameterized26 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port DEPTHx2 in module shift_ram__parameterized26 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port Q1 in module shift_ram__parameterized25 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port D1 in module shift_ram__parameterized25 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port COMBI_SCLR in module shift_ram__parameterized25 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port DEPTHx2 in module shift_ram__parameterized25 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port a[3] in module c_shift_ram_v12_0_14_legacy__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port a[2] in module c_shift_ram_v12_0_14_legacy__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port a[1] in module c_shift_ram_v12_0_14_legacy__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port a[0] in module c_shift_ram_v12_0_14_legacy__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port aclr in module c_shift_ram_v12_0_14_legacy__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port aset in module c_shift_ram_v12_0_14_legacy__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port ainit in module c_shift_ram_v12_0_14_legacy__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port sclr in module c_shift_ram_v12_0_14_legacy__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port sset in module c_shift_ram_v12_0_14_legacy__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port sinit in module c_shift_ram_v12_0_14_legacy__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port D[15] in module shift_ram__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port D[14] in module shift_ram__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port D[13] in module shift_ram__parameterized3 is either unconnected or has no load
+WARNING: [Synth 8-7129] Port D[12] in module shift_ram__parameterized3 is either unconnected or has no load
+INFO: [Common 17-14] Message 'Synth 8-7129' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings.
+---------------------------------------------------------------------------------
+Finished RTL Elaboration : Time (s): cpu = 00:00:12 ; elapsed = 00:00:13 . Memory (MB): peak = 2544.086 ; gain = 980.738 ; free physical = 3540 ; free virtual = 161931
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3512.207; parent = 2544.090; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Handling Custom Attributes
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Handling Custom Attributes : Time (s): cpu = 00:00:12 ; elapsed = 00:00:13 . Memory (MB): peak = 2552.992 ; gain = 989.645 ; free physical = 3524 ; free virtual = 161914
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3521.113; parent = 2552.996; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished RTL Optimization Phase 1 : Time (s): cpu = 00:00:12 ; elapsed = 00:00:13 . Memory (MB): peak = 2552.992 ; gain = 989.645 ; free physical = 3518 ; free virtual = 161908
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3521.113; parent = 2552.996; children = 968.117
+---------------------------------------------------------------------------------
+Netlist sorting complete. Time (s): cpu = 00:00:00.05 ; elapsed = 00:00:00.05 . Memory (MB): peak = 2555.961 ; gain = 0.000 ; free physical = 3431 ; free virtual = 161821
+INFO: [Netlist 29-17] Analyzing 606 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-570] Preparing netlist for logic optimization
+
+Processing XDC Constraints
+Initializing timing engine
+Parsing XDC File [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.gen/sources_1/ip/starlink_pss_fft512_bfp18_rt_candidate/starlink_pss_fft512_bfp18_rt_candidate_ooc.xdc] for cell 'U0'
+Finished Parsing XDC File [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.gen/sources_1/ip/starlink_pss_fft512_bfp18_rt_candidate/starlink_pss_fft512_bfp18_rt_candidate_ooc.xdc] for cell 'U0'
+Parsing XDC File [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.runs/starlink_pss_fft512_bfp18_rt_candidate_synth_1/dont_touch.xdc]
+Finished Parsing XDC File [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.runs/starlink_pss_fft512_bfp18_rt_candidate_synth_1/dont_touch.xdc]
+Completed Processing XDC Constraints
+
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2603.719 ; gain = 0.000 ; free physical = 3026 ; free virtual = 161416
+INFO: [Project 1-111] Unisim Transformation Summary:
+  A total of 166 instances were transformed.
+  DSP48E => DSP48E1: 8 instances
+  FDE => FDRE: 158 instances
+
+Constraint Validation Runtime : Time (s): cpu = 00:00:00.08 ; elapsed = 00:00:00.07 . Memory (MB): peak = 2603.719 ; gain = 0.000 ; free physical = 3025 ; free virtual = 161416
+INFO: [Designutils 20-5008] Incremental synthesis strategy off
+INFO: [Synth 8-11241] undeclared symbol 'REGCCE', assumed default net type 'wire' [/opt/Xilinx/Vivado/2022.2/data/verilog/src/unimacro/BRAM_SINGLE_MACRO.v:2170]
+---------------------------------------------------------------------------------
+Finished Constraint Validation : Time (s): cpu = 00:00:15 ; elapsed = 00:00:16 . Memory (MB): peak = 2603.719 ; gain = 1040.371 ; free physical = 3604 ; free virtual = 161995
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3571.840; parent = 2603.723; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Loading Part and Timing Information
+---------------------------------------------------------------------------------
+Loading part: xc7z010clg400-1
+---------------------------------------------------------------------------------
+Finished Loading Part and Timing Information : Time (s): cpu = 00:00:15 ; elapsed = 00:00:17 . Memory (MB): peak = 2603.719 ; gain = 1040.371 ; free physical = 3604 ; free virtual = 161995
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3571.840; parent = 2603.723; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Applying 'set_property' XDC Constraints
+---------------------------------------------------------------------------------
+Applied set_property KEEP_HIERARCHY = SOFT for U0. (constraint file  /tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.runs/starlink_pss_fft512_bfp18_rt_candidate_synth_1/dont_touch.xdc, line 9).
+---------------------------------------------------------------------------------
+Finished applying 'set_property' XDC Constraints : Time (s): cpu = 00:00:15 ; elapsed = 00:00:17 . Memory (MB): peak = 2603.719 ; gain = 1040.371 ; free physical = 3596 ; free virtual = 161987
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3571.840; parent = 2603.723; children = 968.117
+---------------------------------------------------------------------------------
+INFO: [Synth 8-802] inferred FSM for state register 'gen_status_channel.gen_status_blk_exp.we_current_state_reg' in module 'axi_wrapper'
+---------------------------------------------------------------------------------------------------
+                   State |                     New Encoding |                Previous Encoding 
+---------------------------------------------------------------------------------------------------
+ st_wait_for_frame_start |                              001 |                               00
+  st_wait_for_fifo_write |                              010 |                               01
+   st_wait_for_frame_end |                              100 |                               10
+---------------------------------------------------------------------------------------------------
+INFO: [Synth 8-3354] encoded FSM with state register 'gen_status_channel.gen_status_blk_exp.we_current_state_reg' using encoding 'one-hot' in module 'axi_wrapper'
+---------------------------------------------------------------------------------
+Finished RTL Optimization Phase 2 : Time (s): cpu = 00:00:16 ; elapsed = 00:00:18 . Memory (MB): peak = 2603.719 ; gain = 1040.371 ; free physical = 3479 ; free virtual = 161872
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3571.840; parent = 2603.723; children = 968.117
+---------------------------------------------------------------------------------
+INFO: [Synth 8-223] decloning instance 'U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/control/delay_line4_for_rfd' (shift_ram__parameterized3) to 'U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/control/has_bfp.delay_rfd_for_scale_select'
+---------------------------------------------------------------------------------
+Start RTL Component Statistics 
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished RTL Component Statistics 
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Part Resource Summary
+---------------------------------------------------------------------------------
+Part Resources:
+DSPs: 80 (col length:40)
+BRAMs: 120 (col length: RAMB18 40 RAMB36 20)
+---------------------------------------------------------------------------------
+Finished Part Resource Summary
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Cross Boundary and Area Optimization
+---------------------------------------------------------------------------------
+WARNING: [Synth 8-7080] Parallel synthesis criteria is not met
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_0r/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[26].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_0r/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[25].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_0r/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[24].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_0i/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[26].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_0i/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[25].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_0i/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[24].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_1r/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[26].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_1r/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[25].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_1r/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[24].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_1i/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[26].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_1i/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[25].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_1i/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[24].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_2r/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[26].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_2r/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[25].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_2r/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[24].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_2i/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[26].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_2i/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[25].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_2i/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[24].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_3r/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[26].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_3r/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[25].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_3r/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[24].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_3i/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[26].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_3i/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[25].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/scaler_gen.scaler_3i/scale_mux/four_inputs.use_lut6.no_lut_sclr.four_to_one_mux[24].latency1.reg) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/rounder_inst.with_mults.rounder_0r/reg_gate.delay_d_2/no_sclr_lut.real_shift_ram.use_baseblock.use_hlutnm_srls.srl_loop[0].i_fdre0) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/rounder_inst.with_mults.rounder_0i/reg_gate.delay_d_2/no_sclr_lut.real_shift_ram.use_baseblock.use_hlutnm_srls.srl_loop[0].i_fdre0) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/rounder_inst.with_mults.rounder_1r/reg_gate.delay_d_2/no_sclr_lut.real_shift_ram.use_baseblock.use_hlutnm_srls.srl_loop[0].i_fdre0) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/rounder_inst.with_mults.rounder_1i/reg_gate.delay_d_2/no_sclr_lut.real_shift_ram.use_baseblock.use_hlutnm_srls.srl_loop[0].i_fdre0) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/rounder_inst.with_mults.rounder_2r/reg_gate.delay_d_2/no_sclr_lut.real_shift_ram.use_baseblock.use_hlutnm_srls.srl_loop[0].i_fdre0) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/rounder_inst.with_mults.rounder_2i/reg_gate.delay_d_2/no_sclr_lut.real_shift_ram.use_baseblock.use_hlutnm_srls.srl_loop[0].i_fdre0) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/rounder_inst.with_mults.rounder_3r/reg_gate.delay_d_2/no_sclr_lut.real_shift_ram.use_baseblock.use_hlutnm_srls.srl_loop[0].i_fdre0) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/rounder_inst.with_mults.rounder_3i/reg_gate.delay_d_2/no_sclr_lut.real_shift_ram.use_baseblock.use_hlutnm_srls.srl_loop[0].i_fdre0) is unused and will be removed from module xfft_v9_1_8_viv.
+INFO: [Synth 8-3332] Sequential element (xfft_inst/non_floating_point.arch_b.xfft_inst/control/control/max_rank_flops[2].max_rank_ff) is unused and will be removed from module xfft_v9_1_8_viv.
+---------------------------------------------------------------------------------
+Finished Cross Boundary and Area Optimization : Time (s): cpu = 00:00:17 ; elapsed = 00:00:20 . Memory (MB): peak = 2603.719 ; gain = 1040.371 ; free physical = 3915 ; free virtual = 162315
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3571.840; parent = 2603.723; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Applying XDC Timing Constraints
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Applying XDC Timing Constraints : Time (s): cpu = 00:00:20 ; elapsed = 00:00:22 . Memory (MB): peak = 2603.719 ; gain = 1040.371 ; free physical = 3486 ; free virtual = 162071
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3571.840; parent = 2603.723; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Timing Optimization
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Timing Optimization : Time (s): cpu = 00:00:21 ; elapsed = 00:00:23 . Memory (MB): peak = 2603.719 ; gain = 1040.371 ; free physical = 3406 ; free virtual = 161998
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3571.840; parent = 2603.723; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Technology Mapping
+---------------------------------------------------------------------------------
+INFO: [Synth 8-7052] The timing for the instance U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/bfp_scaling.pe_ranger_inst/ranger_ar/scale_reg (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/bfp_scaling.pe_ranger_inst/ranger_ar/scale_reg (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/bfp_scaling.pe_ranger_inst/ranger_br/scale_reg (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/bfp_scaling.pe_ranger_inst/ranger_br/scale_reg (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/bfp_scaling.pe_ranger_inst/ranger_cr/scale_reg (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/bfp_scaling.pe_ranger_inst/ranger_cr/scale_reg (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/bfp_scaling.pe_ranger_inst/ranger_dr/scale_reg (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/bfp_scaling.pe_ranger_inst/ranger_dr/scale_reg (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+---------------------------------------------------------------------------------
+Finished Technology Mapping : Time (s): cpu = 00:00:21 ; elapsed = 00:00:24 . Memory (MB): peak = 2603.719 ; gain = 1040.371 ; free physical = 3487 ; free virtual = 162100
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3571.840; parent = 2603.723; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Flattening Before IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Flattening Before IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Final Netlist Cleanup
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Final Netlist Cleanup
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished IO Insertion : Time (s): cpu = 00:00:23 ; elapsed = 00:00:26 . Memory (MB): peak = 2603.719 ; gain = 1040.371 ; free physical = 3461 ; free virtual = 162115
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3571.840; parent = 2603.723; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Instances
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Instances : Time (s): cpu = 00:00:23 ; elapsed = 00:00:26 . Memory (MB): peak = 2603.719 ; gain = 1040.371 ; free physical = 3461 ; free virtual = 162116
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3571.840; parent = 2603.723; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Rebuilding User Hierarchy
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Rebuilding User Hierarchy : Time (s): cpu = 00:00:23 ; elapsed = 00:00:26 . Memory (MB): peak = 2603.719 ; gain = 1040.371 ; free physical = 3505 ; free virtual = 162160
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3571.840; parent = 2603.723; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Ports
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Ports : Time (s): cpu = 00:00:23 ; elapsed = 00:00:26 . Memory (MB): peak = 2603.719 ; gain = 1040.371 ; free physical = 3505 ; free virtual = 162162
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3571.840; parent = 2603.723; children = 968.117
+---------------------------------------------------------------------------------
+WARNING: [Synth 8-3332] Sequential element (max_reg_flops[9].max_reg_ff) is unused and will be removed from module flow_control_b.
+WARNING: [Synth 8-3332] Sequential element (max_reg_flops[8].max_reg_ff) is unused and will be removed from module flow_control_b.
+WARNING: [Synth 8-3332] Sequential element (max_reg_flops[7].max_reg_ff) is unused and will be removed from module flow_control_b.
+WARNING: [Synth 8-3332] Sequential element (max_reg_flops[6].max_reg_ff) is unused and will be removed from module flow_control_b.
+WARNING: [Synth 8-3332] Sequential element (max_reg_flops[5].max_reg_ff) is unused and will be removed from module flow_control_b.
+WARNING: [Synth 8-3332] Sequential element (max_reg_flops[4].max_reg_ff) is unused and will be removed from module flow_control_b.
+WARNING: [Synth 8-3332] Sequential element (max_reg_flops[3].max_reg_ff) is unused and will be removed from module flow_control_b.
+---------------------------------------------------------------------------------
+Start Handling Custom Attributes
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Handling Custom Attributes : Time (s): cpu = 00:00:23 ; elapsed = 00:00:26 . Memory (MB): peak = 2603.719 ; gain = 1040.371 ; free physical = 3509 ; free virtual = 162167
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3571.840; parent = 2603.723; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Nets
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Nets : Time (s): cpu = 00:00:23 ; elapsed = 00:00:26 . Memory (MB): peak = 2603.719 ; gain = 1040.371 ; free physical = 3509 ; free virtual = 162167
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3571.840; parent = 2603.723; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Writing Synthesis Report
+---------------------------------------------------------------------------------
+
+DSP Final Report (the ' indicates corresponding REG is set)
++------------------------+-----------------------------+--------+--------+--------+--------+--------+------+------+------+------+-------+------+------+
+|Module Name             | DSP Mapping                 | A Size | B Size | C Size | D Size | P Size | AREG | BREG | CREG | DREG | ADREG | MREG | PREG | 
++------------------------+-----------------------------+--------+--------+--------+--------+--------+------+------+------+------+-------+------+------+
+|dsp_107                 | (not(C'+((D'+A'')'*B'')'))' | 25     | 18     | 48     | 25     | 43     | 2    | 2    | 2    | 2    | 1     | 1    | 1    | 
+|dsp__parameterized0_106 | (C+((D'+A')'*B'')')'        | 25     | 18     | 11     | 25     | 43     | 1    | 2    | 2    | 2    | 1     | 1    | 1    | 
+|dsp__parameterized1_103 | (C'+((D'-A'')'*B'')')'      | 25     | 18     | 48     | 25     | 43     | 2    | 2    | 2    | 2    | 1     | 1    | 1    | 
+|dsp_93                  | (not(C'+((D'+A'')'*B'')'))' | 25     | 18     | 48     | 25     | 43     | 2    | 2    | 2    | 2    | 1     | 1    | 1    | 
+|dsp__parameterized0_92  | (C+((D'+A')'*B'')')'        | 25     | 18     | 11     | 25     | 43     | 1    | 2    | 2    | 2    | 1     | 1    | 1    | 
+|dsp__parameterized1_89  | (C'+((D'-A'')'*B'')')'      | 25     | 18     | 48     | 25     | 43     | 2    | 2    | 2    | 2    | 1     | 1    | 1    | 
+|dsp                     | (not(C'+((D'+A'')'*B'')'))' | 25     | 18     | 48     | 25     | 43     | 2    | 2    | 2    | 2    | 1     | 1    | 1    | 
+|dsp__parameterized0     | (C+((D'+A')'*B'')')'        | 25     | 18     | 11     | 25     | 43     | 1    | 2    | 2    | 2    | 1     | 1    | 1    | 
+|dsp__parameterized1     | (C'+((D'-A'')'*B'')')'      | 25     | 18     | 48     | 25     | 43     | 2    | 2    | 2    | 2    | 1     | 1    | 1    | 
++------------------------+-----------------------------+--------+--------+--------+--------+--------+------+------+------+------+-------+------+------+
+
+
+Report BlackBoxes: 
++------+--------------+----------+
+|      |BlackBox name |Instances |
++------+--------------+----------+
+|1     |DSP48E        |         8|
++------+--------------+----------+
+
+Report Cell Usage: 
++------+---------------+------+
+|      |Cell           |Count |
++------+---------------+------+
+|1     |DSP48E_bbox    |     1|
+|2     |DSP48E_bbox_10 |     1|
+|3     |DSP48E_bbox    |     5|
+|8     |DSP48E_bbox_9  |     1|
+|9     |CARRY4         |    20|
+|10    |DSP48E1        |     9|
+|12    |LUT1           |    34|
+|13    |LUT2           |   118|
+|14    |LUT3           |   366|
+|15    |LUT4           |    57|
+|16    |LUT5           |    28|
+|17    |LUT6           |   600|
+|18    |MUXCY          |   214|
+|19    |MUXF7          |     7|
+|20    |RAMB18E1       |    11|
+|23    |SRL16E         |   265|
+|24    |SRLC32E        |    39|
+|25    |XORCY          |   206|
+|26    |FDE            |   150|
+|27    |FDRE           |  2826|
+|28    |FDSE           |    13|
++------+---------------+------+
+---------------------------------------------------------------------------------
+Finished Writing Synthesis Report : Time (s): cpu = 00:00:23 ; elapsed = 00:00:26 . Memory (MB): peak = 2603.719 ; gain = 1040.371 ; free physical = 3509 ; free virtual = 162167
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1935.835; parent = 1732.336; children = 203.516
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3571.840; parent = 2603.723; children = 968.117
+---------------------------------------------------------------------------------
+Synthesis finished with 0 errors, 0 critical warnings and 440 warnings.
+Synthesis Optimization Runtime : Time (s): cpu = 00:00:21 ; elapsed = 00:00:25 . Memory (MB): peak = 2603.719 ; gain = 989.645 ; free physical = 3514 ; free virtual = 162172
+Synthesis Optimization Complete : Time (s): cpu = 00:00:23 ; elapsed = 00:00:26 . Memory (MB): peak = 2603.727 ; gain = 1040.371 ; free physical = 3514 ; free virtual = 162172
+INFO: [Project 1-571] Translating synthesized netlist
+Netlist sorting complete. Time (s): cpu = 00:00:00.04 ; elapsed = 00:00:00.04 . Memory (MB): peak = 2603.727 ; gain = 0.000 ; free physical = 3602 ; free virtual = 162261
+INFO: [Netlist 29-17] Analyzing 625 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-570] Preparing netlist for logic optimization
+INFO: [Opt 31-138] Pushed 0 inverter(s) to 0 load pin(s).
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2603.727 ; gain = 0.000 ; free physical = 3533 ; free virtual = 162196
+INFO: [Project 1-111] Unisim Transformation Summary:
+  A total of 226 instances were transformed.
+  (MUXCY,XORCY) => CARRY4: 68 instances
+  DSP48E => DSP48E1: 8 instances
+  FDE => FDRE: 150 instances
+
+Synth Design complete, checksum: a4d0e0f3
+INFO: [Common 17-83] Releasing license: Synthesis
+112 Infos, 116 Warnings, 0 Critical Warnings and 0 Errors encountered.
+synth_design completed successfully
+synth_design: Time (s): cpu = 00:00:27 ; elapsed = 00:00:29 . Memory (MB): peak = 2603.727 ; gain = 1342.777 ; free physical = 3672 ; free virtual = 162339
+INFO: [Common 17-600] The following parameters have non-default value.
+general.maxThreads
+INFO: [Coretcl 2-1174] Renamed 358 cell refs.
+INFO: [Common 17-1381] The checkpoint '/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.runs/starlink_pss_fft512_bfp18_rt_candidate_synth_1/starlink_pss_fft512_bfp18_rt_candidate.dcp' has been generated.
+INFO: [runtcl-4] Executing : report_utilization -file starlink_pss_fft512_bfp18_rt_candidate_utilization_synth.rpt -pb starlink_pss_fft512_bfp18_rt_candidate_utilization_synth.pb
+INFO: [Common 17-206] Exiting Vivado at Thu Sep 10 09:44:01 2026...
+[Thu Sep 10 09:44:11 2026] starlink_pss_fft512_bfp18_rt_candidate_synth_1 finished
+wait_on_runs: Time (s): cpu = 00:00:32 ; elapsed = 00:00:45 . Memory (MB): peak = 1349.711 ; gain = 0.000 ; free physical = 4236 ; free virtual = 162995
+# if {[get_property STATUS $ip_run] ne "synth_design Complete!"} { error "actual FFT synthesis failed" }
+# launch_runs synth_1 -jobs 2
+WARNING: [Vivado 12-7122] Auto Incremental Compile:: No reference checkpoint was found in run synth_1. Auto-incremental flow will not be run, the standard flow will be run instead.
+[Thu Sep 10 09:44:11 2026] Launched synth_1...
+Run output will be captured here: /tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.runs/synth_1/runme.log
+# wait_on_run synth_1
+[Thu Sep 10 09:44:11 2026] Waiting for synth_1 to finish...
+
+*** Running vivado
+    with args -log starlink_pss_fft_bank_owned_slice.vds -m64 -product Vivado -mode batch -messageDb vivado.pb -notrace -source starlink_pss_fft_bank_owned_slice.tcl
+
+
+****** Vivado v2022.2 (64-bit)
+  **** SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+  **** IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+    ** Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+
+source starlink_pss_fft_bank_owned_slice.tcl -notrace
+source /tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/fft_bank_owned_synth_threads.tcl
+Command: synth_design -top starlink_pss_fft_bank_owned_slice -part xc7z010clg400-1 -directive AreaOptimized_high -control_set_opt_threshold 4 -mode out_of_context
+Starting synth_design
+Attempting to get a license for feature 'Synthesis' and/or device 'xc7z010'
+INFO: [Common 17-349] Got license for feature 'Synthesis' and/or device 'xc7z010'
+INFO: [Device 21-403] Loading part xc7z010clg400-1
+INFO: [Synth 8-7079] Multithreading enabled for synth_design using a maximum of 2 processes.
+INFO: [Synth 8-7078] Launching helper process for spawning children vivado processes
+INFO: [Synth 8-7075] Helper process launched with PID 4101671
+INFO: [Synth 8-11241] undeclared symbol 'REGCCE', assumed default net type 'wire' [/opt/Xilinx/Vivado/2022.2/data/verilog/src/unimacro/BRAM_SINGLE_MACRO.v:2170]
+WARNING: [Synth 8-6901] identifier 'registered_quarantine' is used before its declaration [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_fft_bank_owned_slice.v:84]
+WARNING: [Synth 8-6901] identifier 'destination_reserved' is used before its declaration [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_fft_bank_owned_slice.v:154]
+WARNING: [Synth 8-6901] identifier 'destination_reserved' is used before its declaration [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_fft_bank_owned_slice.v:157]
+---------------------------------------------------------------------------------
+Starting RTL Elaboration : Time (s): cpu = 00:00:02 ; elapsed = 00:00:02 . Memory (MB): peak = 1934.855 ; gain = 371.770 ; free physical = 3077 ; free virtual = 161818
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1356.756; parent = 1153.122; children = 203.634
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 2905.945; parent = 1937.828; children = 968.117
+---------------------------------------------------------------------------------
+INFO: [Synth 8-6157] synthesizing module 'starlink_pss_fft_bank_owned_slice' [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_fft_bank_owned_slice.v:10]
+	Parameter KERNEL_ROM_FILE bound to: /tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/upper_edge_pss_kernel_q17.mem - type: string 
+	Parameter REGISTERED_SCHEDULING bound to: 1 - type: integer 
+	Parameter DISTRIBUTED_FAST_FAULT bound to: 1 - type: integer 
+	Parameter PRIVATE_NEXT_START_SCRATCH bound to: 1 - type: integer 
+INFO: [Synth 8-6157] synthesizing module 'starlink_pss_block_mailbox' [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_block_mailbox.v:12]
+	Parameter RESET_RELEASE_EXTERNAL bound to: 1 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'starlink_pss_block_mailbox' (0#1) [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_block_mailbox.v:12]
+INFO: [Synth 8-6157] synthesizing module 'starlink_pss_realtime_input_guard' [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_realtime_input_guard.v:15]
+	Parameter CHECK_INPUT_BLOCK_IDENTITY bound to: 1 - type: integer 
+	Parameter BALANCED_IDENTITY_EQ bound to: 1 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'starlink_pss_realtime_input_guard' (0#1) [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_realtime_input_guard.v:15]
+INFO: [Synth 8-6157] synthesizing module 'starlink_pss_realtime_result_guard' [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_realtime_result_guard.v:23]
+	Parameter USE_COMPLETED_INPUT_FAULT bound to: 1 - type: integer 
+	Parameter USE_PREFLIGHT_REASON_ONLY bound to: 1 - type: integer 
+	Parameter USE_FORWARD_RETIREMENT bound to: 1 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'starlink_pss_realtime_result_guard' (0#1) [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_realtime_result_guard.v:23]
+INFO: [Synth 8-6157] synthesizing module 'starlink_pss_forward_kernel_join' [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_forward_kernel_join.v:11]
+	Parameter KERNEL_ROM_FILE bound to: /tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/upper_edge_pss_kernel_q17.mem - type: string 
+	Parameter DATA_WIDTH bound to: 18 - type: integer 
+	Parameter PRIVATE_PAYLOAD_BUBBLES bound to: 1 - type: integer 
+	Parameter BALANCED_BLOCK_IDENTITY_EQ bound to: 1 - type: integer 
+	Parameter PRIVATE_NEXT_START_SCRATCH bound to: 1 - type: integer 
+INFO: [Synth 8-6157] synthesizing module 'starlink_pss_kernel_rom' [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_kernel_rom.v:12]
+	Parameter ROM_FILE bound to: /tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/upper_edge_pss_kernel_q17.mem - type: string 
+	Parameter DATA_WIDTH bound to: 18 - type: integer 
+	Parameter BALANCED_BLOCK_IDENTITY_EQ bound to: 1 - type: integer 
+	Parameter PRIVATE_NEXT_START_SCRATCH bound to: 1 - type: integer 
+INFO: [Synth 8-3876] $readmem data file '/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/upper_edge_pss_kernel_q17.mem' is read successfully [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_kernel_rom.v:92]
+INFO: [Synth 8-6155] done synthesizing module 'starlink_pss_kernel_rom' (0#1) [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_kernel_rom.v:12]
+INFO: [Synth 8-6155] done synthesizing module 'starlink_pss_forward_kernel_join' (0#1) [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_forward_kernel_join.v:11]
+INFO: [Synth 8-6157] synthesizing module 'starlink_pss_spectrum_product' [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_spectrum_product.v:12]
+	Parameter DATA_WIDTH bound to: 18 - type: integer 
+	Parameter PRIVATE_PAYLOAD_BUBBLES bound to: 1 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'starlink_pss_spectrum_product' (0#1) [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_spectrum_product.v:12]
+INFO: [Synth 8-6157] synthesizing module 'starlink_pss_block_mailbox__parameterized0' [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_block_mailbox.v:12]
+	Parameter RESET_RELEASE_EXTERNAL bound to: 1 - type: integer 
+	Parameter EXPLICIT_COMMIT bound to: 1 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'starlink_pss_block_mailbox__parameterized0' (0#1) [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_block_mailbox.v:12]
+INFO: [Synth 8-6157] synthesizing module 'starlink_pss_block_mailbox__parameterized1' [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_block_mailbox.v:12]
+	Parameter METADATA_WIDTH bound to: 75 - type: integer 
+	Parameter RESET_RELEASE_EXTERNAL bound to: 1 - type: integer 
+	Parameter EXPLICIT_COMMIT bound to: 1 - type: integer 
+INFO: [Synth 8-6155] done synthesizing module 'starlink_pss_block_mailbox__parameterized1' (0#1) [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_block_mailbox.v:12]
+INFO: [Synth 8-6157] synthesizing module 'starlink_pss_fft512_bfp18_rt_candidate' [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.runs/synth_1/.Xil/Vivado-4101378-gauss/realtime/starlink_pss_fft512_bfp18_rt_candidate_stub.v:5]
+INFO: [Synth 8-6155] done synthesizing module 'starlink_pss_fft512_bfp18_rt_candidate' (0#1) [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.runs/synth_1/.Xil/Vivado-4101378-gauss/realtime/starlink_pss_fft512_bfp18_rt_candidate_stub.v:5]
+INFO: [Synth 8-6155] done synthesizing module 'starlink_pss_fft_bank_owned_slice' (0#1) [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/starlink_pss_fft_bank_owned_slice.v:10]
+WARNING: [Synth 8-7129] Port phase_input_fault_now in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[47] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[46] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[45] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[44] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[43] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[42] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[23] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[22] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[21] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[20] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[19] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[18] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port input_commit_authorized in module starlink_pss_block_mailbox is either unconnected or has no load
+---------------------------------------------------------------------------------
+Finished RTL Elaboration : Time (s): cpu = 00:00:02 ; elapsed = 00:00:02 . Memory (MB): peak = 2020.793 ; gain = 457.707 ; free physical = 3403 ; free virtual = 162146
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1356.756; parent = 1153.122; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 2988.914; parent = 2020.797; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Handling Custom Attributes
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Handling Custom Attributes : Time (s): cpu = 00:00:02 ; elapsed = 00:00:03 . Memory (MB): peak = 2038.605 ; gain = 475.520 ; free physical = 3403 ; free virtual = 162146
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1356.756; parent = 1153.122; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3006.727; parent = 2038.609; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished RTL Optimization Phase 1 : Time (s): cpu = 00:00:02 ; elapsed = 00:00:03 . Memory (MB): peak = 2038.605 ; gain = 475.520 ; free physical = 3405 ; free virtual = 162148
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1356.756; parent = 1153.122; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3006.727; parent = 2038.609; children = 968.117
+---------------------------------------------------------------------------------
+Netlist sorting complete. Time (s): cpu = 00:00:00.01 ; elapsed = 00:00:00.01 . Memory (MB): peak = 2038.605 ; gain = 0.000 ; free physical = 3405 ; free virtual = 162148
+INFO: [Project 1-570] Preparing netlist for logic optimization
+
+Processing XDC Constraints
+Initializing timing engine
+Parsing XDC File [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.gen/sources_1/ip/starlink_pss_fft512_bfp18_rt_candidate/starlink_pss_fft512_bfp18_rt_candidate/starlink_pss_fft512_bfp18_rt_candidate_in_context.xdc] for cell 'shared_xfft'
+Finished Parsing XDC File [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.gen/sources_1/ip/starlink_pss_fft512_bfp18_rt_candidate/starlink_pss_fft512_bfp18_rt_candidate/starlink_pss_fft512_bfp18_rt_candidate_in_context.xdc] for cell 'shared_xfft'
+Parsing XDC File [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/fft_bank_owned_resource_probe.xdc]
+WARNING: [Vivado 12-2489] -period contains time 5.714286 which will be rounded to 5.714 to ensure it is an integer multiple of 1 picosecond [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/fft_bank_owned_resource_probe.xdc:4]
+Finished Parsing XDC File [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/fft_bank_owned_resource_probe.xdc]
+Completed Processing XDC Constraints
+
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2145.332 ; gain = 0.000 ; free physical = 3341 ; free virtual = 162084
+INFO: [Project 1-111] Unisim Transformation Summary:
+No Unisim elements were transformed.
+
+Constraint Validation Runtime : Time (s): cpu = 00:00:00.03 ; elapsed = 00:00:00.03 . Memory (MB): peak = 2145.332 ; gain = 0.000 ; free physical = 3333 ; free virtual = 162076
+INFO: [Synth 8-11241] undeclared symbol 'REGCCE', assumed default net type 'wire' [/opt/Xilinx/Vivado/2022.2/data/verilog/src/unimacro/BRAM_SINGLE_MACRO.v:2170]
+---------------------------------------------------------------------------------
+Finished Constraint Validation : Time (s): cpu = 00:00:05 ; elapsed = 00:00:06 . Memory (MB): peak = 2145.332 ; gain = 582.246 ; free physical = 3076 ; free virtual = 161818
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1356.756; parent = 1153.122; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3113.453; parent = 2145.336; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Loading Part and Timing Information
+---------------------------------------------------------------------------------
+Loading part: xc7z010clg400-1
+---------------------------------------------------------------------------------
+Finished Loading Part and Timing Information : Time (s): cpu = 00:00:05 ; elapsed = 00:00:06 . Memory (MB): peak = 2145.332 ; gain = 582.246 ; free physical = 3076 ; free virtual = 161818
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1356.756; parent = 1153.122; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3113.453; parent = 2145.336; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Applying 'set_property' XDC Constraints
+---------------------------------------------------------------------------------
+Applied set_property KEEP_HIERARCHY = SOFT for shared_xfft. (constraint file  auto generated constraint).
+---------------------------------------------------------------------------------
+Finished applying 'set_property' XDC Constraints : Time (s): cpu = 00:00:05 ; elapsed = 00:00:06 . Memory (MB): peak = 2145.332 ; gain = 582.246 ; free physical = 3064 ; free virtual = 161806
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1356.756; parent = 1153.122; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3113.453; parent = 2145.336; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished RTL Optimization Phase 2 : Time (s): cpu = 00:00:05 ; elapsed = 00:00:06 . Memory (MB): peak = 2145.332 ; gain = 582.246 ; free physical = 2888 ; free virtual = 161631
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1356.756; parent = 1153.122; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3113.453; parent = 2145.336; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start RTL Component Statistics 
+---------------------------------------------------------------------------------
+Detailed RTL Component Info : 
++---Adders : 
+	   2 Input   64 Bit       Adders := 1     
+	   2 Input   38 Bit       Adders := 2     
+	   2 Input   10 Bit       Adders := 2     
+	   2 Input    9 Bit       Adders := 8     
+	   2 Input    6 Bit       Adders := 1     
++---Registers : 
+	               75 Bit    Registers := 2     
+	               70 Bit    Registers := 8     
+	               64 Bit    Registers := 6     
+	               37 Bit    Registers := 2     
+	               36 Bit    Registers := 5     
+	               18 Bit    Registers := 4     
+	               10 Bit    Registers := 2     
+	                9 Bit    Registers := 15    
+	                8 Bit    Registers := 1     
+	                6 Bit    Registers := 2     
+	                5 Bit    Registers := 8     
+	                4 Bit    Registers := 1     
+	                3 Bit    Registers := 2     
+	                2 Bit    Registers := 12    
+	                1 Bit    Registers := 72    
++---RAMs : 
+	              18K Bit	(512 X 36 bit)          RAMs := 3     
++---ROMs : 
+	                    ROMs := 1     
++---Muxes : 
+	   2 Input   70 Bit        Muxes := 3     
+	   2 Input   36 Bit        Muxes := 1     
+	   2 Input   19 Bit        Muxes := 4     
+	   2 Input   10 Bit        Muxes := 3     
+	   2 Input    9 Bit        Muxes := 9     
+	   2 Input    4 Bit        Muxes := 1     
+	   2 Input    3 Bit        Muxes := 1     
+	   2 Input    1 Bit        Muxes := 60    
+	  13 Input    1 Bit        Muxes := 1     
+	  12 Input    1 Bit        Muxes := 11    
+---------------------------------------------------------------------------------
+Finished RTL Component Statistics 
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Part Resource Summary
+---------------------------------------------------------------------------------
+Part Resources:
+DSPs: 80 (col length:40)
+BRAMs: 120 (col length: RAMB18 40 RAMB36 20)
+---------------------------------------------------------------------------------
+Finished Part Resource Summary
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Cross Boundary and Area Optimization
+---------------------------------------------------------------------------------
+WARNING: [Synth 8-7080] Parallel synthesis criteria is not met
+DSP Report: Generating DSP product_ii_reg, operation Mode is: (A*B)'.
+DSP Report: register product_ii_reg is absorbed into DSP product_ii_reg.
+DSP Report: operator product_ii0 is absorbed into DSP product_ii_reg.
+DSP Report: Generating DSP sum_real_reg, operation Mode is: (PCIN-(A*B)')'.
+DSP Report: register sum_real_reg is absorbed into DSP sum_real_reg.
+DSP Report: register product_qq_reg is absorbed into DSP sum_real_reg.
+DSP Report: operator sum_real0 is absorbed into DSP sum_real_reg.
+DSP Report: operator product_qq0 is absorbed into DSP sum_real_reg.
+DSP Report: Generating DSP product_iq_reg, operation Mode is: (A*B)'.
+DSP Report: register product_iq_reg is absorbed into DSP product_iq_reg.
+DSP Report: operator product_iq0 is absorbed into DSP product_iq_reg.
+DSP Report: Generating DSP sum_imag_reg, operation Mode is: (PCIN+(A*B)')'.
+DSP Report: register sum_imag_reg is absorbed into DSP sum_imag_reg.
+DSP Report: register product_qi_reg is absorbed into DSP sum_imag_reg.
+DSP Report: operator sum_imag0 is absorbed into DSP sum_imag_reg.
+DSP Report: operator product_qi0 is absorbed into DSP sum_imag_reg.
+WARNING: [Synth 8-7129] Port phase_input_fault_now in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[47] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[46] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[45] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[44] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[43] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[42] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[23] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[22] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[21] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[20] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[19] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port core_output_tdata[18] in module starlink_pss_realtime_result_guard is either unconnected or has no load
+WARNING: [Synth 8-7129] Port input_commit_authorized in module starlink_pss_block_mailbox is either unconnected or has no load
+---------------------------------------------------------------------------------
+Finished Cross Boundary and Area Optimization : Time (s): cpu = 00:00:14 ; elapsed = 00:00:16 . Memory (MB): peak = 2145.332 ; gain = 582.246 ; free physical = 3433 ; free virtual = 162183
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1372.285; parent = 1168.723; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3113.453; parent = 2145.336; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+
+Block RAM: Preliminary Mapping Report (see note below)
++----------------------------------+---------------------------------+------------------------+---+---+------------------------+---+---+------------------+--------+--------+
+|Module Name                       | RTL Object                      | PORT A (Depth x Width) | W | R | PORT B (Depth x Width) | W | R | Ports driving FF | RAMB18 | RAMB36 | 
++----------------------------------+---------------------------------+------------------------+---+---+------------------------+---+---+------------------+--------+--------+
+|starlink_pss_fft_bank_owned_slice | source_bank/payload_memory_reg  | 512 x 36(NO_CHANGE)    | W |   | 512 x 36(WRITE_FIRST)  |   | R | Port A and B     | 1      | 0      | 
+|starlink_pss_fft_bank_owned_slice | product_bank/payload_memory_reg | 512 x 36(READ_FIRST)   | W |   | 512 x 36(WRITE_FIRST)  |   | R | Port A and B     | 1      | 0      | 
+|starlink_pss_fft_bank_owned_slice | output_bank/payload_memory_reg  | 512 x 36(NO_CHANGE)    | W |   | 512 x 36(WRITE_FIRST)  |   | R | Port A and B     | 1      | 0      | 
++----------------------------------+---------------------------------+------------------------+---+---+------------------------+---+---+------------------+--------+--------+
+
+Note: The table above is a preliminary report that shows the Block RAMs at the current stage of the synthesis flow. Some Block RAMs may be reimplemented as non Block RAM primitives later in the synthesis flow. Multiple instantiated Block RAMs are reported only once. 
+
+DSP: Preliminary Mapping Report (see note below. The ' indicates corresponding REG is set)
++------------------------------+----------------+--------+--------+--------+--------+--------+------+------+------+------+-------+------+------+
+|Module Name                   | DSP Mapping    | A Size | B Size | C Size | D Size | P Size | AREG | BREG | CREG | DREG | ADREG | MREG | PREG | 
++------------------------------+----------------+--------+--------+--------+--------+--------+------+------+------+------+-------+------+------+
+|starlink_pss_spectrum_product | (A*B)'         | 18     | 18     | -      | -      | 36     | 0    | 0    | -    | -    | -     | 1    | 0    | 
+|starlink_pss_spectrum_product | (PCIN-(A*B)')' | 18     | 18     | -      | -      | 37     | 0    | 0    | -    | -    | -     | 1    | 1    | 
+|starlink_pss_spectrum_product | (A*B)'         | 18     | 18     | -      | -      | 36     | 0    | 0    | -    | -    | -     | 1    | 0    | 
+|starlink_pss_spectrum_product | (PCIN+(A*B)')' | 18     | 18     | -      | -      | 37     | 0    | 0    | -    | -    | -     | 1    | 1    | 
++------------------------------+----------------+--------+--------+--------+--------+--------+------+------+------+------+-------+------+------+
+
+Note: The table above is a preliminary report that shows the DSPs inferred at the current stage of the synthesis flow. Some DSP may be reimplemented as non DSP primitives later in the synthesis flow. Multiple instantiated DSPs are reported only once.
+---------------------------------------------------------------------------------
+Finished ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Applying XDC Timing Constraints
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Applying XDC Timing Constraints : Time (s): cpu = 00:00:17 ; elapsed = 00:00:18 . Memory (MB): peak = 2145.332 ; gain = 582.246 ; free physical = 3367 ; free virtual = 162117
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1512.944; parent = 1309.384; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3113.453; parent = 2145.336; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Timing Optimization
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Timing Optimization : Time (s): cpu = 00:00:20 ; elapsed = 00:00:21 . Memory (MB): peak = 2145.332 ; gain = 582.246 ; free physical = 3215 ; free virtual = 161965
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1575.263; parent = 1371.688; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3113.453; parent = 2145.336; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+
+Block RAM: Final Mapping Report
++----------------------------------+---------------------------------+------------------------+---+---+------------------------+---+---+------------------+--------+--------+
+|Module Name                       | RTL Object                      | PORT A (Depth x Width) | W | R | PORT B (Depth x Width) | W | R | Ports driving FF | RAMB18 | RAMB36 | 
++----------------------------------+---------------------------------+------------------------+---+---+------------------------+---+---+------------------+--------+--------+
+|starlink_pss_fft_bank_owned_slice | source_bank/payload_memory_reg  | 512 x 36(NO_CHANGE)    | W |   | 512 x 36(WRITE_FIRST)  |   | R | Port A and B     | 1      | 0      | 
+|starlink_pss_fft_bank_owned_slice | product_bank/payload_memory_reg | 512 x 36(READ_FIRST)   | W |   | 512 x 36(WRITE_FIRST)  |   | R | Port A and B     | 1      | 0      | 
+|starlink_pss_fft_bank_owned_slice | output_bank/payload_memory_reg  | 512 x 36(NO_CHANGE)    | W |   | 512 x 36(WRITE_FIRST)  |   | R | Port A and B     | 1      | 0      | 
++----------------------------------+---------------------------------+------------------------+---+---+------------------------+---+---+------------------+--------+--------+
+
+---------------------------------------------------------------------------------
+Finished ROM, RAM, DSP, Shift Register and Retiming Reporting
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Technology Mapping
+---------------------------------------------------------------------------------
+INFO: [Synth 8-7052] The timing for the instance source_bank/payload_memory_reg (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance joiner/kernel_rom/output_kernel_word_reg (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance joiner/kernel_rom/output_kernel_word_reg (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance product_bank/payload_memory_reg (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+INFO: [Synth 8-7052] The timing for the instance output_bank/payload_memory_reg (implemented as a Block RAM) might be sub-optimal as no optional output register could be merged into the ram block. Providing additional output register may help in improving timing.
+---------------------------------------------------------------------------------
+Finished Technology Mapping : Time (s): cpu = 00:00:20 ; elapsed = 00:00:22 . Memory (MB): peak = 2145.332 ; gain = 582.246 ; free physical = 3065 ; free virtual = 161815
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1575.263; parent = 1371.688; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3113.453; parent = 2145.336; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Flattening Before IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Flattening Before IO Insertion
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Final Netlist Cleanup
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Final Netlist Cleanup
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished IO Insertion : Time (s): cpu = 00:00:21 ; elapsed = 00:00:23 . Memory (MB): peak = 2145.332 ; gain = 582.246 ; free physical = 3382 ; free virtual = 162133
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1575.263; parent = 1371.688; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3113.453; parent = 2145.336; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Instances
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Instances : Time (s): cpu = 00:00:21 ; elapsed = 00:00:23 . Memory (MB): peak = 2145.332 ; gain = 582.246 ; free physical = 3436 ; free virtual = 162187
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1575.263; parent = 1371.688; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3113.453; parent = 2145.336; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Rebuilding User Hierarchy
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Rebuilding User Hierarchy : Time (s): cpu = 00:00:21 ; elapsed = 00:00:23 . Memory (MB): peak = 2145.332 ; gain = 582.246 ; free physical = 3436 ; free virtual = 162187
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1575.263; parent = 1371.688; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3113.453; parent = 2145.336; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Ports
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Ports : Time (s): cpu = 00:00:21 ; elapsed = 00:00:23 . Memory (MB): peak = 2145.332 ; gain = 582.246 ; free physical = 3436 ; free virtual = 162187
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1575.263; parent = 1371.688; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3113.453; parent = 2145.336; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Handling Custom Attributes
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Handling Custom Attributes : Time (s): cpu = 00:00:21 ; elapsed = 00:00:23 . Memory (MB): peak = 2145.332 ; gain = 582.246 ; free physical = 3436 ; free virtual = 162187
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1575.263; parent = 1371.688; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3113.453; parent = 2145.336; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Renaming Generated Nets
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Finished Renaming Generated Nets : Time (s): cpu = 00:00:21 ; elapsed = 00:00:23 . Memory (MB): peak = 2145.332 ; gain = 582.246 ; free physical = 3436 ; free virtual = 162187
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1575.263; parent = 1371.688; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3113.453; parent = 2145.336; children = 968.117
+---------------------------------------------------------------------------------
+---------------------------------------------------------------------------------
+Start Writing Synthesis Report
+---------------------------------------------------------------------------------
+
+DSP Final Report (the ' indicates corresponding REG is set)
++------------------------------+----------------------+--------+--------+--------+--------+--------+------+------+------+------+-------+------+------+
+|Module Name                   | DSP Mapping          | A Size | B Size | C Size | D Size | P Size | AREG | BREG | CREG | DREG | ADREG | MREG | PREG | 
++------------------------------+----------------------+--------+--------+--------+--------+--------+------+------+------+------+-------+------+------+
+|starlink_pss_spectrum_product | (A'*B)'              | 30     | 18     | -      | -      | 36     | 1    | 0    | -    | -    | -     | 0    | 1    | 
+|starlink_pss_spectrum_product | (not(PCIN+(A'*B)'))' | 30     | 18     | -      | -      | 37     | 1    | 0    | -    | -    | -     | 1    | 1    | 
+|starlink_pss_spectrum_product | (A'*B)'              | 30     | 18     | -      | -      | 36     | 1    | 0    | -    | -    | -     | 0    | 1    | 
+|starlink_pss_spectrum_product | (PCIN+(A'*B)')'      | 30     | 18     | -      | -      | 37     | 1    | 0    | -    | -    | -     | 1    | 1    | 
++------------------------------+----------------------+--------+--------+--------+--------+--------+------+------+------+------+-------+------+------+
+
+
+Report BlackBoxes: 
++------+---------------------------------------+----------+
+|      |BlackBox name                          |Instances |
++------+---------------------------------------+----------+
+|1     |starlink_pss_fft512_bfp18_rt_candidate |         1|
++------+---------------------------------------+----------+
+
+Report Cell Usage: 
++------+---------------------------------------+------+
+|      |Cell                                   |Count |
++------+---------------------------------------+------+
+|1     |starlink_pss_fft512_bfp18_rt_candidate |     1|
+|2     |CARRY4                                 |    60|
+|3     |DSP48E1                                |     4|
+|5     |LUT1                                   |    56|
+|6     |LUT2                                   |   108|
+|7     |LUT3                                   |   269|
+|8     |LUT4                                   |    93|
+|9     |LUT5                                   |    91|
+|10    |LUT6                                   |   340|
+|11    |RAMB18E1                               |     4|
+|14    |FDCE                                   |   273|
+|15    |FDRE                                   |  1216|
++------+---------------------------------------+------+
+---------------------------------------------------------------------------------
+Finished Writing Synthesis Report : Time (s): cpu = 00:00:21 ; elapsed = 00:00:23 . Memory (MB): peak = 2145.332 ; gain = 582.246 ; free physical = 3436 ; free virtual = 162187
+Synthesis current peak Physical Memory [PSS] (MB): peak = 1575.263; parent = 1371.688; children = 203.672
+Synthesis current peak Virtual Memory [VSS] (MB): peak = 3113.453; parent = 2145.336; children = 968.117
+---------------------------------------------------------------------------------
+Synthesis finished with 0 errors, 0 critical warnings and 15 warnings.
+Synthesis Optimization Runtime : Time (s): cpu = 00:00:21 ; elapsed = 00:00:23 . Memory (MB): peak = 2145.332 ; gain = 475.520 ; free physical = 3438 ; free virtual = 162189
+Synthesis Optimization Complete : Time (s): cpu = 00:00:22 ; elapsed = 00:00:23 . Memory (MB): peak = 2145.340 ; gain = 582.246 ; free physical = 3438 ; free virtual = 162189
+INFO: [Project 1-571] Translating synthesized netlist
+Netlist sorting complete. Time (s): cpu = 00:00:00.01 ; elapsed = 00:00:00.01 . Memory (MB): peak = 2149.301 ; gain = 0.000 ; free physical = 3567 ; free virtual = 162317
+INFO: [Netlist 29-17] Analyzing 68 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-570] Preparing netlist for logic optimization
+INFO: [Opt 31-138] Pushed 0 inverter(s) to 0 load pin(s).
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2156.238 ; gain = 0.000 ; free physical = 3574 ; free virtual = 162324
+INFO: [Project 1-111] Unisim Transformation Summary:
+No Unisim elements were transformed.
+
+Synth Design complete, checksum: 286cc261
+INFO: [Common 17-83] Releasing license: Synthesis
+42 Infos, 33 Warnings, 0 Critical Warnings and 0 Errors encountered.
+synth_design completed successfully
+synth_design: Time (s): cpu = 00:00:25 ; elapsed = 00:00:26 . Memory (MB): peak = 2156.238 ; gain = 894.551 ; free physical = 3816 ; free virtual = 162567
+INFO: [Common 17-600] The following parameters have non-default value.
+general.maxThreads
+INFO: [Common 17-1381] The checkpoint '/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.runs/synth_1/starlink_pss_fft_bank_owned_slice.dcp' has been generated.
+INFO: [runtcl-4] Executing : report_utilization -file starlink_pss_fft_bank_owned_slice_utilization_synth.rpt -pb starlink_pss_fft_bank_owned_slice_utilization_synth.pb
+INFO: [Common 17-206] Exiting Vivado at Thu Sep 10 09:44:41 2026...
+[Thu Sep 10 09:44:51 2026] synth_1 finished
+wait_on_runs: Time (s): cpu = 00:00:30 ; elapsed = 00:00:41 . Memory (MB): peak = 1349.711 ; gain = 0.000 ; free physical = 4127 ; free virtual = 162870
+# if {[get_property STATUS [get_runs synth_1]] ne "synth_design Complete!"} { error "slice synthesis failed" }
+# open_run synth_1
+Design is defaulting to impl run constrset: constrs_1
+Design is defaulting to synth run part: xc7z010clg400-1
+INFO: [Device 21-403] Loading part xc7z010clg400-1
+INFO: [Project 1-454] Reading design checkpoint '/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/project/fft_bank_owned_synthesis.gen/sources_1/ip/starlink_pss_fft512_bfp18_rt_candidate/starlink_pss_fft512_bfp18_rt_candidate.dcp' for cell 'shared_xfft'
+Netlist sorting complete. Time (s): cpu = 00:00:00.03 ; elapsed = 00:00:00.03 . Memory (MB): peak = 1686.859 ; gain = 0.000 ; free physical = 3946 ; free virtual = 162689
+INFO: [Netlist 29-17] Analyzing 191 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-479] Netlist was created with Vivado 2022.2
+INFO: [Project 1-570] Preparing netlist for logic optimization
+Parsing XDC File [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/fft_bank_owned_resource_probe.xdc]
+WARNING: [Vivado 12-2489] -period contains time 5.714286 which will be rounded to 5.714 to ensure it is an integer multiple of 1 picosecond [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/fft_bank_owned_resource_probe.xdc:4]
+Finished Parsing XDC File [/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/frozen_sources/fft_bank_owned_resource_probe.xdc]
+INFO: [Opt 31-138] Pushed 0 inverter(s) to 0 load pin(s).
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 1787.422 ; gain = 0.000 ; free physical = 4269 ; free virtual = 163012
+INFO: [Project 1-111] Unisim Transformation Summary:
+No Unisim elements were transformed.
+
+# set blackboxes [get_cells -quiet -hier -filter {IS_BLACKBOX == 1}]
+# if {[llength $blackboxes]} { error "resource inventory contains black boxes: $blackboxes" }
+# report_utilization -file [file join $output_dir utilization.rpt]
+# report_utilization -hierarchical -hierarchical_depth 6 -file [file join $output_dir hierarchy.rpt]
+# report_clocks -file [file join $output_dir synthesis_clocks.rpt]
+INFO: [Timing 38-35] Done setting XDC timing constraints.
+# check_timing -verbose -file [file join $output_dir check_timing_unqualified.rpt]
+WARNING: [Timing 38-242] The property HD.CLK_SRC of clock port "clk" is not set. In out-of-context mode, this prevents timing estimation for clock delay/skew
+Resolution: Set the HD.CLK_SRC property of the out-of-context port to the location of the clock buffer instance in the top-level design
+WARNING: [Timing 38-242] The property HD.CLK_SRC of clock port "fft_clk" is not set. In out-of-context mode, this prevents timing estimation for clock delay/skew
+Resolution: Set the HD.CLK_SRC property of the out-of-context port to the location of the clock buffer instance in the top-level design
+# report_cdc -details -file [file join $output_dir cdc_unqualified.rpt]
+INFO: [Timing 38-91] UpdateTimingParams: No interconnect No Cell Dly, Speed grade: -1, Delay Type: max.
+INFO: [Timing 38-191] Multithreading enabled for timing update using a maximum of 2 CPUs
+INFO: [Timing 38-433] Consider using Xilinx recommended XPM_CDC modules to avoid Critical severities
+INFO: [Timing 38-314] The report_cdc command only analyzes and reports clock domain crossing paths where clocks have been defined on both source and destination sides. Ports with no input delay constraint are skipped. Please run check_timing to verify there are no missing clock definitions in your design, nor any unconstrained input port.
+# write_checkpoint [file join $output_dir fft_bank_owned_synth.dcp]
+INFO: [Timing 38-480] Writing timing data to binary archive.
+INFO: [Common 17-1381] The checkpoint '/tmp/starlink-completed-input.5EaJuD/exact-control-combined-synth-v1/synthesis/fft_bank_owned_synth.dcp' has been generated.
+# set channel [open [file join $output_dir resource_receipt.txt] w]
+# puts $channel "black_boxes=0"
+# foreach {label pattern} {dsp48e1 DSP48E1 ramb18e1 RAMB18E1 ramb36e1 RAMB36E1} {
+#   puts $channel "$label=[llength [get_cells -quiet -hier -filter REF_NAME==$pattern]]"
+# }
+# puts $channel "synthesis_only=true; no_achieved_clock_or_receiver_area_saving_claim=true"
+# close $channel
+# puts [exec env -u PYTHONHOME -u PYTHONPATH -u LD_LIBRARY_PATH /home/mouse9911/gits/pluto-plus-utils/.venv/bin/python -B $audit_helper --verify $evidence_dir --expected $expected_prepared --copied $source_dir]
+{"distributed": 1, "qualified_observer": {"invalid_only": 292463, "raw_equal": 953795, "samples": 1246258}, "registered": 1, "rtl_count": 7, "scope": "verified_preparation_NOT_physical_execution", "scratch": 1}
+# close_project
+# puts "FFT_BANK_OWNED_THREE_BANK_SYNTHESIS_RESOURCES_RECORDED"
+FFT_BANK_OWNED_THREE_BANK_SYNTHESIS_RESOURCES_RECORDED
+INFO: [Common 17-206] Exiting Vivado at Thu Sep 10 09:45:00 2026...
