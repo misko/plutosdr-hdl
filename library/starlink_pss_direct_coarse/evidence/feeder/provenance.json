@@ -1,0 +1,85 @@
+{
+  "schema": "starlink-direct-coarse-feeder-experimental-evidence-v1",
+  "release_qualification": false,
+  "source_pins": {
+    "firmware_start": "84c48b347cc0c7f13f15403eaa174f9076d4fda3",
+    "hdl_start": "a29d4fc27e2b92311131d07c53fb559bff37c697",
+    "firmware_tested_source": "c82c8a9ac359b7e7887cdd11807e0e05a1f43d8e",
+    "hdl_tested_source": "f5960227354749c4c3d080882e036a2bd766921f"
+  },
+  "source_sha256": {
+    "starlink_pss_direct_feeder.v": "be17469cf13798f8a09ccf9ab7039a741f997affb397eb9291f24100977de5c5",
+    "tb_direct_feeder.sv": "bf956dfcddf88b2732de12bd59be851017c809279ff586560581515cc85128cb",
+    "synthesize_feeder.tcl": "0e4f2eb57a777080e68ca3af332d60812755895eafca857f4b704ddb1f01a7b6",
+    "direct_groups_q15.mem": "6abcf15cab2624829e53c5c4669028db65a68a08d16d1420bf0bbb89797c1f4b",
+    "direct_banks.json": "64c3b03e0d2d4050d80515da875627a4f87adb03b0208ccd3a1a126b001409ad",
+    "firmware/tools/generate_starlink_direct_coarse_banks.py": "75d7a10f808c20dee9d9e897cf17cde650d42ed19f2920b8790eb45e6dc1945e",
+    "route-initial/feeder_source.v": "7918114ac52e5f0037065729c8914cff90504d2456e18aa2edcf9cca659abf5a"
+  },
+  "untracked_dcp_sha256": {
+    "build/feeder-ooc/feeder_routed.dcp": "ed547ae668e12055457b40034547990eb049cd45af76f6d8d441c557d4337052",
+    "build/feeder-corrected-ooc/feeder_routed.dcp": "9697a874635c3b97c60750720836509064f24894b542c779a4d86d56022f19dd"
+  },
+  "rtl_test": {
+    "passed": true,
+    "source_inputs": 72543,
+    "exact_results": 71047,
+    "fence_events": 15,
+    "deliberate_overload_expiries": 3,
+    "gap_events": 4,
+    "stalled_output_cycles": 5763,
+    "concurrent_read_write_checks": 819,
+    "long_contiguous_segment_samples": 66050,
+    "canonical_sample_rate_hz": 15000000,
+    "service_clock_hz": 200000000,
+    "canonical_cadence_clocks": [13, 13, 14],
+    "raw_source_timestamp_strides": [1, 2, 4],
+    "explicit_gap_with_config_and_flush_tested": true,
+    "identity_exhaustion_fail_closed_tested": true
+  },
+  "development_test_failures": [
+    {
+      "message": "unexpected expiry in supported stream",
+      "simulation_time_ps": 4880732500,
+      "resolution": "The bank-switch probe's 90 blocked source beats exceeded retained history. The separate 400-beat expiry test remains; the bank/reset fence probes use 30 blocked beats."
+    },
+    {
+      "message": "bank-fence test did not hold a result",
+      "simulation_time_ps": 4878400000,
+      "resolution": "Wait one simulation time unit after changing source_valid at the falling edge before checking combinational output/fault signals."
+    }
+  ],
+  "physical_runs": {
+    "initial": {
+      "exit_code": 1, "lut": 2465, "ff": 2813, "slices": 790,
+      "dsp": 18, "bram_tiles": 4, "control_sets": 19,
+      "setup_wns_ns": -2.714, "hold_whs_ns": -0.743
+    },
+    "corrected": {
+      "exit_code": 1, "lut": 2354, "ff": 2814, "slices": 744,
+      "dsp": 18, "ramb18": 6, "ramb36": 1, "bram_tiles": 4, "control_sets": 21,
+      "setup_wns_ns": -3.161, "hold_whs_ns": -0.742,
+      "methodology_violations": 0, "check_timing_nonzero_categories": 0,
+      "worst_setup": {
+        "source": "expected_timestamp_reg[4]/C", "destination": "expiry_now",
+        "data_ns": 5.948, "logic_ns": 2.320, "route_ns": 3.628
+      },
+      "failing_internal_setup": {
+        "source": "next_start_reg[0]/C", "destination": "coefficient_read_reg[13]/R",
+        "wns_ns": -2.865, "data_ns": 7.247, "logic_ns": 2.390, "route_ns": 4.857
+      },
+      "worst_hold": {
+        "source": "sample_i[0]", "destination": "history[2].samples_reg/DIADI[0]",
+        "data_ns": 0.924, "logic_ns": 0.0, "route_ns": 0.924
+      }
+    }
+  },
+  "limits": [
+    "The complete original numerical evidence and comparison tolerances remain unchanged; existing FFT goldens are not replaced.",
+    "Normalization, sliding sample energy, score division and map publication are not implemented or included in measured cost.",
+    "This single synchronous clock feeder is not ADC CDC or source conditioning qualification.",
+    "Local generation exhaustion requires an external reset with a new session/reset identity before native use can resume; there is no native wrapper in this slice.",
+    "Runs occurred before source commits, with source contents matching the recorded revisions; this is experimental evidence, not clean-source release qualification.",
+    "No full receiver build, radio, PPU, deployment, remote or main changes occurred."
+  ]
+}

@@ -1,0 +1,97 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2022.2 (lin64) Build 3671981 Fri Oct 14 04:59:54 MDT 2022
+| Date         : Thu Sep 10 00:42:13 2026
+| Host         : gauss running 64-bit Ubuntu 26.04 LTS
+| Command      : report_control_sets -verbose -file /tmp/starlink-coarse-alternatives.Y3JzOI/direct-coarse/hdl/library/starlink_pss_direct_coarse/build/feeder-ooc/control_sets.rpt
+| Design       : starlink_pss_direct_feeder
+| Device       : xc7z010
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Control Set Information
+
+Table of Contents
+-----------------
+1. Summary
+2. Histogram
+3. Flip-Flop Distribution
+4. Detailed Control Set Information
+
+1. Summary
+----------
+
++----------------------------------------------------------+-------+
+|                          Status                          | Count |
++----------------------------------------------------------+-------+
+| Total control sets                                       |    19 |
+|    Minimum number of control sets                        |    19 |
+|    Addition due to synthesis replication                 |     0 |
+|    Addition due to physical synthesis replication        |     0 |
+| Unused register locations in slices containing registers |    27 |
++----------------------------------------------------------+-------+
+* Control sets can be merged at opt_design using control_set_merge or merge_equivalent_drivers
+** Run report_qor_suggestions for automated merging and remapping suggestions
+
+
+2. Histogram
+------------
+
++--------------------+-------+
+|       Fanout       | Count |
++--------------------+-------+
+| Total control sets |    19 |
+| >= 0 to < 4        |     1 |
+| >= 4 to < 6        |     2 |
+| >= 6 to < 8        |     1 |
+| >= 8 to < 10       |     0 |
+| >= 10 to < 12      |     0 |
+| >= 12 to < 14      |     0 |
+| >= 14 to < 16      |     1 |
+| >= 16              |    14 |
++--------------------+-------+
+* Control sets can be remapped at either synth_design or opt_design
+
+
+3. Flip-Flop Distribution
+-------------------------
+
++--------------+-----------------------+------------------------+-----------------+--------------+
+| Clock Enable | Synchronous Set/Reset | Asynchronous Set/Reset | Total Registers | Total Slices |
++--------------+-----------------------+------------------------+-----------------+--------------+
+| No           | No                    | No                     |               1 |            1 |
+| No           | No                    | Yes                    |               0 |            0 |
+| No           | Yes                   | No                     |               5 |            3 |
+| Yes          | No                    | No                     |            2490 |          583 |
+| Yes          | No                    | Yes                    |               0 |            0 |
+| Yes          | Yes                   | No                     |             317 |           99 |
++--------------+-----------------------+------------------------+-----------------+--------------+
+
+
+4. Detailed Control Set Information
+-----------------------------------
+
++--------------+----------------------------+------------------------+------------------+----------------+--------------+
+| Clock Signal |        Enable Signal       |    Set/Reset Signal    | Slice Load Count | Bel Load Count | Bels / Slice |
++--------------+----------------------------+------------------------+------------------+----------------+--------------+
+|  clk         |                            |                        |                1 |              1 |         1.00 |
+|  clk         | mac/read_enable            | mac/SR[0]              |                1 |              4 |         4.00 |
+|  clk         |                            | clear                  |                3 |              5 |         1.67 |
+|  clk         | mac/advance                | mac/SR[0]              |                1 |              7 |         7.00 |
+|  clk         | write_sequence[15]_i_1_n_0 | mac/SR[0]              |                6 |             15 |         2.50 |
+|  clk         | mac/next_start             | mac/SR[0]              |               11 |             23 |         2.09 |
+|  clk         | mac/sample_valid_0         | clear                  |                8 |             29 |         3.62 |
+|  clk         | accepted_samples0          | clear                  |                8 |             32 |         4.00 |
+|  clk         | gap_events0                | clear                  |                8 |             32 |         4.00 |
+|  clk         | mac/emitted_results0       | clear                  |                8 |             32 |         4.00 |
+|  clk         | expiry_events0             | clear                  |                8 |             32 |         4.00 |
+|  clk         | mac/read_enable            | mac/active_bank_reg[1] |               18 |             47 |         2.61 |
+|  clk         | sample_valid               | clear                  |               22 |             64 |         2.91 |
+|  clk         | mac/accumulator_tag        |                        |               12 |             96 |         8.00 |
+|  clk         | mac/read_enable            |                        |               61 |            155 |         2.54 |
+|  clk         | mac/output_i[39]_i_1_n_0   |                        |               41 |            176 |         4.29 |
+|  clk         | mac/acc_i                  |                        |              120 |            480 |         4.00 |
+|  clk         | mac/r0_i                   |                        |              131 |            576 |         4.40 |
+|  clk         | mac/op_first               |                        |              231 |           1105 |         4.78 |
++--------------+----------------------------+------------------------+------------------+----------------+--------------+
+
+
