@@ -31,7 +31,9 @@ module tb_starlink_pss_checked_product_top #(parameter integer ENABLED=1, RESET_
 `undef PORTS
   reg [120:0] trace0[0:4095],trace1[0:4095];
   reg [35:0] independently_expected_payload[0:511];
+  reg [35:0] independently_expected_fresh_payload[0:511];
   initial $readmemh("actor_expected_product.mem",independently_expected_payload);
+  initial $readmemh("actor_fresh_expected_product.mem",independently_expected_fresh_payload);
   reg [63:0] independently_expected_start;
   integer count0=0,count1=0,compared=0,fast_cycles=0,kind=0,bit_index=0,target=0;
   integer starts=0,acknowledgments=0,seals=0,publications=0,core_beats=0,releases=0;
@@ -67,7 +69,8 @@ module tb_starlink_pss_checked_product_top #(parameter integer ENABLED=1, RESET_
     if(output_valid[1] && output_ready)begin
       independently_expected_start = kind>=9 ? 64'd447 : (count1/512)*64'd447;
       if({output_metadata1,output_last[1],output_position1,output_data1} !==
-          {1'b1,independently_expected_start,10'b0,(count1%512==511),9'(count1%512),independently_expected_payload[count1%512]})
+          {1'b1,independently_expected_start,10'b0,(count1%512==511),9'(count1%512),
+           (kind==19 ? independently_expected_fresh_payload[count1%512] : independently_expected_payload[count1%512])})
         $fatal(1,"CHECKED_TOP_INDEPENDENT_ACTOR_TUPLE_CHANGED index=%0d",count1);
       trace1[count1]={output_metadata1,output_last[1],output_position1,output_data1};count1=count1+1;
     end
@@ -354,7 +357,7 @@ module tb_starlink_pss_checked_product_top #(parameter integer ENABLED=1, RESET_
         $display("CHECKED_TOP_UNKNOWN_PRODUCT_PASS kind=%0d value=%0d target=%0d current=1 sticky=1 control_actor_not_fft=1",kind,bit_index,target);
         $finish;
       end
-      if(kind==17 || kind==18)begin
+      if(kind==17 || kind==18 || kind==19)begin
         // Forward activity, no inverse-output owner. The unchanged output CDC
         // is not claimed to solve arbitrary paused-fast published-output reset.
         wait(dut.product_valid && dut.product_position==37);@(negedge fft_clk);
@@ -370,6 +373,11 @@ module tb_starlink_pss_checked_product_top #(parameter integer ENABLED=1, RESET_
           if(!fast_rejoined && (dut.source_epoch_open || dut.source_valid || dut.checked_product_bank.publication || dut.output_valid))
             $fatal(1,"CHECKED_TOP_PREJOIN_SOURCE_ESCAPE");
           input_valid=1;input_position=n;input_last=n==511;input_data={18'(n%17-8),18'(n%23-11)};
+          if(kind==19)begin
+            input_data={18'(n%17+3064),18'(n%23-4107)};
+            if(input_data==={18'(n%17-8),18'(n%23-11)})
+              $fatal(1,"CHECKED_TOP_FRESH_PAYLOAD_NOT_DISTINCT");
+          end
           if(input_ready[1]!==1'b1)begin
             if(kind==17)$fatal(1,"CHECKED_TOP_PREJOIN_SOURCE_NOT_ACCEPTED n=%0d req=%b ack_sync=%b fast_ack=%b write=%0d epoch=%b fault=%b",n,dut.source_bank.request_toggle,dut.source_bank.acknowledge_sync,dut.source_bank.acknowledge_toggle,dut.source_bank.write_position,dut.source_epoch_open,dut.source_fault);
             if(n!=2 || fast_rejoined || dut.source_bank.write_position!=2 ||
@@ -381,8 +389,10 @@ module tb_starlink_pss_checked_product_top #(parameter integer ENABLED=1, RESET_
               if(input_ready[1]!==1'b0 || dut.source_bank.write_position!=2 ||
                  dut.source_bank.request_toggle || dut.source_fault || dut.source_valid ||
                  dut.source_epoch_open || dut.checked_product_bank.publication || dut.output_valid ||
-                 input_position!=2 || input_data!=={18'(2%17-8),18'(2%23-11)} || input_block_start!=447)
+                 input_position!=2 || (kind!=19 && input_data!=={18'(2%17-8),18'(2%23-11)}) || input_block_start!=447)
                 $fatal(1,"CHECKED_TOP_PREJOIN_HELD_PREFIX_CHANGED");
+              if(kind==19 && input_data!=={18'(2%17+3064),18'(2%23-4107)})
+                $fatal(1,"CHECKED_TOP_DISTINCT_HELD_PREFIX_CHANGED");
             end
             fast_clock_enable=1;fast_rejoined=1;
             wait(input_ready[1]===1'b1);
@@ -398,6 +408,7 @@ module tb_starlink_pss_checked_product_top #(parameter integer ENABLED=1, RESET_
         if(dut.fault || starts!=2 || acknowledgments!=1 || releases!=1 || core_beats!=512 || count0)
           $fatal(1,"CHECKED_TOP_PREJOIN_RECOVERY_FAILED");
         $display("CHECKED_TOP_PREJOIN_HELD_PASS reset=%0d accepted_while_fast_paused=2 held_edges=%0d accepted_total=512 independent_expected=512 starts=%0d ack=%0d releases=%0d secondary_reference_held_reset=1 control_actor_not_fft=1",bit_index,prejoin_held_edges,starts,acknowledgments,releases);
+        if(kind==19)$display("CHECKED_TOP_DISTINCT_PAYLOAD_PASS reset=%0d input_words_changed=512 expected_outputs_changed=512 independently_checked=%0d starts=%0d ack=%0d releases=%0d control_actor_not_fft=1",bit_index,count1,starts,acknowledgments,releases);
         $finish;
       end
     end
