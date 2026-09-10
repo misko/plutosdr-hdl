@@ -22,6 +22,64 @@ module tb_starlink_pss_fft_bank_owned_slice;
   reg allow_provisional_prefix_after_fault = 0;
   wire output_ready = reader_enable && (profile == 0 || slow_cycle % 17 < 13);
   starlink_pss_fft_bank_owned_slice dut (.*);
+  // Default-mode shadow retains the original full nonfinal predicate and full
+  // final fence. Compare before and after every edge, including injected faults.
+  wire shadow_ready, shadow_valid, shadow_private, shadow_commit_valid;
+  wire shadow_busy, shadow_commit, shadow_fault, shadow_last;
+  wire [7:0] shadow_reasons;
+  wire [35:0] shadow_data;
+  wire [8:0] shadow_position;
+  wire [74:0] shadow_metadata;
+  integer completed_return_checks = 0, full_shadow_checks = 0;
+  starlink_pss_realtime_result_guard shadow (
+    .clk(fft_clk), .resetn(dut.fast_running), .job_valid(dut.job_valid), .job_ready(shadow_ready),
+    .job_descriptor(dut.selected_metadata),
+    .input_bank_reserved(dut.state == dut.WAIT_BANK ? dut.selected_valid : dut.engine_input_reserved),
+    .output_bank_reserved(dut.state == dut.WAIT_BANK ? dut.destination_reserved : dut.engine_output_reserved),
+    .certified_input_beat(dut.certified_input_beat), .certified_input_complete(dut.certified_input_complete),
+    .final_fence_certified(dut.checked_input_complete && !dut.input_guard_fault && !dut.input_fault_now),
+    .external_fault_now(dut.external_fault_now), .phase_input_fault_now(1'bz),
+    .completed_input_certified(1'bz), .completed_input_fault_now(1'bz),
+    .core_event_frame_started(dut.event_frame), .core_output_tdata(dut.core_output_data),
+    .core_output_tuser(dut.core_output_user), .core_output_tvalid(dut.core_output_valid),
+    .core_output_tlast(dut.core_output_last), .core_status_tdata(dut.core_status_data),
+    .core_status_tvalid(dut.core_status_valid), .mailbox_input_valid(shadow_valid),
+    .mailbox_private_valid(shadow_private), .mailbox_commit_valid(shadow_commit_valid),
+    .mailbox_input_ready(dut.result_destination_ready),
+    .mailbox_input_fault(dut.output_bank_fault || dut.output_bank_framing_fault_now),
+    .mailbox_input_data(shadow_data), .mailbox_input_position(shadow_position),
+    .mailbox_input_last(shadow_last), .mailbox_input_metadata(shadow_metadata),
+    .busy(shadow_busy), .commit_pulse(shadow_commit), .protocol_fault(shadow_fault),
+    .fault_reasons(shadow_reasons)
+  );
+  always @(posedge fft_clk or negedge fft_clk) begin
+    #0.001;
+    if (dut.fast_running) begin
+      full_shadow_checks = full_shadow_checks + 1;
+      if ({dut.job_ready, dut.return_valid, dut.return_private_valid, dut.return_commit_valid,
+           dut.result_busy, dut.result_commit, dut.result_fault, dut.result_guard.fault_reasons} !==
+          {shadow_ready, shadow_valid, shadow_private, shadow_commit_valid,
+           shadow_busy, shadow_commit, shadow_fault, shadow_reasons})
+        $fatal(1, "completed-input full shadow control/reasons mismatch");
+      if (dut.return_private_valid &&
+          {dut.return_data, dut.return_position, dut.return_last, dut.return_metadata} !==
+          {shadow_data, shadow_position, shadow_last, shadow_metadata})
+        $fatal(1, "completed-input full shadow private payload mismatch");
+      if (dut.final_fence !== (dut.checked_input_complete && !dut.input_guard_fault && !dut.input_fault_now))
+        $fatal(1, "completed-input fence differs from original same-edge fence");
+      if (dut.result_guard.return_valid) begin
+        completed_return_checks = completed_return_checks + 1;
+        if (!dut.checked_input_complete || dut.input_guard.slot_open ||
+            dut.result_guard.input_count != 512 || !dut.result_guard.input_complete_seen ||
+            !dut.result_guard.frame_seen || !dut.result_guard.exponent_seen ||
+            dut.certified_input_beat || dut.certified_input_complete || dut.handoff_fault_now ||
+            dut.completed_input_fault_now !== dut.external_fault_now ||
+            dut.result_guard.completed_return_fault_now !== dut.result_guard.fault_now ||
+            dut.result_guard.completed_final_fault_now !== dut.result_guard.final_fault_now)
+          $fatal(1, "completed-return phase invariant/predicate mismatch");
+      end
+    end
+  end
   reg [31:0] samples [0:1405];
   reg [35:0] forwards [0:1535], products [0:1535], inverses [0:1535];
   reg [4:0] forward_exponents [0:2], inverse_exponents [0:2];
@@ -339,6 +397,10 @@ module tb_starlink_pss_fft_bank_owned_slice;
     reset_epoch(0); send_words(0, 512); await_results(1);
     if (!overlapping_loads || !completed_input_prefetch_witnesses)
       $fatal(1, "no capture/prefetch N+1 with closed N input epoch observed");
+    if (!completed_return_checks || !full_shadow_checks)
+      $fatal(1, "no completed-input equivalence witnesses");
+    $display("COMPLETED_INPUT_ACTUAL_CORE_EQ_PASS return_checks=%0d full_shadow_checks=%0d",
+      completed_return_checks, full_shadow_checks);
     $display("FFT_BANK_OWNED_SLICE_PASS fast_mhz=%0d healthy_blocks=%0d inverse_words=%0d forward_words=%0d product_words=%0d purge_cases=%0d fault_cases=%0d overlap_loads=%0d acceptance_equality_witnesses=%0d closed_input_prefetch_witnesses=%0d held_final_ready_witnesses=%0d provisional_prefix_words=%0d nominal_max_forward_interval_cycles=%0d",
       FAST_MHZ, total_blocks, total_inverse, total_forward, total_products, purge_cases,
       fault_cases, overlapping_loads, equality_witnesses, completed_input_prefetch_witnesses,

@@ -27,7 +27,13 @@ module starlink_pss_realtime_result_guard #(
   // The supplied predicate must equal external_fault_now | both input
   // certificates in these phases while the epoch is not already quarantined.
   // Default callers retain the independent, unrestricted input checks.
-  parameter integer USE_PHASE_INPUT_FAULT = 0
+  parameter integer USE_PHASE_INPUT_FAULT = 0,
+  // Separately opt in for an occupied, checked return. The caller must prove
+  // that every such return has registered completed input, and provide an
+  // exact external-fault predicate in that phase. The certificate closes the
+  // independent input guard, so both input certificates must then be zero.
+  // Full faults_now/reasons are retained for ALL phases. Defaults unchanged.
+  parameter integer USE_COMPLETED_INPUT_FAULT = 0
 ) (
   input wire clk,
   input wire resetn,
@@ -41,6 +47,8 @@ module starlink_pss_realtime_result_guard #(
   input wire final_fence_certified,
   input wire external_fault_now,
   input wire phase_input_fault_now,
+  input wire completed_input_certified,
+  input wire completed_input_fault_now,
   input wire core_event_frame_started,
   input wire [47:0] core_output_tdata,
   input wire [23:0] core_output_tuser,
@@ -68,6 +76,8 @@ module starlink_pss_realtime_result_guard #(
   initial begin
     if (USE_PHASE_INPUT_FAULT != 0 && USE_PHASE_INPUT_FAULT != 1)
       $fatal(1, "USE_PHASE_INPUT_FAULT must be zero or one");
+    if (USE_COMPLETED_INPUT_FAULT != 0 && USE_COMPLETED_INPUT_FAULT != 1)
+      $fatal(1, "USE_COMPLETED_INPUT_FAULT must be zero or one");
     if (WATCHDOG_CYCLES < 2 || WATCHDOG_CYCLES > 1048576)
       $fatal(1, "realtime result guard requires a finite 2..1048576 cycle watchdog");
   end
@@ -158,8 +168,31 @@ module starlink_pss_realtime_result_guard #(
   wire final_fault_now = phase_input_fault || mailbox_input_fault ||
     !output_bank_reserved ||
     core_event_frame_started || core_status_tvalid || core_output_tvalid || watchdog_error;
+  // A visible held return survived the preceding edge's full output_error.
+  // Therefore input_count=512, input_complete_seen, frame_seen and exponent_seen
+  // are registered facts. With the caller's closed-input certificate, neither
+  // a new input beat nor its metadata comparator can affect this phase. Keep
+  // live output/status validation: first matching status is legal NONFINAL;
+  // treating every status as a fault here would silently change behavior.
+  wire completed_output_error = core_output_tvalid &&
+    (output_count == 512 || core_output_tuser[15:9] != 0 ||
+     core_output_tuser[23:21] != 0 || core_output_tuser[8:0] != output_count[8:0] ||
+     core_output_tlast != (output_count == 511) ||
+     core_output_tuser[20:16] != output_exponent ||
+     (status_seen && core_output_tuser[20:16] != status_exponent) ||
+     (core_status_tvalid && core_output_tuser[20:16] != core_status_tdata[4:0]));
+  wire completed_return_fault_now = completed_input_fault_now || mailbox_input_fault ||
+    !output_bank_reserved || core_event_frame_started || status_error ||
+    completed_output_error || slot_error || watchdog_error;
+  wire completed_final_fault_now = completed_input_fault_now || mailbox_input_fault ||
+    !output_bank_reserved || core_event_frame_started || core_status_tvalid ||
+    core_output_tvalid || watchdog_error;
+  wire return_phase_allowed = !USE_COMPLETED_INPUT_FAULT || completed_input_certified;
+  wire nonfinal_public_fault = USE_COMPLETED_INPUT_FAULT ? completed_return_fault_now : fault_now;
+  wire final_public_fault = USE_COMPLETED_INPUT_FAULT ? completed_final_fault_now : final_fault_now;
   assign mailbox_input_valid = resetn && active && !protocol_fault && return_valid &&
-    ((!return_last && !fault_now) || (return_last && final_qualified && !final_fault_now));
+    return_phase_allowed &&
+    ((!return_last && !nonfinal_public_fault) || (return_last && final_qualified && !final_public_fault));
   // A prior certified return word may enter exclusively owned private RAM on
   // a simultaneous new fault. The full current fault still vetoes retirement
   // and publication above, clears return_valid below, and quarantines the
@@ -176,7 +209,7 @@ module starlink_pss_realtime_result_guard #(
   // edge, without unnecessarily reconverging the full nonfinal fault tree
   // onto final occupancy/ACK controls. No publication condition is omitted.
   assign mailbox_commit_valid = resetn && active && !protocol_fault && return_valid &&
-    return_last && final_qualified && !final_fault_now;
+    return_phase_allowed && return_last && final_qualified && !final_public_fault;
   wire final_commit = mailbox_commit_valid && mailbox_input_ready;
 
   always @(posedge clk or negedge resetn) begin

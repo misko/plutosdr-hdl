@@ -35,6 +35,10 @@ module starlink_pss_realtime_input_guard #(
   output wire certified_input_complete,
   output reg input_complete,
   output wire fault_now,
+  // In the registered input_complete phase, slot_open is closed: this is
+  // exactly fault_now, not a delayed sample of it. Per-beat checks remain live
+  // during input delivery and still feed the unchanged full reason bank.
+  output wire duplicate_start_fault_now,
   output wire protocol_fault,
   output reg [2:0] fault_reasons
 );
@@ -62,6 +66,7 @@ module starlink_pss_realtime_input_guard #(
   wire delivery_error = slot_open && input_started && core_input_tready &&
     !core_input_tvalid;
   wire duplicate_start = resetn && job_start && job_started;
+  assign duplicate_start_fault_now = duplicate_start;
   wire [2:0] errors_now = {duplicate_start, framing_error, delivery_error};
   assign fault_now = |errors_now;
   // A current malformed/duplicate/delivery event cannot certify that edge.

@@ -86,7 +86,7 @@ module starlink_pss_fft_bank_owned_slice #(
   wire job_valid = state == WAIT_BANK && selected_valid && !fast_fault;
   wire job_accept = job_valid && job_ready;
   wire transport_ready, checked_input_complete, certified_input_beat, certified_input_complete;
-  wire input_fault_now, input_guard_fault;
+  wire input_fault_now, input_guard_fault, duplicate_start_fault_now;
   wire [47:0] core_input_data, core_output_data;
   wire core_input_valid, core_input_ready, core_input_last;
   wire core_output_valid, core_output_last;
@@ -104,7 +104,8 @@ module starlink_pss_fft_bank_owned_slice #(
     .core_input_tvalid(core_input_valid), .core_input_tready(core_input_ready),
     .core_input_tlast(core_input_last), .certified_input_beat(certified_input_beat),
     .certified_input_complete(certified_input_complete), .input_complete(checked_input_complete),
-    .fault_now(input_fault_now), .protocol_fault(input_guard_fault), .fault_reasons()
+    .fault_now(input_fault_now), .duplicate_start_fault_now(duplicate_start_fault_now),
+    .protocol_fault(input_guard_fault), .fault_reasons()
   );
 
   wire return_valid, return_private_valid, return_commit_valid, return_last;
@@ -139,8 +140,17 @@ module starlink_pss_fft_bank_owned_slice #(
   wire result_destination_ready = next_inverse ? output_bank_ready :
     (forward_committed ? forward_handoff_ack : (kernel_ready && product_bank_ready));
   wire destination_reserved = next_inverse ? output_bank_ready : product_bank_ready;
-  wire final_fence = checked_input_complete && !input_guard_fault && !input_fault_now;
-  starlink_pss_realtime_result_guard result_guard (
+  // input_complete is already a registered per-core-epoch certificate. While
+  // true, framing/delivery are impossible but a current duplicate job_start
+  // remains an immediate fault. This fence is exactly the original full fence.
+  wire final_fence = checked_input_complete && !input_guard_fault && !duplicate_start_fault_now;
+  // An occupied return also excludes forward_committed: final commit clears
+  // active on the same edge that sets that token. The full handoff comparator
+  // remains on publication/ACK/quarantine; it cannot fault an occupied return.
+  wire completed_input_fault_now = duplicate_start_fault_now || input_guard_fault ||
+    source_fault_fast[1] || vendor_fault_now || fast_fault || kernel_fault ||
+    product_overflow || product_bank_fault || product_bank_framing_fault_now;
+  starlink_pss_realtime_result_guard #(.USE_COMPLETED_INPUT_FAULT(1)) result_guard (
     .clk(fft_clk), .resetn(fast_running), .job_valid(job_valid), .job_ready(job_ready),
     .job_descriptor(selected_metadata),
     .input_bank_reserved(state == WAIT_BANK ? selected_valid : engine_input_reserved),
@@ -148,6 +158,8 @@ module starlink_pss_fft_bank_owned_slice #(
     .certified_input_beat(certified_input_beat), .certified_input_complete(certified_input_complete),
     .final_fence_certified(final_fence), .external_fault_now(external_fault_now),
     .phase_input_fault_now(1'b0), .core_event_frame_started(event_frame),
+    .completed_input_certified(checked_input_complete),
+    .completed_input_fault_now(completed_input_fault_now),
     .core_output_tdata(core_output_data), .core_output_tuser(core_output_user),
     .core_output_tvalid(core_output_valid), .core_output_tlast(core_output_last),
     .core_status_tdata(core_status_data), .core_status_tvalid(core_status_valid),

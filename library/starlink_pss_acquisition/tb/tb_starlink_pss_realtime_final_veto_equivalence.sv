@@ -34,6 +34,7 @@ module tb_starlink_pss_realtime_final_veto_equivalence;
   wire [74:0] mailbox_input_metadata;
   wire [7:0] fault_reasons;
   wire phase_input_fault_now = 1'bz; // Default mode keeps all original checks.
+  wire completed_input_certified = 1'bz, completed_input_fault_now = 1'bz;
   starlink_pss_realtime_result_guard #(.WATCHDOG_CYCLES(WATCHDOG_CYCLES)) dut (
     .mailbox_private_valid(), .mailbox_commit_valid(), .*);
 
