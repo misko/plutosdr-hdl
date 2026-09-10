@@ -292,13 +292,13 @@ def candidate_bench(original):
     reference = ",\n    ".join("exact_reference." + x for x in FIELDS)
     shadow = f"""  {REFERENCE} #(.FAST_MHZ(FAST_MHZ), .QUICK_MUTATION(QUICK_MUTATION),
     .REGISTERED_SCHEDULING(REGISTERED_SCHEDULING), .EXACT_EXTRA_EPOCHS(EXACT_EXTRA_EPOCHS)) exact_reference ();
-  localparam integer EXACT_WIDTH = $bits({{{actual}}});
-  wire [EXACT_WIDTH-1:0] exact_actual_public = {{{actual}}};
-  wire [EXACT_WIDTH-1:0] exact_reference_public = {{{reference}}};
+  // Self-sized concatenations avoid a tool-dependent hierarchical $bits
+  // localparam (Icarus resolved that parameter to zero during elaboration).
+  wire exact_public_equal = ({{{actual}}} === {{{reference}}});
   wire [31:0] exact_checks, exact_active_checks, exact_consumed, exact_private_differences;
   wire [31:0] exact_final_faults, exact_owned_stalls, exact_reset_owned;
-  starlink_pss_exact_control_actual_compare #(.WIDTH(EXACT_WIDTH)) exact_compare (
-    .clk(fft_clk), .actual_public(exact_actual_public), .reference_public(exact_reference_public),
+  starlink_pss_exact_control_actual_compare #(.WIDTH(1)) exact_compare (
+    .clk(fft_clk), .actual_public(exact_public_equal), .reference_public(1'b1),
     .actual_consume(dut.joiner.kernel_rom.input_accept && dut.joiner.kernel_rom.at_block_start && dut.joiner.kernel_rom.have_previous_block),
     .reference_consume(exact_reference.dut.joiner.kernel_rom.input_accept && exact_reference.dut.joiner.kernel_rom.at_block_start && exact_reference.dut.joiner.kernel_rom.have_previous_block),
     .actual_scratch(dut.joiner.kernel_rom.expected_next_block_start),
