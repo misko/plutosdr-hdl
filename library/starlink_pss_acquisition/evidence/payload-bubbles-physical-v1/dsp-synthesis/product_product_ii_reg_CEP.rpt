@@ -1,0 +1,68 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2022.2 (lin64) Build 3671981 Fri Oct 14 04:59:54 MDT 2022
+| Date         : Thu Sep 10 04:33:39 2026
+| Host         : gauss running 64-bit Ubuntu 26.04 LTS
+| Command      : report_timing -to product/product_ii_reg/CEP -delay_type max -max_paths 1 -file /tmp/starlink-completed-input.5EaJuD/payload-bubbles-dsp-synth-v1/product_product_ii_reg_CEP.rpt
+| Design       : starlink_pss_fft_bank_owned_slice
+| Device       : 7z010-clg400
+| Speed File   : -1  PRODUCTION 1.12 2019-11-22
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (MET) :             2.114ns  (required time - arrival time)
+  Source:                 slow_reset_fast_reg[1]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            product/product_ii_reg/CEP
+                            (rising edge-triggered cell DSP48E1 clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        2.992ns  (logic 0.915ns (30.584%)  route 2.077ns (69.416%))
+  Logic Levels:           2  (LUT4=1 LUT6=1)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4637, unset)         0.973     0.973    fft_clk
+                         FDCE                                         r  slow_reset_fast_reg[1]/C
+  -------------------------------------------------------------------    -------------------
+                         FDCE (Prop_fdce_C_Q)         0.496     1.469 r  slow_reset_fast_reg[1]/Q
+                         net (fo=5, unplaced)         0.769     2.238    product_bank/write_position_reg[8]_1[0]
+                         LUT4 (Prop_lut4_I1_O)        0.295     2.533 f  product_bank/write_position[8]_i_1__1/O
+                         net (fo=19, unplaced)        0.508     3.041    product/sum_bin_index_reg[8]_0
+                         LUT6 (Prop_lut6_I1_O)        0.124     3.165 r  product/product_ii_reg_i_2/O
+                         net (fo=8, unplaced)         0.800     3.965    product/input_fault_reg
+                         DSP48E1                                      r  product/product_ii_reg/CEP
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4637, unset)         0.924     6.638    product/fft_clk
+                         DSP48E1                                      r  product/product_ii_reg/CLK
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+                         DSP48E1 (Setup_dsp48e1_CLK_CEP)
+                                                     -0.524     6.079    product/product_ii_reg
+  -------------------------------------------------------------------
+                         required time                          6.079    
+                         arrival time                          -3.965    
+  -------------------------------------------------------------------
+                         slack                                  2.114    
+
+
+
+
