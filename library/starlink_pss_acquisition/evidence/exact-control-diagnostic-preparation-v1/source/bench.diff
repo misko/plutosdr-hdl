@@ -1,0 +1,1119 @@
+--- /tmp/starlink-completed-input.5EaJuD/exact-control-actual-matrix-v3/r0-d0-s0/frozen_sources/tb_starlink_pss_fft_bank_owned_slice.sv	2026-09-10 06:23:33.827636353 +0000
++++ /tmp/starlink-completed-input.5EaJuD/exact-control-diagnostic-actual-v1/frozen_sources/tb_starlink_pss_fft_bank_owned_slice.sv	2026-09-10 06:56:31.246707755 +0000
+@@ -1444,4 +1444,1116 @@
+   // END EXACT_CONTROL_RECEIPT
+     $fclose(trace); $finish;
+   end
++  // BEGIN EXACT_CONTROL_NAMED_DIAGNOSTIC
++  task automatic exact_diagnose_mismatch;
++    integer diagnostic_count;
++    diagnostic_count = 0;
++    $display("EXACT_DIAGNOSTIC_CONTEXT time=%0t fields=217", $realtime);
++    $display("EXACT_DIAGNOSTIC_CONTEXT injected_status candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++      injected_status, exact_reference.injected_status, injected_status, exact_reference.injected_status);
++    $display("EXACT_DIAGNOSTIC_CONTEXT test_kind candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++      test_kind, exact_reference.test_kind, test_kind, exact_reference.test_kind);
++    $display("EXACT_DIAGNOSTIC_CONTEXT clk candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++      clk, exact_reference.clk, clk, exact_reference.clk);
++    $display("EXACT_DIAGNOSTIC_CONTEXT fft_clk candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++      fft_clk, exact_reference.fft_clk, fft_clk, exact_reference.fft_clk);
++    $display("EXACT_DIAGNOSTIC_CONTEXT fast_cycle candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++      fast_cycle, exact_reference.fast_cycle, fast_cycle, exact_reference.fast_cycle);
++    $display("EXACT_DIAGNOSTIC_CONTEXT slow_cycle candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++      slow_cycle, exact_reference.slow_cycle, slow_cycle, exact_reference.slow_cycle);
++    $display("EXACT_DIAGNOSTIC_CONTEXT epoch candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++      epoch, exact_reference.epoch, epoch, exact_reference.epoch);
++    $display("EXACT_DIAGNOSTIC_CONTEXT resetn candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++      resetn, exact_reference.resetn, resetn, exact_reference.resetn);
++    $display("EXACT_DIAGNOSTIC_CONTEXT fft_resetn candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++      fft_resetn, exact_reference.fft_resetn, fft_resetn, exact_reference.fft_resetn);
++    if (resetn !== exact_reference.resetn) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=resetn candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(resetn), $bits(exact_reference.resetn), resetn, exact_reference.resetn, resetn, exact_reference.resetn);
++    end
++    if (fft_resetn !== exact_reference.fft_resetn) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=fft_resetn candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(fft_resetn), $bits(exact_reference.fft_resetn), fft_resetn, exact_reference.fft_resetn, fft_resetn, exact_reference.fft_resetn);
++    end
++    if (input_valid !== exact_reference.input_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=input_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(input_valid), $bits(exact_reference.input_valid), input_valid, exact_reference.input_valid, input_valid, exact_reference.input_valid);
++    end
++    if (input_last !== exact_reference.input_last) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=input_last candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(input_last), $bits(exact_reference.input_last), input_last, exact_reference.input_last, input_last, exact_reference.input_last);
++    end
++    if (input_data !== exact_reference.input_data) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=input_data candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(input_data), $bits(exact_reference.input_data), input_data, exact_reference.input_data, input_data, exact_reference.input_data);
++    end
++    if (input_position !== exact_reference.input_position) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=input_position candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(input_position), $bits(exact_reference.input_position), input_position, exact_reference.input_position, input_position, exact_reference.input_position);
++    end
++    if (input_block_start !== exact_reference.input_block_start) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=input_block_start candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(input_block_start), $bits(exact_reference.input_block_start), input_block_start, exact_reference.input_block_start, input_block_start, exact_reference.input_block_start);
++    end
++    if (input_ready !== exact_reference.input_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=input_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(input_ready), $bits(exact_reference.input_ready), input_ready, exact_reference.input_ready, input_ready, exact_reference.input_ready);
++    end
++    if (output_valid !== exact_reference.output_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=output_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(output_valid), $bits(exact_reference.output_valid), output_valid, exact_reference.output_valid, output_valid, exact_reference.output_valid);
++    end
++    if (output_ready !== exact_reference.output_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=output_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(output_ready), $bits(exact_reference.output_ready), output_ready, exact_reference.output_ready, output_ready, exact_reference.output_ready);
++    end
++    if (output_last !== exact_reference.output_last) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=output_last candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(output_last), $bits(exact_reference.output_last), output_last, exact_reference.output_last, output_last, exact_reference.output_last);
++    end
++    if (output_data !== exact_reference.output_data) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=output_data candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(output_data), $bits(exact_reference.output_data), output_data, exact_reference.output_data, output_data, exact_reference.output_data);
++    end
++    if (output_position !== exact_reference.output_position) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=output_position candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(output_position), $bits(exact_reference.output_position), output_position, exact_reference.output_position, output_position, exact_reference.output_position);
++    end
++    if (output_metadata !== exact_reference.output_metadata) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=output_metadata candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(output_metadata), $bits(exact_reference.output_metadata), output_metadata, exact_reference.output_metadata, output_metadata, exact_reference.output_metadata);
++    end
++    if (fault !== exact_reference.fault) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=fault candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(fault), $bits(exact_reference.fault), fault, exact_reference.fault, fault, exact_reference.fault);
++    end
++    if (epoch !== exact_reference.epoch) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=epoch candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(epoch), $bits(exact_reference.epoch), epoch, exact_reference.epoch, epoch, exact_reference.epoch);
++    end
++    if (profile !== exact_reference.profile) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=profile candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(profile), $bits(exact_reference.profile), profile, exact_reference.profile, profile, exact_reference.profile);
++    end
++    if (expected_fault !== exact_reference.expected_fault) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=expected_fault candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(expected_fault), $bits(exact_reference.expected_fault), expected_fault, exact_reference.expected_fault, expected_fault, exact_reference.expected_fault);
++    end
++    if (expected_results !== exact_reference.expected_results) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=expected_results candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(expected_results), $bits(exact_reference.expected_results), expected_results, exact_reference.expected_results, expected_results, exact_reference.expected_results);
++    end
++    if (injecting_readiness !== exact_reference.injecting_readiness) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=injecting_readiness candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(injecting_readiness), $bits(exact_reference.injecting_readiness), injecting_readiness, exact_reference.injecting_readiness, injecting_readiness, exact_reference.injecting_readiness);
++    end
++    if (reader_enable !== exact_reference.reader_enable) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=reader_enable candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(reader_enable), $bits(exact_reference.reader_enable), reader_enable, exact_reference.reader_enable, reader_enable, exact_reference.reader_enable);
++    end
++    if (allow_inverse_commit_before_late_fault !== exact_reference.allow_inverse_commit_before_late_fault) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=allow_inverse_commit_before_late_fault candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(allow_inverse_commit_before_late_fault), $bits(exact_reference.allow_inverse_commit_before_late_fault), allow_inverse_commit_before_late_fault, exact_reference.allow_inverse_commit_before_late_fault, allow_inverse_commit_before_late_fault, exact_reference.allow_inverse_commit_before_late_fault);
++    end
++    if (allow_provisional_prefix_after_fault !== exact_reference.allow_provisional_prefix_after_fault) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=allow_provisional_prefix_after_fault candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(allow_provisional_prefix_after_fault), $bits(exact_reference.allow_provisional_prefix_after_fault), allow_provisional_prefix_after_fault, exact_reference.allow_provisional_prefix_after_fault, allow_provisional_prefix_after_fault, exact_reference.allow_provisional_prefix_after_fault);
++    end
++    if (dut.fast_running !== exact_reference.dut.fast_running) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.fast_running candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.fast_running), $bits(exact_reference.dut.fast_running), dut.fast_running, exact_reference.dut.fast_running, dut.fast_running, exact_reference.dut.fast_running);
++    end
++    if (dut.slow_running !== exact_reference.dut.slow_running) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.slow_running candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.slow_running), $bits(exact_reference.dut.slow_running), dut.slow_running, exact_reference.dut.slow_running, dut.slow_running, exact_reference.dut.slow_running);
++    end
++    if (dut.fast_fault !== exact_reference.dut.fast_fault) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.fast_fault candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.fast_fault), $bits(exact_reference.dut.fast_fault), dut.fast_fault, exact_reference.dut.fast_fault, dut.fast_fault, exact_reference.dut.fast_fault);
++    end
++    if (dut.state !== exact_reference.dut.state) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.state candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.state), $bits(exact_reference.dut.state), dut.state, exact_reference.dut.state, dut.state, exact_reference.dut.state);
++    end
++    if (dut.core_release !== exact_reference.dut.core_release) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.core_release candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.core_release), $bits(exact_reference.dut.core_release), dut.core_release, exact_reference.dut.core_release, dut.core_release, exact_reference.dut.core_release);
++    end
++    if (dut.input_job_start_private !== exact_reference.dut.input_job_start_private) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.input_job_start_private candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.input_job_start_private), $bits(exact_reference.dut.input_job_start_private), dut.input_job_start_private, exact_reference.dut.input_job_start_private, dut.input_job_start_private, exact_reference.dut.input_job_start_private);
++    end
++    if (dut.input_job_start !== exact_reference.dut.input_job_start) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.input_job_start candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.input_job_start), $bits(exact_reference.dut.input_job_start), dut.input_job_start, exact_reference.dut.input_job_start, dut.input_job_start, exact_reference.dut.input_job_start);
++    end
++    if (dut.next_inverse !== exact_reference.dut.next_inverse) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.next_inverse candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.next_inverse), $bits(exact_reference.dut.next_inverse), dut.next_inverse, exact_reference.dut.next_inverse, dut.next_inverse, exact_reference.dut.next_inverse);
++    end
++    if (dut.engine_metadata !== exact_reference.dut.engine_metadata) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.engine_metadata candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.engine_metadata), $bits(exact_reference.dut.engine_metadata), dut.engine_metadata, exact_reference.dut.engine_metadata, dut.engine_metadata, exact_reference.dut.engine_metadata);
++    end
++    if (dut.engine_input_reserved !== exact_reference.dut.engine_input_reserved) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.engine_input_reserved candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.engine_input_reserved), $bits(exact_reference.dut.engine_input_reserved), dut.engine_input_reserved, exact_reference.dut.engine_input_reserved, dut.engine_input_reserved, exact_reference.dut.engine_input_reserved);
++    end
++    if (dut.engine_output_reserved !== exact_reference.dut.engine_output_reserved) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.engine_output_reserved candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.engine_output_reserved), $bits(exact_reference.dut.engine_output_reserved), dut.engine_output_reserved, exact_reference.dut.engine_output_reserved, dut.engine_output_reserved, exact_reference.dut.engine_output_reserved);
++    end
++    if (dut.forward_committed !== exact_reference.dut.forward_committed) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.forward_committed candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.forward_committed), $bits(exact_reference.dut.forward_committed), dut.forward_committed, exact_reference.dut.forward_committed, dut.forward_committed, exact_reference.dut.forward_committed);
++    end
++    if (dut.held_phase !== exact_reference.dut.held_phase) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.held_phase candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.held_phase), $bits(exact_reference.dut.held_phase), dut.held_phase, exact_reference.dut.held_phase, dut.held_phase, exact_reference.dut.held_phase);
++    end
++    if (dut.held_lease !== exact_reference.dut.held_lease) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.held_lease candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.held_lease), $bits(exact_reference.dut.held_lease), dut.held_lease, exact_reference.dut.held_lease, dut.held_lease, exact_reference.dut.held_lease);
++    end
++    if (dut.source_consume_generation !== exact_reference.dut.source_consume_generation) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_consume_generation candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_consume_generation), $bits(exact_reference.dut.source_consume_generation), dut.source_consume_generation, exact_reference.dut.source_consume_generation, dut.source_consume_generation, exact_reference.dut.source_consume_generation);
++    end
++    if (dut.product_consume_generation !== exact_reference.dut.product_consume_generation) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_consume_generation candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_consume_generation), $bits(exact_reference.dut.product_consume_generation), dut.product_consume_generation, exact_reference.dut.product_consume_generation, dut.product_consume_generation, exact_reference.dut.product_consume_generation);
++    end
++    if (dut.descriptor_certified !== exact_reference.dut.descriptor_certified) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.descriptor_certified candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.descriptor_certified), $bits(exact_reference.dut.descriptor_certified), dut.descriptor_certified, exact_reference.dut.descriptor_certified, dut.descriptor_certified, exact_reference.dut.descriptor_certified);
++    end
++    if (dut.admission_receipt !== exact_reference.dut.admission_receipt) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.admission_receipt candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.admission_receipt), $bits(exact_reference.dut.admission_receipt), dut.admission_receipt, exact_reference.dut.admission_receipt, dut.admission_receipt, exact_reference.dut.admission_receipt);
++    end
++    if (dut.completion_receipt !== exact_reference.dut.completion_receipt) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.completion_receipt candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.completion_receipt), $bits(exact_reference.dut.completion_receipt), dut.completion_receipt, exact_reference.dut.completion_receipt, dut.completion_receipt, exact_reference.dut.completion_receipt);
++    end
++    if (dut.expected_product_metadata !== exact_reference.dut.expected_product_metadata) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.expected_product_metadata candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.expected_product_metadata), $bits(exact_reference.dut.expected_product_metadata), dut.expected_product_metadata, exact_reference.dut.expected_product_metadata, dut.expected_product_metadata, exact_reference.dut.expected_product_metadata);
++    end
++    if (dut.preparation_age !== exact_reference.dut.preparation_age) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.preparation_age candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.preparation_age), $bits(exact_reference.dut.preparation_age), dut.preparation_age, exact_reference.dut.preparation_age, dut.preparation_age, exact_reference.dut.preparation_age);
++    end
++    if (dut.epoch_input_reasons !== exact_reference.dut.epoch_input_reasons) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.epoch_input_reasons candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.epoch_input_reasons), $bits(exact_reference.dut.epoch_input_reasons), dut.epoch_input_reasons, exact_reference.dut.epoch_input_reasons, dut.epoch_input_reasons, exact_reference.dut.epoch_input_reasons);
++    end
++    if (dut.epoch_preflight_reasons !== exact_reference.dut.epoch_preflight_reasons) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.epoch_preflight_reasons candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.epoch_preflight_reasons), $bits(exact_reference.dut.epoch_preflight_reasons), dut.epoch_preflight_reasons, exact_reference.dut.epoch_preflight_reasons, dut.epoch_preflight_reasons, exact_reference.dut.epoch_preflight_reasons);
++    end
++    if (dut.core_aresetn !== exact_reference.dut.core_aresetn) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.core_aresetn candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.core_aresetn), $bits(exact_reference.dut.core_aresetn), dut.core_aresetn, exact_reference.dut.core_aresetn, dut.core_aresetn, exact_reference.dut.core_aresetn);
++    end
++    if (dut.config_valid !== exact_reference.dut.config_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.config_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.config_valid), $bits(exact_reference.dut.config_valid), dut.config_valid, exact_reference.dut.config_valid, dut.config_valid, exact_reference.dut.config_valid);
++    end
++    if (dut.config_ready !== exact_reference.dut.config_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.config_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.config_ready), $bits(exact_reference.dut.config_ready), dut.config_ready, exact_reference.dut.config_ready, dut.config_ready, exact_reference.dut.config_ready);
++    end
++    if (dut.engine_input_enable !== exact_reference.dut.engine_input_enable) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.engine_input_enable candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.engine_input_enable), $bits(exact_reference.dut.engine_input_enable), dut.engine_input_enable, exact_reference.dut.engine_input_enable, dut.engine_input_enable, exact_reference.dut.engine_input_enable);
++    end
++    if (dut.job_ready !== exact_reference.dut.job_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.job_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.job_ready), $bits(exact_reference.dut.job_ready), dut.job_ready, exact_reference.dut.job_ready, dut.job_ready, exact_reference.dut.job_ready);
++    end
++    if (dut.job_accept !== exact_reference.dut.job_accept) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.job_accept candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.job_accept), $bits(exact_reference.dut.job_accept), dut.job_accept, exact_reference.dut.job_accept, dut.job_accept, exact_reference.dut.job_accept);
++    end
++    if (dut.result_busy !== exact_reference.dut.result_busy) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_busy candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_busy), $bits(exact_reference.dut.result_busy), dut.result_busy, exact_reference.dut.result_busy, dut.result_busy, exact_reference.dut.result_busy);
++    end
++    if (dut.result_commit !== exact_reference.dut.result_commit) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_commit candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_commit), $bits(exact_reference.dut.result_commit), dut.result_commit, exact_reference.dut.result_commit, dut.result_commit, exact_reference.dut.result_commit);
++    end
++    if (dut.result_fault !== exact_reference.dut.result_fault) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_fault candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_fault), $bits(exact_reference.dut.result_fault), dut.result_fault, exact_reference.dut.result_fault, dut.result_fault, exact_reference.dut.result_fault);
++    end
++    if (dut.source_valid !== exact_reference.dut.source_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_valid), $bits(exact_reference.dut.source_valid), dut.source_valid, exact_reference.dut.source_valid, dut.source_valid, exact_reference.dut.source_valid);
++    end
++    if (dut.source_read_ready !== exact_reference.dut.source_read_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_read_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_read_ready), $bits(exact_reference.dut.source_read_ready), dut.source_read_ready, exact_reference.dut.source_read_ready, dut.source_read_ready, exact_reference.dut.source_read_ready);
++    end
++    if (dut.source_data !== exact_reference.dut.source_data) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_data candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_data), $bits(exact_reference.dut.source_data), dut.source_data, exact_reference.dut.source_data, dut.source_data, exact_reference.dut.source_data);
++    end
++    if (dut.source_position !== exact_reference.dut.source_position) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_position candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_position), $bits(exact_reference.dut.source_position), dut.source_position, exact_reference.dut.source_position, dut.source_position, exact_reference.dut.source_position);
++    end
++    if (dut.source_last !== exact_reference.dut.source_last) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_last candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_last), $bits(exact_reference.dut.source_last), dut.source_last, exact_reference.dut.source_last, dut.source_last, exact_reference.dut.source_last);
++    end
++    if (dut.source_metadata !== exact_reference.dut.source_metadata) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_metadata candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_metadata), $bits(exact_reference.dut.source_metadata), dut.source_metadata, exact_reference.dut.source_metadata, dut.source_metadata, exact_reference.dut.source_metadata);
++    end
++    if (dut.product_bank_valid !== exact_reference.dut.product_bank_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank_valid), $bits(exact_reference.dut.product_bank_valid), dut.product_bank_valid, exact_reference.dut.product_bank_valid, dut.product_bank_valid, exact_reference.dut.product_bank_valid);
++    end
++    if (dut.product_bank_read_ready !== exact_reference.dut.product_bank_read_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank_read_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank_read_ready), $bits(exact_reference.dut.product_bank_read_ready), dut.product_bank_read_ready, exact_reference.dut.product_bank_read_ready, dut.product_bank_read_ready, exact_reference.dut.product_bank_read_ready);
++    end
++    if (dut.product_bank_data !== exact_reference.dut.product_bank_data) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank_data candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank_data), $bits(exact_reference.dut.product_bank_data), dut.product_bank_data, exact_reference.dut.product_bank_data, dut.product_bank_data, exact_reference.dut.product_bank_data);
++    end
++    if (dut.product_bank_position !== exact_reference.dut.product_bank_position) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank_position candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank_position), $bits(exact_reference.dut.product_bank_position), dut.product_bank_position, exact_reference.dut.product_bank_position, dut.product_bank_position, exact_reference.dut.product_bank_position);
++    end
++    if (dut.product_bank_last !== exact_reference.dut.product_bank_last) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank_last candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank_last), $bits(exact_reference.dut.product_bank_last), dut.product_bank_last, exact_reference.dut.product_bank_last, dut.product_bank_last, exact_reference.dut.product_bank_last);
++    end
++    if (dut.product_bank_metadata !== exact_reference.dut.product_bank_metadata) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank_metadata candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank_metadata), $bits(exact_reference.dut.product_bank_metadata), dut.product_bank_metadata, exact_reference.dut.product_bank_metadata, dut.product_bank_metadata, exact_reference.dut.product_bank_metadata);
++    end
++    if (dut.checked_input_complete !== exact_reference.dut.checked_input_complete) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.checked_input_complete candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.checked_input_complete), $bits(exact_reference.dut.checked_input_complete), dut.checked_input_complete, exact_reference.dut.checked_input_complete, dut.checked_input_complete, exact_reference.dut.checked_input_complete);
++    end
++    if (dut.certified_input_beat !== exact_reference.dut.certified_input_beat) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.certified_input_beat candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.certified_input_beat), $bits(exact_reference.dut.certified_input_beat), dut.certified_input_beat, exact_reference.dut.certified_input_beat, dut.certified_input_beat, exact_reference.dut.certified_input_beat);
++    end
++    if (dut.certified_input_complete !== exact_reference.dut.certified_input_complete) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.certified_input_complete candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.certified_input_complete), $bits(exact_reference.dut.certified_input_complete), dut.certified_input_complete, exact_reference.dut.certified_input_complete, dut.certified_input_complete, exact_reference.dut.certified_input_complete);
++    end
++    if (dut.input_fault_now !== exact_reference.dut.input_fault_now) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.input_fault_now candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.input_fault_now), $bits(exact_reference.dut.input_fault_now), dut.input_fault_now, exact_reference.dut.input_fault_now, dut.input_fault_now, exact_reference.dut.input_fault_now);
++    end
++    if (dut.input_guard_fault !== exact_reference.dut.input_guard_fault) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.input_guard_fault candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.input_guard_fault), $bits(exact_reference.dut.input_guard_fault), dut.input_guard_fault, exact_reference.dut.input_guard_fault, dut.input_guard_fault, exact_reference.dut.input_guard_fault);
++    end
++    if (dut.input_fault_events_now !== exact_reference.dut.input_fault_events_now) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.input_fault_events_now candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.input_fault_events_now), $bits(exact_reference.dut.input_fault_events_now), dut.input_fault_events_now, exact_reference.dut.input_fault_events_now, dut.input_fault_events_now, exact_reference.dut.input_fault_events_now);
++    end
++    if (dut.duplicate_start_fault_now !== exact_reference.dut.duplicate_start_fault_now) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.duplicate_start_fault_now candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.duplicate_start_fault_now), $bits(exact_reference.dut.duplicate_start_fault_now), dut.duplicate_start_fault_now, exact_reference.dut.duplicate_start_fault_now, dut.duplicate_start_fault_now, exact_reference.dut.duplicate_start_fault_now);
++    end
++    if (dut.core_input_data !== exact_reference.dut.core_input_data) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.core_input_data candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.core_input_data), $bits(exact_reference.dut.core_input_data), dut.core_input_data, exact_reference.dut.core_input_data, dut.core_input_data, exact_reference.dut.core_input_data);
++    end
++    if (dut.core_input_valid !== exact_reference.dut.core_input_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.core_input_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.core_input_valid), $bits(exact_reference.dut.core_input_valid), dut.core_input_valid, exact_reference.dut.core_input_valid, dut.core_input_valid, exact_reference.dut.core_input_valid);
++    end
++    if (dut.core_input_ready !== exact_reference.dut.core_input_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.core_input_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.core_input_ready), $bits(exact_reference.dut.core_input_ready), dut.core_input_ready, exact_reference.dut.core_input_ready, dut.core_input_ready, exact_reference.dut.core_input_ready);
++    end
++    if (dut.core_input_last !== exact_reference.dut.core_input_last) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.core_input_last candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.core_input_last), $bits(exact_reference.dut.core_input_last), dut.core_input_last, exact_reference.dut.core_input_last, dut.core_input_last, exact_reference.dut.core_input_last);
++    end
++    if (dut.core_output_data !== exact_reference.dut.core_output_data) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.core_output_data candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.core_output_data), $bits(exact_reference.dut.core_output_data), dut.core_output_data, exact_reference.dut.core_output_data, dut.core_output_data, exact_reference.dut.core_output_data);
++    end
++    if (dut.core_output_user !== exact_reference.dut.core_output_user) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.core_output_user candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.core_output_user), $bits(exact_reference.dut.core_output_user), dut.core_output_user, exact_reference.dut.core_output_user, dut.core_output_user, exact_reference.dut.core_output_user);
++    end
++    if (dut.core_output_valid !== exact_reference.dut.core_output_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.core_output_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.core_output_valid), $bits(exact_reference.dut.core_output_valid), dut.core_output_valid, exact_reference.dut.core_output_valid, dut.core_output_valid, exact_reference.dut.core_output_valid);
++    end
++    if (dut.core_output_last !== exact_reference.dut.core_output_last) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.core_output_last candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.core_output_last), $bits(exact_reference.dut.core_output_last), dut.core_output_last, exact_reference.dut.core_output_last, dut.core_output_last, exact_reference.dut.core_output_last);
++    end
++    if (dut.core_status_data !== exact_reference.dut.core_status_data) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.core_status_data candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.core_status_data), $bits(exact_reference.dut.core_status_data), dut.core_status_data, exact_reference.dut.core_status_data, dut.core_status_data, exact_reference.dut.core_status_data);
++    end
++    if (dut.core_status_valid !== exact_reference.dut.core_status_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.core_status_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.core_status_valid), $bits(exact_reference.dut.core_status_valid), dut.core_status_valid, exact_reference.dut.core_status_valid, dut.core_status_valid, exact_reference.dut.core_status_valid);
++    end
++    if (dut.event_frame !== exact_reference.dut.event_frame) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.event_frame candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.event_frame), $bits(exact_reference.dut.event_frame), dut.event_frame, exact_reference.dut.event_frame, dut.event_frame, exact_reference.dut.event_frame);
++    end
++    if (dut.event_last_unexpected !== exact_reference.dut.event_last_unexpected) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.event_last_unexpected candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.event_last_unexpected), $bits(exact_reference.dut.event_last_unexpected), dut.event_last_unexpected, exact_reference.dut.event_last_unexpected, dut.event_last_unexpected, exact_reference.dut.event_last_unexpected);
++    end
++    if (dut.event_last_missing !== exact_reference.dut.event_last_missing) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.event_last_missing candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.event_last_missing), $bits(exact_reference.dut.event_last_missing), dut.event_last_missing, exact_reference.dut.event_last_missing, dut.event_last_missing, exact_reference.dut.event_last_missing);
++    end
++    if (dut.event_input_halt !== exact_reference.dut.event_input_halt) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.event_input_halt candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.event_input_halt), $bits(exact_reference.dut.event_input_halt), dut.event_input_halt, exact_reference.dut.event_input_halt, dut.event_input_halt, exact_reference.dut.event_input_halt);
++    end
++    if (dut.return_valid !== exact_reference.dut.return_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.return_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.return_valid), $bits(exact_reference.dut.return_valid), dut.return_valid, exact_reference.dut.return_valid, dut.return_valid, exact_reference.dut.return_valid);
++    end
++    if (dut.return_private_valid !== exact_reference.dut.return_private_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.return_private_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.return_private_valid), $bits(exact_reference.dut.return_private_valid), dut.return_private_valid, exact_reference.dut.return_private_valid, dut.return_private_valid, exact_reference.dut.return_private_valid);
++    end
++    if (dut.return_commit_valid !== exact_reference.dut.return_commit_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.return_commit_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.return_commit_valid), $bits(exact_reference.dut.return_commit_valid), dut.return_commit_valid, exact_reference.dut.return_commit_valid, dut.return_commit_valid, exact_reference.dut.return_commit_valid);
++    end
++    if (dut.return_data !== exact_reference.dut.return_data) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.return_data candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.return_data), $bits(exact_reference.dut.return_data), dut.return_data, exact_reference.dut.return_data, dut.return_data, exact_reference.dut.return_data);
++    end
++    if (dut.return_position !== exact_reference.dut.return_position) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.return_position candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.return_position), $bits(exact_reference.dut.return_position), dut.return_position, exact_reference.dut.return_position, dut.return_position, exact_reference.dut.return_position);
++    end
++    if (dut.return_last !== exact_reference.dut.return_last) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.return_last candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.return_last), $bits(exact_reference.dut.return_last), dut.return_last, exact_reference.dut.return_last, dut.return_last, exact_reference.dut.return_last);
++    end
++    if (dut.return_metadata !== exact_reference.dut.return_metadata) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.return_metadata candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.return_metadata), $bits(exact_reference.dut.return_metadata), dut.return_metadata, exact_reference.dut.return_metadata, dut.return_metadata, exact_reference.dut.return_metadata);
++    end
++    if (dut.forward_retirement_valid !== exact_reference.dut.forward_retirement_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.forward_retirement_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.forward_retirement_valid), $bits(exact_reference.dut.forward_retirement_valid), dut.forward_retirement_valid, exact_reference.dut.forward_retirement_valid, dut.forward_retirement_valid, exact_reference.dut.forward_retirement_valid);
++    end
++    if (dut.external_fault_now !== exact_reference.dut.external_fault_now) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.external_fault_now candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.external_fault_now), $bits(exact_reference.dut.external_fault_now), dut.external_fault_now, exact_reference.dut.external_fault_now, dut.external_fault_now, exact_reference.dut.external_fault_now);
++    end
++    if (dut.any_fast_fault !== exact_reference.dut.any_fast_fault) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.any_fast_fault candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.any_fast_fault), $bits(exact_reference.dut.any_fast_fault), dut.any_fast_fault, exact_reference.dut.any_fast_fault, dut.any_fast_fault, exact_reference.dut.any_fast_fault);
++    end
++    if (dut.preflight_events_now !== exact_reference.dut.preflight_events_now) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.preflight_events_now candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.preflight_events_now), $bits(exact_reference.dut.preflight_events_now), dut.preflight_events_now, exact_reference.dut.preflight_events_now, dut.preflight_events_now, exact_reference.dut.preflight_events_now);
++    end
++    if (dut.preparation_fault_now !== exact_reference.dut.preparation_fault_now) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.preparation_fault_now candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.preparation_fault_now), $bits(exact_reference.dut.preparation_fault_now), dut.preparation_fault_now, exact_reference.dut.preparation_fault_now, dut.preparation_fault_now, exact_reference.dut.preparation_fault_now);
++    end
++    if (dut.final_fence !== exact_reference.dut.final_fence) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.final_fence candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.final_fence), $bits(exact_reference.dut.final_fence), dut.final_fence, exact_reference.dut.final_fence, dut.final_fence, exact_reference.dut.final_fence);
++    end
++    if (dut.completed_input_fault_now !== exact_reference.dut.completed_input_fault_now) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.completed_input_fault_now candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.completed_input_fault_now), $bits(exact_reference.dut.completed_input_fault_now), dut.completed_input_fault_now, exact_reference.dut.completed_input_fault_now, dut.completed_input_fault_now, exact_reference.dut.completed_input_fault_now);
++    end
++    if (dut.forward_handoff_ack !== exact_reference.dut.forward_handoff_ack) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.forward_handoff_ack candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.forward_handoff_ack), $bits(exact_reference.dut.forward_handoff_ack), dut.forward_handoff_ack, exact_reference.dut.forward_handoff_ack, dut.forward_handoff_ack, exact_reference.dut.forward_handoff_ack);
++    end
++    if (dut.forward_handoff_identity !== exact_reference.dut.forward_handoff_identity) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.forward_handoff_identity candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.forward_handoff_identity), $bits(exact_reference.dut.forward_handoff_identity), dut.forward_handoff_identity, exact_reference.dut.forward_handoff_identity, dut.forward_handoff_identity, exact_reference.dut.forward_handoff_identity);
++    end
++    if (dut.handoff_fault_now !== exact_reference.dut.handoff_fault_now) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.handoff_fault_now candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.handoff_fault_now), $bits(exact_reference.dut.handoff_fault_now), dut.handoff_fault_now, exact_reference.dut.handoff_fault_now, dut.handoff_fault_now, exact_reference.dut.handoff_fault_now);
++    end
++    if (dut.result_destination_ready !== exact_reference.dut.result_destination_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_destination_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_destination_ready), $bits(exact_reference.dut.result_destination_ready), dut.result_destination_ready, exact_reference.dut.result_destination_ready, dut.result_destination_ready, exact_reference.dut.result_destination_ready);
++    end
++    if (dut.product_commit_authorized !== exact_reference.dut.product_commit_authorized) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_commit_authorized candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_commit_authorized), $bits(exact_reference.dut.product_commit_authorized), dut.product_commit_authorized, exact_reference.dut.product_commit_authorized, dut.product_commit_authorized, exact_reference.dut.product_commit_authorized);
++    end
++    if (dut.product_bank_ready !== exact_reference.dut.product_bank_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank_ready), $bits(exact_reference.dut.product_bank_ready), dut.product_bank_ready, exact_reference.dut.product_bank_ready, dut.product_bank_ready, exact_reference.dut.product_bank_ready);
++    end
++    if (dut.product_bank_fault !== exact_reference.dut.product_bank_fault) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank_fault candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank_fault), $bits(exact_reference.dut.product_bank_fault), dut.product_bank_fault, exact_reference.dut.product_bank_fault, dut.product_bank_fault, exact_reference.dut.product_bank_fault);
++    end
++    if (dut.product_bank_framing_fault_now !== exact_reference.dut.product_bank_framing_fault_now) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank_framing_fault_now candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank_framing_fault_now), $bits(exact_reference.dut.product_bank_framing_fault_now), dut.product_bank_framing_fault_now, exact_reference.dut.product_bank_framing_fault_now, dut.product_bank_framing_fault_now, exact_reference.dut.product_bank_framing_fault_now);
++    end
++    if (dut.output_bank_ready !== exact_reference.dut.output_bank_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank_ready), $bits(exact_reference.dut.output_bank_ready), dut.output_bank_ready, exact_reference.dut.output_bank_ready, dut.output_bank_ready, exact_reference.dut.output_bank_ready);
++    end
++    if (dut.output_bank_fault !== exact_reference.dut.output_bank_fault) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank_fault candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank_fault), $bits(exact_reference.dut.output_bank_fault), dut.output_bank_fault, exact_reference.dut.output_bank_fault, dut.output_bank_fault, exact_reference.dut.output_bank_fault);
++    end
++    if (dut.output_bank_framing_fault_now !== exact_reference.dut.output_bank_framing_fault_now) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank_framing_fault_now candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank_framing_fault_now), $bits(exact_reference.dut.output_bank_framing_fault_now), dut.output_bank_framing_fault_now, exact_reference.dut.output_bank_framing_fault_now, dut.output_bank_framing_fault_now, exact_reference.dut.output_bank_framing_fault_now);
++    end
++    if (dut.product_overflow !== exact_reference.dut.product_overflow) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_overflow candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_overflow), $bits(exact_reference.dut.product_overflow), dut.product_overflow, exact_reference.dut.product_overflow, dut.product_overflow, exact_reference.dut.product_overflow);
++    end
++    if (dut.result_guard.active_private !== exact_reference.dut.result_guard.active_private) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.active_private candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.active_private), $bits(exact_reference.dut.result_guard.active_private), dut.result_guard.active_private, exact_reference.dut.result_guard.active_private, dut.result_guard.active_private, exact_reference.dut.result_guard.active_private);
++    end
++    if (dut.result_guard.awaiting_ack !== exact_reference.dut.result_guard.awaiting_ack) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.awaiting_ack candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.awaiting_ack), $bits(exact_reference.dut.result_guard.awaiting_ack), dut.result_guard.awaiting_ack, exact_reference.dut.result_guard.awaiting_ack, dut.result_guard.awaiting_ack, exact_reference.dut.result_guard.awaiting_ack);
++    end
++    if (dut.result_guard.descriptor !== exact_reference.dut.result_guard.descriptor) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.descriptor candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.descriptor), $bits(exact_reference.dut.result_guard.descriptor), dut.result_guard.descriptor, exact_reference.dut.result_guard.descriptor, dut.result_guard.descriptor, exact_reference.dut.result_guard.descriptor);
++    end
++    if (dut.result_guard.input_count !== exact_reference.dut.result_guard.input_count) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.input_count candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.input_count), $bits(exact_reference.dut.result_guard.input_count), dut.result_guard.input_count, exact_reference.dut.result_guard.input_count, dut.result_guard.input_count, exact_reference.dut.result_guard.input_count);
++    end
++    if (dut.result_guard.output_count !== exact_reference.dut.result_guard.output_count) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.output_count candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.output_count), $bits(exact_reference.dut.result_guard.output_count), dut.result_guard.output_count, exact_reference.dut.result_guard.output_count, dut.result_guard.output_count, exact_reference.dut.result_guard.output_count);
++    end
++    if (dut.result_guard.input_complete_seen !== exact_reference.dut.result_guard.input_complete_seen) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.input_complete_seen candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.input_complete_seen), $bits(exact_reference.dut.result_guard.input_complete_seen), dut.result_guard.input_complete_seen, exact_reference.dut.result_guard.input_complete_seen, dut.result_guard.input_complete_seen, exact_reference.dut.result_guard.input_complete_seen);
++    end
++    if (dut.result_guard.frame_seen !== exact_reference.dut.result_guard.frame_seen) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.frame_seen candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.frame_seen), $bits(exact_reference.dut.result_guard.frame_seen), dut.result_guard.frame_seen, exact_reference.dut.result_guard.frame_seen, dut.result_guard.frame_seen, exact_reference.dut.result_guard.frame_seen);
++    end
++    if (dut.result_guard.status_seen !== exact_reference.dut.result_guard.status_seen) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.status_seen candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.status_seen), $bits(exact_reference.dut.result_guard.status_seen), dut.result_guard.status_seen, exact_reference.dut.result_guard.status_seen, dut.result_guard.status_seen, exact_reference.dut.result_guard.status_seen);
++    end
++    if (dut.result_guard.exponent_seen !== exact_reference.dut.result_guard.exponent_seen) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.exponent_seen candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.exponent_seen), $bits(exact_reference.dut.result_guard.exponent_seen), dut.result_guard.exponent_seen, exact_reference.dut.result_guard.exponent_seen, dut.result_guard.exponent_seen, exact_reference.dut.result_guard.exponent_seen);
++    end
++    if (dut.result_guard.status_exponent !== exact_reference.dut.result_guard.status_exponent) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.status_exponent candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.status_exponent), $bits(exact_reference.dut.result_guard.status_exponent), dut.result_guard.status_exponent, exact_reference.dut.result_guard.status_exponent, dut.result_guard.status_exponent, exact_reference.dut.result_guard.status_exponent);
++    end
++    if (dut.result_guard.output_exponent !== exact_reference.dut.result_guard.output_exponent) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.output_exponent candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.output_exponent), $bits(exact_reference.dut.result_guard.output_exponent), dut.result_guard.output_exponent, exact_reference.dut.result_guard.output_exponent, dut.result_guard.output_exponent, exact_reference.dut.result_guard.output_exponent);
++    end
++    if (dut.result_guard.age !== exact_reference.dut.result_guard.age) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.age candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.age), $bits(exact_reference.dut.result_guard.age), dut.result_guard.age, exact_reference.dut.result_guard.age, dut.result_guard.age, exact_reference.dut.result_guard.age);
++    end
++    if (dut.result_guard.return_occupied !== exact_reference.dut.result_guard.return_occupied) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.return_occupied candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.return_occupied), $bits(exact_reference.dut.result_guard.return_occupied), dut.result_guard.return_occupied, exact_reference.dut.result_guard.return_occupied, dut.result_guard.return_occupied, exact_reference.dut.result_guard.return_occupied);
++    end
++    if (dut.result_guard.return_last !== exact_reference.dut.result_guard.return_last) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.return_last candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.return_last), $bits(exact_reference.dut.result_guard.return_last), dut.result_guard.return_last, exact_reference.dut.result_guard.return_last, dut.result_guard.return_last, exact_reference.dut.result_guard.return_last);
++    end
++    if (dut.result_guard.return_data !== exact_reference.dut.result_guard.return_data) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.return_data candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.return_data), $bits(exact_reference.dut.result_guard.return_data), dut.result_guard.return_data, exact_reference.dut.result_guard.return_data, dut.result_guard.return_data, exact_reference.dut.result_guard.return_data);
++    end
++    if (dut.result_guard.return_position !== exact_reference.dut.result_guard.return_position) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.return_position candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.return_position), $bits(exact_reference.dut.result_guard.return_position), dut.result_guard.return_position, exact_reference.dut.result_guard.return_position, dut.result_guard.return_position, exact_reference.dut.result_guard.return_position);
++    end
++    if (dut.result_guard.return_exponent !== exact_reference.dut.result_guard.return_exponent) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.return_exponent candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.return_exponent), $bits(exact_reference.dut.result_guard.return_exponent), dut.result_guard.return_exponent, exact_reference.dut.result_guard.return_exponent, dut.result_guard.return_exponent, exact_reference.dut.result_guard.return_exponent);
++    end
++    if (dut.result_guard.fault_reasons !== exact_reference.dut.result_guard.fault_reasons) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.fault_reasons candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.fault_reasons), $bits(exact_reference.dut.result_guard.fault_reasons), dut.result_guard.fault_reasons, exact_reference.dut.result_guard.fault_reasons, dut.result_guard.fault_reasons, exact_reference.dut.result_guard.fault_reasons);
++    end
++    if (dut.result_guard.faults_now !== exact_reference.dut.result_guard.faults_now) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.result_guard.faults_now candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.result_guard.faults_now), $bits(exact_reference.dut.result_guard.faults_now), dut.result_guard.faults_now, exact_reference.dut.result_guard.faults_now, dut.result_guard.faults_now, exact_reference.dut.result_guard.faults_now);
++    end
++    if (dut.input_guard.job_started !== exact_reference.dut.input_guard.job_started) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.input_guard.job_started candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.input_guard.job_started), $bits(exact_reference.dut.input_guard.job_started), dut.input_guard.job_started, exact_reference.dut.input_guard.job_started, dut.input_guard.job_started, exact_reference.dut.input_guard.job_started);
++    end
++    if (dut.input_guard.input_started !== exact_reference.dut.input_guard.input_started) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.input_guard.input_started candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.input_guard.input_started), $bits(exact_reference.dut.input_guard.input_started), dut.input_guard.input_started, exact_reference.dut.input_guard.input_started, dut.input_guard.input_started, exact_reference.dut.input_guard.input_started);
++    end
++    if (dut.input_guard.descriptor !== exact_reference.dut.input_guard.descriptor) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.input_guard.descriptor candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.input_guard.descriptor), $bits(exact_reference.dut.input_guard.descriptor), dut.input_guard.descriptor, exact_reference.dut.input_guard.descriptor, dut.input_guard.descriptor, exact_reference.dut.input_guard.descriptor);
++    end
++    if (dut.input_guard.expected_position !== exact_reference.dut.input_guard.expected_position) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.input_guard.expected_position candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.input_guard.expected_position), $bits(exact_reference.dut.input_guard.expected_position), dut.input_guard.expected_position, exact_reference.dut.input_guard.expected_position, dut.input_guard.expected_position, exact_reference.dut.input_guard.expected_position);
++    end
++    if (dut.input_guard.input_complete !== exact_reference.dut.input_guard.input_complete) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.input_guard.input_complete candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.input_guard.input_complete), $bits(exact_reference.dut.input_guard.input_complete), dut.input_guard.input_complete, exact_reference.dut.input_guard.input_complete, dut.input_guard.input_complete, exact_reference.dut.input_guard.input_complete);
++    end
++    if (dut.input_guard.fault_reasons !== exact_reference.dut.input_guard.fault_reasons) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.input_guard.fault_reasons candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.input_guard.fault_reasons), $bits(exact_reference.dut.input_guard.fault_reasons), dut.input_guard.fault_reasons, exact_reference.dut.input_guard.fault_reasons, dut.input_guard.fault_reasons, exact_reference.dut.input_guard.fault_reasons);
++    end
++    if (dut.input_guard.slot_open !== exact_reference.dut.input_guard.slot_open) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.input_guard.slot_open candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.input_guard.slot_open), $bits(exact_reference.dut.input_guard.slot_open), dut.input_guard.slot_open, exact_reference.dut.input_guard.slot_open, dut.input_guard.slot_open, exact_reference.dut.input_guard.slot_open);
++    end
++    if (dut.input_guard.fault_events_now !== exact_reference.dut.input_guard.fault_events_now) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.input_guard.fault_events_now candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.input_guard.fault_events_now), $bits(exact_reference.dut.input_guard.fault_events_now), dut.input_guard.fault_events_now, exact_reference.dut.input_guard.fault_events_now, dut.input_guard.fault_events_now, exact_reference.dut.input_guard.fault_events_now);
++    end
++    if (dut.input_guard.core_input_tvalid !== exact_reference.dut.input_guard.core_input_tvalid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.input_guard.core_input_tvalid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.input_guard.core_input_tvalid), $bits(exact_reference.dut.input_guard.core_input_tvalid), dut.input_guard.core_input_tvalid, exact_reference.dut.input_guard.core_input_tvalid, dut.input_guard.core_input_tvalid, exact_reference.dut.input_guard.core_input_tvalid);
++    end
++    if (dut.input_guard.certified_input_beat !== exact_reference.dut.input_guard.certified_input_beat) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.input_guard.certified_input_beat candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.input_guard.certified_input_beat), $bits(exact_reference.dut.input_guard.certified_input_beat), dut.input_guard.certified_input_beat, exact_reference.dut.input_guard.certified_input_beat, dut.input_guard.certified_input_beat, exact_reference.dut.input_guard.certified_input_beat);
++    end
++    if (dut.input_guard.certified_input_complete !== exact_reference.dut.input_guard.certified_input_complete) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.input_guard.certified_input_complete candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.input_guard.certified_input_complete), $bits(exact_reference.dut.input_guard.certified_input_complete), dut.input_guard.certified_input_complete, exact_reference.dut.input_guard.certified_input_complete, dut.input_guard.certified_input_complete, exact_reference.dut.input_guard.certified_input_complete);
++    end
++    if (dut.joiner.kernel_rom.expected_bin_index !== exact_reference.dut.joiner.kernel_rom.expected_bin_index) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.expected_bin_index candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.expected_bin_index), $bits(exact_reference.dut.joiner.kernel_rom.expected_bin_index), dut.joiner.kernel_rom.expected_bin_index, exact_reference.dut.joiner.kernel_rom.expected_bin_index, dut.joiner.kernel_rom.expected_bin_index, exact_reference.dut.joiner.kernel_rom.expected_bin_index);
++    end
++    if (dut.joiner.kernel_rom.block_exponent !== exact_reference.dut.joiner.kernel_rom.block_exponent) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.block_exponent candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.block_exponent), $bits(exact_reference.dut.joiner.kernel_rom.block_exponent), dut.joiner.kernel_rom.block_exponent, exact_reference.dut.joiner.kernel_rom.block_exponent, dut.joiner.kernel_rom.block_exponent, exact_reference.dut.joiner.kernel_rom.block_exponent);
++    end
++    if (dut.joiner.kernel_rom.block_start_index !== exact_reference.dut.joiner.kernel_rom.block_start_index) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.block_start_index candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.block_start_index), $bits(exact_reference.dut.joiner.kernel_rom.block_start_index), dut.joiner.kernel_rom.block_start_index, exact_reference.dut.joiner.kernel_rom.block_start_index, dut.joiner.kernel_rom.block_start_index, exact_reference.dut.joiner.kernel_rom.block_start_index);
++    end
++    if (dut.joiner.kernel_rom.have_previous_block !== exact_reference.dut.joiner.kernel_rom.have_previous_block) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.have_previous_block candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.have_previous_block), $bits(exact_reference.dut.joiner.kernel_rom.have_previous_block), dut.joiner.kernel_rom.have_previous_block, exact_reference.dut.joiner.kernel_rom.have_previous_block, dut.joiner.kernel_rom.have_previous_block, exact_reference.dut.joiner.kernel_rom.have_previous_block);
++    end
++    if (dut.joiner.kernel_rom.output_kernel_word !== exact_reference.dut.joiner.kernel_rom.output_kernel_word) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.output_kernel_word candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.output_kernel_word), $bits(exact_reference.dut.joiner.kernel_rom.output_kernel_word), dut.joiner.kernel_rom.output_kernel_word, exact_reference.dut.joiner.kernel_rom.output_kernel_word, dut.joiner.kernel_rom.output_kernel_word, exact_reference.dut.joiner.kernel_rom.output_kernel_word);
++    end
++    if (dut.joiner.kernel_rom.output_valid !== exact_reference.dut.joiner.kernel_rom.output_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.output_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.output_valid), $bits(exact_reference.dut.joiner.kernel_rom.output_valid), dut.joiner.kernel_rom.output_valid, exact_reference.dut.joiner.kernel_rom.output_valid, dut.joiner.kernel_rom.output_valid, exact_reference.dut.joiner.kernel_rom.output_valid);
++    end
++    if (dut.joiner.kernel_rom.output_bin_index !== exact_reference.dut.joiner.kernel_rom.output_bin_index) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.output_bin_index candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.output_bin_index), $bits(exact_reference.dut.joiner.kernel_rom.output_bin_index), dut.joiner.kernel_rom.output_bin_index, exact_reference.dut.joiner.kernel_rom.output_bin_index, dut.joiner.kernel_rom.output_bin_index, exact_reference.dut.joiner.kernel_rom.output_bin_index);
++    end
++    if (dut.joiner.kernel_rom.output_block_exponent !== exact_reference.dut.joiner.kernel_rom.output_block_exponent) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.output_block_exponent candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.output_block_exponent), $bits(exact_reference.dut.joiner.kernel_rom.output_block_exponent), dut.joiner.kernel_rom.output_block_exponent, exact_reference.dut.joiner.kernel_rom.output_block_exponent, dut.joiner.kernel_rom.output_block_exponent, exact_reference.dut.joiner.kernel_rom.output_block_exponent);
++    end
++    if (dut.joiner.kernel_rom.output_last !== exact_reference.dut.joiner.kernel_rom.output_last) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.output_last candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.output_last), $bits(exact_reference.dut.joiner.kernel_rom.output_last), dut.joiner.kernel_rom.output_last, exact_reference.dut.joiner.kernel_rom.output_last, dut.joiner.kernel_rom.output_last, exact_reference.dut.joiner.kernel_rom.output_last);
++    end
++    if (dut.joiner.kernel_rom.output_block_start_index !== exact_reference.dut.joiner.kernel_rom.output_block_start_index) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.output_block_start_index candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.output_block_start_index), $bits(exact_reference.dut.joiner.kernel_rom.output_block_start_index), dut.joiner.kernel_rom.output_block_start_index, exact_reference.dut.joiner.kernel_rom.output_block_start_index, dut.joiner.kernel_rom.output_block_start_index, exact_reference.dut.joiner.kernel_rom.output_block_start_index);
++    end
++    if (dut.joiner.kernel_rom.accepted_pulse !== exact_reference.dut.joiner.kernel_rom.accepted_pulse) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.accepted_pulse candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.accepted_pulse), $bits(exact_reference.dut.joiner.kernel_rom.accepted_pulse), dut.joiner.kernel_rom.accepted_pulse, exact_reference.dut.joiner.kernel_rom.accepted_pulse, dut.joiner.kernel_rom.accepted_pulse, exact_reference.dut.joiner.kernel_rom.accepted_pulse);
++    end
++    if (dut.joiner.kernel_rom.emitted_pulse !== exact_reference.dut.joiner.kernel_rom.emitted_pulse) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.emitted_pulse candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.emitted_pulse), $bits(exact_reference.dut.joiner.kernel_rom.emitted_pulse), dut.joiner.kernel_rom.emitted_pulse, exact_reference.dut.joiner.kernel_rom.emitted_pulse, dut.joiner.kernel_rom.emitted_pulse, exact_reference.dut.joiner.kernel_rom.emitted_pulse);
++    end
++    if (dut.joiner.kernel_rom.input_block_complete_pulse !== exact_reference.dut.joiner.kernel_rom.input_block_complete_pulse) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.input_block_complete_pulse candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.input_block_complete_pulse), $bits(exact_reference.dut.joiner.kernel_rom.input_block_complete_pulse), dut.joiner.kernel_rom.input_block_complete_pulse, exact_reference.dut.joiner.kernel_rom.input_block_complete_pulse, dut.joiner.kernel_rom.input_block_complete_pulse, exact_reference.dut.joiner.kernel_rom.input_block_complete_pulse);
++    end
++    if (dut.joiner.kernel_rom.sequence_error_pulse !== exact_reference.dut.joiner.kernel_rom.sequence_error_pulse) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.sequence_error_pulse candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.sequence_error_pulse), $bits(exact_reference.dut.joiner.kernel_rom.sequence_error_pulse), dut.joiner.kernel_rom.sequence_error_pulse, exact_reference.dut.joiner.kernel_rom.sequence_error_pulse, dut.joiner.kernel_rom.sequence_error_pulse, exact_reference.dut.joiner.kernel_rom.sequence_error_pulse);
++    end
++    if (dut.joiner.kernel_rom.metadata_error_pulse !== exact_reference.dut.joiner.kernel_rom.metadata_error_pulse) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.metadata_error_pulse candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.metadata_error_pulse), $bits(exact_reference.dut.joiner.kernel_rom.metadata_error_pulse), dut.joiner.kernel_rom.metadata_error_pulse, exact_reference.dut.joiner.kernel_rom.metadata_error_pulse, dut.joiner.kernel_rom.metadata_error_pulse, exact_reference.dut.joiner.kernel_rom.metadata_error_pulse);
++    end
++    if (dut.joiner.kernel_rom.protocol_fault !== exact_reference.dut.joiner.kernel_rom.protocol_fault) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.protocol_fault candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.protocol_fault), $bits(exact_reference.dut.joiner.kernel_rom.protocol_fault), dut.joiner.kernel_rom.protocol_fault, exact_reference.dut.joiner.kernel_rom.protocol_fault, dut.joiner.kernel_rom.protocol_fault, exact_reference.dut.joiner.kernel_rom.protocol_fault);
++    end
++    if (dut.joiner.kernel_rom.input_ready !== exact_reference.dut.joiner.kernel_rom.input_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.input_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.input_ready), $bits(exact_reference.dut.joiner.kernel_rom.input_ready), dut.joiner.kernel_rom.input_ready, exact_reference.dut.joiner.kernel_rom.input_ready, dut.joiner.kernel_rom.input_ready, exact_reference.dut.joiner.kernel_rom.input_ready);
++    end
++    if (dut.joiner.kernel_rom.input_accept !== exact_reference.dut.joiner.kernel_rom.input_accept) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.input_accept candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.input_accept), $bits(exact_reference.dut.joiner.kernel_rom.input_accept), dut.joiner.kernel_rom.input_accept, exact_reference.dut.joiner.kernel_rom.input_accept, dut.joiner.kernel_rom.input_accept, exact_reference.dut.joiner.kernel_rom.input_accept);
++    end
++    if (dut.joiner.kernel_rom.protocol_error_now !== exact_reference.dut.joiner.kernel_rom.protocol_error_now) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.joiner.kernel_rom.protocol_error_now candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.joiner.kernel_rom.protocol_error_now), $bits(exact_reference.dut.joiner.kernel_rom.protocol_error_now), dut.joiner.kernel_rom.protocol_error_now, exact_reference.dut.joiner.kernel_rom.protocol_error_now, dut.joiner.kernel_rom.protocol_error_now, exact_reference.dut.joiner.kernel_rom.protocol_error_now);
++    end
++    if (dut.source_bank.request_toggle !== exact_reference.dut.source_bank.request_toggle) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.request_toggle candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.request_toggle), $bits(exact_reference.dut.source_bank.request_toggle), dut.source_bank.request_toggle, exact_reference.dut.source_bank.request_toggle, dut.source_bank.request_toggle, exact_reference.dut.source_bank.request_toggle);
++    end
++    if (dut.source_bank.acknowledge_toggle !== exact_reference.dut.source_bank.acknowledge_toggle) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.acknowledge_toggle candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.acknowledge_toggle), $bits(exact_reference.dut.source_bank.acknowledge_toggle), dut.source_bank.acknowledge_toggle, exact_reference.dut.source_bank.acknowledge_toggle, dut.source_bank.acknowledge_toggle, exact_reference.dut.source_bank.acknowledge_toggle);
++    end
++    if (dut.source_bank.request_sync !== exact_reference.dut.source_bank.request_sync) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.request_sync candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.request_sync), $bits(exact_reference.dut.source_bank.request_sync), dut.source_bank.request_sync, exact_reference.dut.source_bank.request_sync, dut.source_bank.request_sync, exact_reference.dut.source_bank.request_sync);
++    end
++    if (dut.source_bank.acknowledge_sync !== exact_reference.dut.source_bank.acknowledge_sync) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.acknowledge_sync candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.acknowledge_sync), $bits(exact_reference.dut.source_bank.acknowledge_sync), dut.source_bank.acknowledge_sync, exact_reference.dut.source_bank.acknowledge_sync, dut.source_bank.acknowledge_sync, exact_reference.dut.source_bank.acknowledge_sync);
++    end
++    if (dut.source_bank.metadata_in_hold !== exact_reference.dut.source_bank.metadata_in_hold) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.metadata_in_hold candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.metadata_in_hold), $bits(exact_reference.dut.source_bank.metadata_in_hold), dut.source_bank.metadata_in_hold, exact_reference.dut.source_bank.metadata_in_hold, dut.source_bank.metadata_in_hold, exact_reference.dut.source_bank.metadata_in_hold);
++    end
++    if (dut.source_bank.metadata_out_hold !== exact_reference.dut.source_bank.metadata_out_hold) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.metadata_out_hold candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.metadata_out_hold), $bits(exact_reference.dut.source_bank.metadata_out_hold), dut.source_bank.metadata_out_hold, exact_reference.dut.source_bank.metadata_out_hold, dut.source_bank.metadata_out_hold, exact_reference.dut.source_bank.metadata_out_hold);
++    end
++    if (dut.source_bank.write_position !== exact_reference.dut.source_bank.write_position) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.write_position candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.write_position), $bits(exact_reference.dut.source_bank.write_position), dut.source_bank.write_position, exact_reference.dut.source_bank.write_position, dut.source_bank.write_position, exact_reference.dut.source_bank.write_position);
++    end
++    if (dut.source_bank.reading !== exact_reference.dut.source_bank.reading) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.reading candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.reading), $bits(exact_reference.dut.source_bank.reading), dut.source_bank.reading, exact_reference.dut.source_bank.reading, dut.source_bank.reading, exact_reference.dut.source_bank.reading);
++    end
++    if (dut.source_bank.read_all_loaded !== exact_reference.dut.source_bank.read_all_loaded) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.read_all_loaded candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.read_all_loaded), $bits(exact_reference.dut.source_bank.read_all_loaded), dut.source_bank.read_all_loaded, exact_reference.dut.source_bank.read_all_loaded, dut.source_bank.read_all_loaded, exact_reference.dut.source_bank.read_all_loaded);
++    end
++    if (dut.source_bank.read_address !== exact_reference.dut.source_bank.read_address) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.read_address candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.read_address), $bits(exact_reference.dut.source_bank.read_address), dut.source_bank.read_address, exact_reference.dut.source_bank.read_address, dut.source_bank.read_address, exact_reference.dut.source_bank.read_address);
++    end
++    if (dut.source_bank.read_output_position !== exact_reference.dut.source_bank.read_output_position) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.read_output_position candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.read_output_position), $bits(exact_reference.dut.source_bank.read_output_position), dut.source_bank.read_output_position, exact_reference.dut.source_bank.read_output_position, dut.source_bank.read_output_position, exact_reference.dut.source_bank.read_output_position);
++    end
++    if (dut.source_bank.read_payload !== exact_reference.dut.source_bank.read_payload) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.read_payload candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.read_payload), $bits(exact_reference.dut.source_bank.read_payload), dut.source_bank.read_payload, exact_reference.dut.source_bank.read_payload, dut.source_bank.read_payload, exact_reference.dut.source_bank.read_payload);
++    end
++    if (dut.source_bank.read_valid !== exact_reference.dut.source_bank.read_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.read_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.read_valid), $bits(exact_reference.dut.source_bank.read_valid), dut.source_bank.read_valid, exact_reference.dut.source_bank.read_valid, dut.source_bank.read_valid, exact_reference.dut.source_bank.read_valid);
++    end
++    if (dut.source_bank.input_ready !== exact_reference.dut.source_bank.input_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.input_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.input_ready), $bits(exact_reference.dut.source_bank.input_ready), dut.source_bank.input_ready, exact_reference.dut.source_bank.input_ready, dut.source_bank.input_ready, exact_reference.dut.source_bank.input_ready);
++    end
++    if (dut.source_bank.input_fault !== exact_reference.dut.source_bank.input_fault) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.input_fault candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.input_fault), $bits(exact_reference.dut.source_bank.input_fault), dut.source_bank.input_fault, exact_reference.dut.source_bank.input_fault, dut.source_bank.input_fault, exact_reference.dut.source_bank.input_fault);
++    end
++    if (dut.source_bank.input_framing_fault_now !== exact_reference.dut.source_bank.input_framing_fault_now) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.input_framing_fault_now candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.input_framing_fault_now), $bits(exact_reference.dut.source_bank.input_framing_fault_now), dut.source_bank.input_framing_fault_now, exact_reference.dut.source_bank.input_framing_fault_now, dut.source_bank.input_framing_fault_now, exact_reference.dut.source_bank.input_framing_fault_now);
++    end
++    if (dut.source_bank.output_valid !== exact_reference.dut.source_bank.output_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.output_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.output_valid), $bits(exact_reference.dut.source_bank.output_valid), dut.source_bank.output_valid, exact_reference.dut.source_bank.output_valid, dut.source_bank.output_valid, exact_reference.dut.source_bank.output_valid);
++    end
++    if (dut.source_bank.output_ready !== exact_reference.dut.source_bank.output_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.source_bank.output_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.source_bank.output_ready), $bits(exact_reference.dut.source_bank.output_ready), dut.source_bank.output_ready, exact_reference.dut.source_bank.output_ready, dut.source_bank.output_ready, exact_reference.dut.source_bank.output_ready);
++    end
++    if (dut.product_bank.request_toggle !== exact_reference.dut.product_bank.request_toggle) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.request_toggle candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.request_toggle), $bits(exact_reference.dut.product_bank.request_toggle), dut.product_bank.request_toggle, exact_reference.dut.product_bank.request_toggle, dut.product_bank.request_toggle, exact_reference.dut.product_bank.request_toggle);
++    end
++    if (dut.product_bank.acknowledge_toggle !== exact_reference.dut.product_bank.acknowledge_toggle) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.acknowledge_toggle candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.acknowledge_toggle), $bits(exact_reference.dut.product_bank.acknowledge_toggle), dut.product_bank.acknowledge_toggle, exact_reference.dut.product_bank.acknowledge_toggle, dut.product_bank.acknowledge_toggle, exact_reference.dut.product_bank.acknowledge_toggle);
++    end
++    if (dut.product_bank.request_sync !== exact_reference.dut.product_bank.request_sync) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.request_sync candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.request_sync), $bits(exact_reference.dut.product_bank.request_sync), dut.product_bank.request_sync, exact_reference.dut.product_bank.request_sync, dut.product_bank.request_sync, exact_reference.dut.product_bank.request_sync);
++    end
++    if (dut.product_bank.acknowledge_sync !== exact_reference.dut.product_bank.acknowledge_sync) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.acknowledge_sync candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.acknowledge_sync), $bits(exact_reference.dut.product_bank.acknowledge_sync), dut.product_bank.acknowledge_sync, exact_reference.dut.product_bank.acknowledge_sync, dut.product_bank.acknowledge_sync, exact_reference.dut.product_bank.acknowledge_sync);
++    end
++    if (dut.product_bank.metadata_in_hold !== exact_reference.dut.product_bank.metadata_in_hold) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.metadata_in_hold candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.metadata_in_hold), $bits(exact_reference.dut.product_bank.metadata_in_hold), dut.product_bank.metadata_in_hold, exact_reference.dut.product_bank.metadata_in_hold, dut.product_bank.metadata_in_hold, exact_reference.dut.product_bank.metadata_in_hold);
++    end
++    if (dut.product_bank.metadata_out_hold !== exact_reference.dut.product_bank.metadata_out_hold) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.metadata_out_hold candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.metadata_out_hold), $bits(exact_reference.dut.product_bank.metadata_out_hold), dut.product_bank.metadata_out_hold, exact_reference.dut.product_bank.metadata_out_hold, dut.product_bank.metadata_out_hold, exact_reference.dut.product_bank.metadata_out_hold);
++    end
++    if (dut.product_bank.write_position !== exact_reference.dut.product_bank.write_position) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.write_position candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.write_position), $bits(exact_reference.dut.product_bank.write_position), dut.product_bank.write_position, exact_reference.dut.product_bank.write_position, dut.product_bank.write_position, exact_reference.dut.product_bank.write_position);
++    end
++    if (dut.product_bank.reading !== exact_reference.dut.product_bank.reading) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.reading candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.reading), $bits(exact_reference.dut.product_bank.reading), dut.product_bank.reading, exact_reference.dut.product_bank.reading, dut.product_bank.reading, exact_reference.dut.product_bank.reading);
++    end
++    if (dut.product_bank.read_all_loaded !== exact_reference.dut.product_bank.read_all_loaded) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.read_all_loaded candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.read_all_loaded), $bits(exact_reference.dut.product_bank.read_all_loaded), dut.product_bank.read_all_loaded, exact_reference.dut.product_bank.read_all_loaded, dut.product_bank.read_all_loaded, exact_reference.dut.product_bank.read_all_loaded);
++    end
++    if (dut.product_bank.read_address !== exact_reference.dut.product_bank.read_address) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.read_address candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.read_address), $bits(exact_reference.dut.product_bank.read_address), dut.product_bank.read_address, exact_reference.dut.product_bank.read_address, dut.product_bank.read_address, exact_reference.dut.product_bank.read_address);
++    end
++    if (dut.product_bank.read_output_position !== exact_reference.dut.product_bank.read_output_position) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.read_output_position candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.read_output_position), $bits(exact_reference.dut.product_bank.read_output_position), dut.product_bank.read_output_position, exact_reference.dut.product_bank.read_output_position, dut.product_bank.read_output_position, exact_reference.dut.product_bank.read_output_position);
++    end
++    if (dut.product_bank.read_payload !== exact_reference.dut.product_bank.read_payload) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.read_payload candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.read_payload), $bits(exact_reference.dut.product_bank.read_payload), dut.product_bank.read_payload, exact_reference.dut.product_bank.read_payload, dut.product_bank.read_payload, exact_reference.dut.product_bank.read_payload);
++    end
++    if (dut.product_bank.read_valid !== exact_reference.dut.product_bank.read_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.read_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.read_valid), $bits(exact_reference.dut.product_bank.read_valid), dut.product_bank.read_valid, exact_reference.dut.product_bank.read_valid, dut.product_bank.read_valid, exact_reference.dut.product_bank.read_valid);
++    end
++    if (dut.product_bank.input_ready !== exact_reference.dut.product_bank.input_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.input_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.input_ready), $bits(exact_reference.dut.product_bank.input_ready), dut.product_bank.input_ready, exact_reference.dut.product_bank.input_ready, dut.product_bank.input_ready, exact_reference.dut.product_bank.input_ready);
++    end
++    if (dut.product_bank.input_fault !== exact_reference.dut.product_bank.input_fault) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.input_fault candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.input_fault), $bits(exact_reference.dut.product_bank.input_fault), dut.product_bank.input_fault, exact_reference.dut.product_bank.input_fault, dut.product_bank.input_fault, exact_reference.dut.product_bank.input_fault);
++    end
++    if (dut.product_bank.input_framing_fault_now !== exact_reference.dut.product_bank.input_framing_fault_now) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.input_framing_fault_now candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.input_framing_fault_now), $bits(exact_reference.dut.product_bank.input_framing_fault_now), dut.product_bank.input_framing_fault_now, exact_reference.dut.product_bank.input_framing_fault_now, dut.product_bank.input_framing_fault_now, exact_reference.dut.product_bank.input_framing_fault_now);
++    end
++    if (dut.product_bank.output_valid !== exact_reference.dut.product_bank.output_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.output_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.output_valid), $bits(exact_reference.dut.product_bank.output_valid), dut.product_bank.output_valid, exact_reference.dut.product_bank.output_valid, dut.product_bank.output_valid, exact_reference.dut.product_bank.output_valid);
++    end
++    if (dut.product_bank.output_ready !== exact_reference.dut.product_bank.output_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.product_bank.output_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.product_bank.output_ready), $bits(exact_reference.dut.product_bank.output_ready), dut.product_bank.output_ready, exact_reference.dut.product_bank.output_ready, dut.product_bank.output_ready, exact_reference.dut.product_bank.output_ready);
++    end
++    if (dut.output_bank.request_toggle !== exact_reference.dut.output_bank.request_toggle) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.request_toggle candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.request_toggle), $bits(exact_reference.dut.output_bank.request_toggle), dut.output_bank.request_toggle, exact_reference.dut.output_bank.request_toggle, dut.output_bank.request_toggle, exact_reference.dut.output_bank.request_toggle);
++    end
++    if (dut.output_bank.acknowledge_toggle !== exact_reference.dut.output_bank.acknowledge_toggle) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.acknowledge_toggle candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.acknowledge_toggle), $bits(exact_reference.dut.output_bank.acknowledge_toggle), dut.output_bank.acknowledge_toggle, exact_reference.dut.output_bank.acknowledge_toggle, dut.output_bank.acknowledge_toggle, exact_reference.dut.output_bank.acknowledge_toggle);
++    end
++    if (dut.output_bank.request_sync !== exact_reference.dut.output_bank.request_sync) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.request_sync candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.request_sync), $bits(exact_reference.dut.output_bank.request_sync), dut.output_bank.request_sync, exact_reference.dut.output_bank.request_sync, dut.output_bank.request_sync, exact_reference.dut.output_bank.request_sync);
++    end
++    if (dut.output_bank.acknowledge_sync !== exact_reference.dut.output_bank.acknowledge_sync) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.acknowledge_sync candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.acknowledge_sync), $bits(exact_reference.dut.output_bank.acknowledge_sync), dut.output_bank.acknowledge_sync, exact_reference.dut.output_bank.acknowledge_sync, dut.output_bank.acknowledge_sync, exact_reference.dut.output_bank.acknowledge_sync);
++    end
++    if (dut.output_bank.metadata_in_hold !== exact_reference.dut.output_bank.metadata_in_hold) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.metadata_in_hold candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.metadata_in_hold), $bits(exact_reference.dut.output_bank.metadata_in_hold), dut.output_bank.metadata_in_hold, exact_reference.dut.output_bank.metadata_in_hold, dut.output_bank.metadata_in_hold, exact_reference.dut.output_bank.metadata_in_hold);
++    end
++    if (dut.output_bank.metadata_out_hold !== exact_reference.dut.output_bank.metadata_out_hold) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.metadata_out_hold candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.metadata_out_hold), $bits(exact_reference.dut.output_bank.metadata_out_hold), dut.output_bank.metadata_out_hold, exact_reference.dut.output_bank.metadata_out_hold, dut.output_bank.metadata_out_hold, exact_reference.dut.output_bank.metadata_out_hold);
++    end
++    if (dut.output_bank.write_position !== exact_reference.dut.output_bank.write_position) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.write_position candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.write_position), $bits(exact_reference.dut.output_bank.write_position), dut.output_bank.write_position, exact_reference.dut.output_bank.write_position, dut.output_bank.write_position, exact_reference.dut.output_bank.write_position);
++    end
++    if (dut.output_bank.reading !== exact_reference.dut.output_bank.reading) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.reading candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.reading), $bits(exact_reference.dut.output_bank.reading), dut.output_bank.reading, exact_reference.dut.output_bank.reading, dut.output_bank.reading, exact_reference.dut.output_bank.reading);
++    end
++    if (dut.output_bank.read_all_loaded !== exact_reference.dut.output_bank.read_all_loaded) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.read_all_loaded candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.read_all_loaded), $bits(exact_reference.dut.output_bank.read_all_loaded), dut.output_bank.read_all_loaded, exact_reference.dut.output_bank.read_all_loaded, dut.output_bank.read_all_loaded, exact_reference.dut.output_bank.read_all_loaded);
++    end
++    if (dut.output_bank.read_address !== exact_reference.dut.output_bank.read_address) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.read_address candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.read_address), $bits(exact_reference.dut.output_bank.read_address), dut.output_bank.read_address, exact_reference.dut.output_bank.read_address, dut.output_bank.read_address, exact_reference.dut.output_bank.read_address);
++    end
++    if (dut.output_bank.read_output_position !== exact_reference.dut.output_bank.read_output_position) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.read_output_position candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.read_output_position), $bits(exact_reference.dut.output_bank.read_output_position), dut.output_bank.read_output_position, exact_reference.dut.output_bank.read_output_position, dut.output_bank.read_output_position, exact_reference.dut.output_bank.read_output_position);
++    end
++    if (dut.output_bank.read_payload !== exact_reference.dut.output_bank.read_payload) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.read_payload candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.read_payload), $bits(exact_reference.dut.output_bank.read_payload), dut.output_bank.read_payload, exact_reference.dut.output_bank.read_payload, dut.output_bank.read_payload, exact_reference.dut.output_bank.read_payload);
++    end
++    if (dut.output_bank.read_valid !== exact_reference.dut.output_bank.read_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.read_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.read_valid), $bits(exact_reference.dut.output_bank.read_valid), dut.output_bank.read_valid, exact_reference.dut.output_bank.read_valid, dut.output_bank.read_valid, exact_reference.dut.output_bank.read_valid);
++    end
++    if (dut.output_bank.input_ready !== exact_reference.dut.output_bank.input_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.input_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.input_ready), $bits(exact_reference.dut.output_bank.input_ready), dut.output_bank.input_ready, exact_reference.dut.output_bank.input_ready, dut.output_bank.input_ready, exact_reference.dut.output_bank.input_ready);
++    end
++    if (dut.output_bank.input_fault !== exact_reference.dut.output_bank.input_fault) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.input_fault candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.input_fault), $bits(exact_reference.dut.output_bank.input_fault), dut.output_bank.input_fault, exact_reference.dut.output_bank.input_fault, dut.output_bank.input_fault, exact_reference.dut.output_bank.input_fault);
++    end
++    if (dut.output_bank.input_framing_fault_now !== exact_reference.dut.output_bank.input_framing_fault_now) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.input_framing_fault_now candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.input_framing_fault_now), $bits(exact_reference.dut.output_bank.input_framing_fault_now), dut.output_bank.input_framing_fault_now, exact_reference.dut.output_bank.input_framing_fault_now, dut.output_bank.input_framing_fault_now, exact_reference.dut.output_bank.input_framing_fault_now);
++    end
++    if (dut.output_bank.output_valid !== exact_reference.dut.output_bank.output_valid) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.output_valid candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.output_valid), $bits(exact_reference.dut.output_bank.output_valid), dut.output_bank.output_valid, exact_reference.dut.output_bank.output_valid, dut.output_bank.output_valid, exact_reference.dut.output_bank.output_valid);
++    end
++    if (dut.output_bank.output_ready !== exact_reference.dut.output_bank.output_ready) begin
++      diagnostic_count = diagnostic_count + 1;
++      $display("EXACT_DIAGNOSTIC_FIELD name=dut.output_bank.output_ready candidate_width=%0d reference_width=%0d candidate_hex=%h reference_hex=%h candidate_fourstate=%b reference_fourstate=%b",
++        $bits(dut.output_bank.output_ready), $bits(exact_reference.dut.output_bank.output_ready), dut.output_bank.output_ready, exact_reference.dut.output_bank.output_ready, dut.output_bank.output_ready, exact_reference.dut.output_bank.output_ready);
++    end
++    $display("EXACT_DIAGNOSTIC_TERMINAL mismatches=%0d original_equal=%b fresh_equal=%b",
++      diagnostic_count, exact_public_equal, ({resetn, fft_resetn, input_valid, input_last, input_data, input_position, input_block_start, input_ready, output_valid, output_ready, output_last, output_data, output_position, output_metadata, fault, epoch, profile, expected_fault, expected_results, injecting_readiness, reader_enable, allow_inverse_commit_before_late_fault, allow_provisional_prefix_after_fault, dut.fast_running, dut.slow_running, dut.fast_fault, dut.state, dut.core_release, dut.input_job_start_private, dut.input_job_start, dut.next_inverse, dut.engine_metadata, dut.engine_input_reserved, dut.engine_output_reserved, dut.forward_committed, dut.held_phase, dut.held_lease, dut.source_consume_generation, dut.product_consume_generation, dut.descriptor_certified, dut.admission_receipt, dut.completion_receipt, dut.expected_product_metadata, dut.preparation_age, dut.epoch_input_reasons, dut.epoch_preflight_reasons, dut.core_aresetn, dut.config_valid, dut.config_ready, dut.engine_input_enable, dut.job_ready, dut.job_accept, dut.result_busy, dut.result_commit, dut.result_fault, dut.source_valid, dut.source_read_ready, dut.source_data, dut.source_position, dut.source_last, dut.source_metadata, dut.product_bank_valid, dut.product_bank_read_ready, dut.product_bank_data, dut.product_bank_position, dut.product_bank_last, dut.product_bank_metadata, dut.checked_input_complete, dut.certified_input_beat, dut.certified_input_complete, dut.input_fault_now, dut.input_guard_fault, dut.input_fault_events_now, dut.duplicate_start_fault_now, dut.core_input_data, dut.core_input_valid, dut.core_input_ready, dut.core_input_last, dut.core_output_data, dut.core_output_user, dut.core_output_valid, dut.core_output_last, dut.core_status_data, dut.core_status_valid, dut.event_frame, dut.event_last_unexpected, dut.event_last_missing, dut.event_input_halt, dut.return_valid, dut.return_private_valid, dut.return_commit_valid, dut.return_data, dut.return_position, dut.return_last, dut.return_metadata, dut.forward_retirement_valid, dut.external_fault_now, dut.any_fast_fault, dut.preflight_events_now, dut.preparation_fault_now, dut.final_fence, dut.completed_input_fault_now, dut.forward_handoff_ack, dut.forward_handoff_identity, dut.handoff_fault_now, dut.result_destination_ready, dut.product_commit_authorized, dut.product_bank_ready, dut.product_bank_fault, dut.product_bank_framing_fault_now, dut.output_bank_ready, dut.output_bank_fault, dut.output_bank_framing_fault_now, dut.product_overflow, dut.result_guard.active_private, dut.result_guard.awaiting_ack, dut.result_guard.descriptor, dut.result_guard.input_count, dut.result_guard.output_count, dut.result_guard.input_complete_seen, dut.result_guard.frame_seen, dut.result_guard.status_seen, dut.result_guard.exponent_seen, dut.result_guard.status_exponent, dut.result_guard.output_exponent, dut.result_guard.age, dut.result_guard.return_occupied, dut.result_guard.return_last, dut.result_guard.return_data, dut.result_guard.return_position, dut.result_guard.return_exponent, dut.result_guard.fault_reasons, dut.result_guard.faults_now, dut.input_guard.job_started, dut.input_guard.input_started, dut.input_guard.descriptor, dut.input_guard.expected_position, dut.input_guard.input_complete, dut.input_guard.fault_reasons, dut.input_guard.slot_open, dut.input_guard.fault_events_now, dut.input_guard.core_input_tvalid, dut.input_guard.certified_input_beat, dut.input_guard.certified_input_complete, dut.joiner.kernel_rom.expected_bin_index, dut.joiner.kernel_rom.block_exponent, dut.joiner.kernel_rom.block_start_index, dut.joiner.kernel_rom.have_previous_block, dut.joiner.kernel_rom.output_kernel_word, dut.joiner.kernel_rom.output_valid, dut.joiner.kernel_rom.output_bin_index, dut.joiner.kernel_rom.output_block_exponent, dut.joiner.kernel_rom.output_last, dut.joiner.kernel_rom.output_block_start_index, dut.joiner.kernel_rom.accepted_pulse, dut.joiner.kernel_rom.emitted_pulse, dut.joiner.kernel_rom.input_block_complete_pulse, dut.joiner.kernel_rom.sequence_error_pulse, dut.joiner.kernel_rom.metadata_error_pulse, dut.joiner.kernel_rom.protocol_fault, dut.joiner.kernel_rom.input_ready, dut.joiner.kernel_rom.input_accept, dut.joiner.kernel_rom.protocol_error_now, dut.source_bank.request_toggle, dut.source_bank.acknowledge_toggle, dut.source_bank.request_sync, dut.source_bank.acknowledge_sync, dut.source_bank.metadata_in_hold, dut.source_bank.metadata_out_hold, dut.source_bank.write_position, dut.source_bank.reading, dut.source_bank.read_all_loaded, dut.source_bank.read_address, dut.source_bank.read_output_position, dut.source_bank.read_payload, dut.source_bank.read_valid, dut.source_bank.input_ready, dut.source_bank.input_fault, dut.source_bank.input_framing_fault_now, dut.source_bank.output_valid, dut.source_bank.output_ready, dut.product_bank.request_toggle, dut.product_bank.acknowledge_toggle, dut.product_bank.request_sync, dut.product_bank.acknowledge_sync, dut.product_bank.metadata_in_hold, dut.product_bank.metadata_out_hold, dut.product_bank.write_position, dut.product_bank.reading, dut.product_bank.read_all_loaded, dut.product_bank.read_address, dut.product_bank.read_output_position, dut.product_bank.read_payload, dut.product_bank.read_valid, dut.product_bank.input_ready, dut.product_bank.input_fault, dut.product_bank.input_framing_fault_now, dut.product_bank.output_valid, dut.product_bank.output_ready, dut.output_bank.request_toggle, dut.output_bank.acknowledge_toggle, dut.output_bank.request_sync, dut.output_bank.acknowledge_sync, dut.output_bank.metadata_in_hold, dut.output_bank.metadata_out_hold, dut.output_bank.write_position, dut.output_bank.reading, dut.output_bank.read_all_loaded, dut.output_bank.read_address, dut.output_bank.read_output_position, dut.output_bank.read_payload, dut.output_bank.read_valid, dut.output_bank.input_ready, dut.output_bank.input_fault, dut.output_bank.input_framing_fault_now, dut.output_bank.output_valid, dut.output_bank.output_ready} === {exact_reference.resetn, exact_reference.fft_resetn, exact_reference.input_valid, exact_reference.input_last, exact_reference.input_data, exact_reference.input_position, exact_reference.input_block_start, exact_reference.input_ready, exact_reference.output_valid, exact_reference.output_ready, exact_reference.output_last, exact_reference.output_data, exact_reference.output_position, exact_reference.output_metadata, exact_reference.fault, exact_reference.epoch, exact_reference.profile, exact_reference.expected_fault, exact_reference.expected_results, exact_reference.injecting_readiness, exact_reference.reader_enable, exact_reference.allow_inverse_commit_before_late_fault, exact_reference.allow_provisional_prefix_after_fault, exact_reference.dut.fast_running, exact_reference.dut.slow_running, exact_reference.dut.fast_fault, exact_reference.dut.state, exact_reference.dut.core_release, exact_reference.dut.input_job_start_private, exact_reference.dut.input_job_start, exact_reference.dut.next_inverse, exact_reference.dut.engine_metadata, exact_reference.dut.engine_input_reserved, exact_reference.dut.engine_output_reserved, exact_reference.dut.forward_committed, exact_reference.dut.held_phase, exact_reference.dut.held_lease, exact_reference.dut.source_consume_generation, exact_reference.dut.product_consume_generation, exact_reference.dut.descriptor_certified, exact_reference.dut.admission_receipt, exact_reference.dut.completion_receipt, exact_reference.dut.expected_product_metadata, exact_reference.dut.preparation_age, exact_reference.dut.epoch_input_reasons, exact_reference.dut.epoch_preflight_reasons, exact_reference.dut.core_aresetn, exact_reference.dut.config_valid, exact_reference.dut.config_ready, exact_reference.dut.engine_input_enable, exact_reference.dut.job_ready, exact_reference.dut.job_accept, exact_reference.dut.result_busy, exact_reference.dut.result_commit, exact_reference.dut.result_fault, exact_reference.dut.source_valid, exact_reference.dut.source_read_ready, exact_reference.dut.source_data, exact_reference.dut.source_position, exact_reference.dut.source_last, exact_reference.dut.source_metadata, exact_reference.dut.product_bank_valid, exact_reference.dut.product_bank_read_ready, exact_reference.dut.product_bank_data, exact_reference.dut.product_bank_position, exact_reference.dut.product_bank_last, exact_reference.dut.product_bank_metadata, exact_reference.dut.checked_input_complete, exact_reference.dut.certified_input_beat, exact_reference.dut.certified_input_complete, exact_reference.dut.input_fault_now, exact_reference.dut.input_guard_fault, exact_reference.dut.input_fault_events_now, exact_reference.dut.duplicate_start_fault_now, exact_reference.dut.core_input_data, exact_reference.dut.core_input_valid, exact_reference.dut.core_input_ready, exact_reference.dut.core_input_last, exact_reference.dut.core_output_data, exact_reference.dut.core_output_user, exact_reference.dut.core_output_valid, exact_reference.dut.core_output_last, exact_reference.dut.core_status_data, exact_reference.dut.core_status_valid, exact_reference.dut.event_frame, exact_reference.dut.event_last_unexpected, exact_reference.dut.event_last_missing, exact_reference.dut.event_input_halt, exact_reference.dut.return_valid, exact_reference.dut.return_private_valid, exact_reference.dut.return_commit_valid, exact_reference.dut.return_data, exact_reference.dut.return_position, exact_reference.dut.return_last, exact_reference.dut.return_metadata, exact_reference.dut.forward_retirement_valid, exact_reference.dut.external_fault_now, exact_reference.dut.any_fast_fault, exact_reference.dut.preflight_events_now, exact_reference.dut.preparation_fault_now, exact_reference.dut.final_fence, exact_reference.dut.completed_input_fault_now, exact_reference.dut.forward_handoff_ack, exact_reference.dut.forward_handoff_identity, exact_reference.dut.handoff_fault_now, exact_reference.dut.result_destination_ready, exact_reference.dut.product_commit_authorized, exact_reference.dut.product_bank_ready, exact_reference.dut.product_bank_fault, exact_reference.dut.product_bank_framing_fault_now, exact_reference.dut.output_bank_ready, exact_reference.dut.output_bank_fault, exact_reference.dut.output_bank_framing_fault_now, exact_reference.dut.product_overflow, exact_reference.dut.result_guard.active_private, exact_reference.dut.result_guard.awaiting_ack, exact_reference.dut.result_guard.descriptor, exact_reference.dut.result_guard.input_count, exact_reference.dut.result_guard.output_count, exact_reference.dut.result_guard.input_complete_seen, exact_reference.dut.result_guard.frame_seen, exact_reference.dut.result_guard.status_seen, exact_reference.dut.result_guard.exponent_seen, exact_reference.dut.result_guard.status_exponent, exact_reference.dut.result_guard.output_exponent, exact_reference.dut.result_guard.age, exact_reference.dut.result_guard.return_occupied, exact_reference.dut.result_guard.return_last, exact_reference.dut.result_guard.return_data, exact_reference.dut.result_guard.return_position, exact_reference.dut.result_guard.return_exponent, exact_reference.dut.result_guard.fault_reasons, exact_reference.dut.result_guard.faults_now, exact_reference.dut.input_guard.job_started, exact_reference.dut.input_guard.input_started, exact_reference.dut.input_guard.descriptor, exact_reference.dut.input_guard.expected_position, exact_reference.dut.input_guard.input_complete, exact_reference.dut.input_guard.fault_reasons, exact_reference.dut.input_guard.slot_open, exact_reference.dut.input_guard.fault_events_now, exact_reference.dut.input_guard.core_input_tvalid, exact_reference.dut.input_guard.certified_input_beat, exact_reference.dut.input_guard.certified_input_complete, exact_reference.dut.joiner.kernel_rom.expected_bin_index, exact_reference.dut.joiner.kernel_rom.block_exponent, exact_reference.dut.joiner.kernel_rom.block_start_index, exact_reference.dut.joiner.kernel_rom.have_previous_block, exact_reference.dut.joiner.kernel_rom.output_kernel_word, exact_reference.dut.joiner.kernel_rom.output_valid, exact_reference.dut.joiner.kernel_rom.output_bin_index, exact_reference.dut.joiner.kernel_rom.output_block_exponent, exact_reference.dut.joiner.kernel_rom.output_last, exact_reference.dut.joiner.kernel_rom.output_block_start_index, exact_reference.dut.joiner.kernel_rom.accepted_pulse, exact_reference.dut.joiner.kernel_rom.emitted_pulse, exact_reference.dut.joiner.kernel_rom.input_block_complete_pulse, exact_reference.dut.joiner.kernel_rom.sequence_error_pulse, exact_reference.dut.joiner.kernel_rom.metadata_error_pulse, exact_reference.dut.joiner.kernel_rom.protocol_fault, exact_reference.dut.joiner.kernel_rom.input_ready, exact_reference.dut.joiner.kernel_rom.input_accept, exact_reference.dut.joiner.kernel_rom.protocol_error_now, exact_reference.dut.source_bank.request_toggle, exact_reference.dut.source_bank.acknowledge_toggle, exact_reference.dut.source_bank.request_sync, exact_reference.dut.source_bank.acknowledge_sync, exact_reference.dut.source_bank.metadata_in_hold, exact_reference.dut.source_bank.metadata_out_hold, exact_reference.dut.source_bank.write_position, exact_reference.dut.source_bank.reading, exact_reference.dut.source_bank.read_all_loaded, exact_reference.dut.source_bank.read_address, exact_reference.dut.source_bank.read_output_position, exact_reference.dut.source_bank.read_payload, exact_reference.dut.source_bank.read_valid, exact_reference.dut.source_bank.input_ready, exact_reference.dut.source_bank.input_fault, exact_reference.dut.source_bank.input_framing_fault_now, exact_reference.dut.source_bank.output_valid, exact_reference.dut.source_bank.output_ready, exact_reference.dut.product_bank.request_toggle, exact_reference.dut.product_bank.acknowledge_toggle, exact_reference.dut.product_bank.request_sync, exact_reference.dut.product_bank.acknowledge_sync, exact_reference.dut.product_bank.metadata_in_hold, exact_reference.dut.product_bank.metadata_out_hold, exact_reference.dut.product_bank.write_position, exact_reference.dut.product_bank.reading, exact_reference.dut.product_bank.read_all_loaded, exact_reference.dut.product_bank.read_address, exact_reference.dut.product_bank.read_output_position, exact_reference.dut.product_bank.read_payload, exact_reference.dut.product_bank.read_valid, exact_reference.dut.product_bank.input_ready, exact_reference.dut.product_bank.input_fault, exact_reference.dut.product_bank.input_framing_fault_now, exact_reference.dut.product_bank.output_valid, exact_reference.dut.product_bank.output_ready, exact_reference.dut.output_bank.request_toggle, exact_reference.dut.output_bank.acknowledge_toggle, exact_reference.dut.output_bank.request_sync, exact_reference.dut.output_bank.acknowledge_sync, exact_reference.dut.output_bank.metadata_in_hold, exact_reference.dut.output_bank.metadata_out_hold, exact_reference.dut.output_bank.write_position, exact_reference.dut.output_bank.reading, exact_reference.dut.output_bank.read_all_loaded, exact_reference.dut.output_bank.read_address, exact_reference.dut.output_bank.read_output_position, exact_reference.dut.output_bank.read_payload, exact_reference.dut.output_bank.read_valid, exact_reference.dut.output_bank.input_ready, exact_reference.dut.output_bank.input_fault, exact_reference.dut.output_bank.input_framing_fault_now, exact_reference.dut.output_bank.output_valid, exact_reference.dut.output_bank.output_ready}));
++  endtask
++  // END EXACT_CONTROL_NAMED_DIAGNOSTIC
+ endmodule

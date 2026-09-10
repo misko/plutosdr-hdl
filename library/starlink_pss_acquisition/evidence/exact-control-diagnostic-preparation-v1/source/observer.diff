@@ -1,0 +1,14 @@
+--- /tmp/starlink-completed-input.5EaJuD/exact-control-actual-matrix-v3/r0-d0-s0/frozen_sources/starlink_pss_exact_control_actual_compare.sv	2026-09-10 06:23:33.838751170 +0000
++++ /tmp/starlink-completed-input.5EaJuD/exact-control-diagnostic-actual-v1/frozen_sources/starlink_pss_exact_control_actual_compare.sv	2026-09-10 06:56:31.246264902 +0000
+@@ -36,8 +36,10 @@
+     // Existing stimulus uses1ps tick/force settlements. Observe after both
+     // independently driven copies have settled, without delaying either one.
+     #0.002;
+-    if (actual_public !== reference_public)
++    if (actual_public !== reference_public) begin
++      tb_starlink_pss_fft_bank_owned_slice.exact_diagnose_mismatch();
+       $fatal(1, "EXACT_ACTUAL_PUBLIC_REASON_OWNERSHIP_MISMATCH actual=%h old=%h", actual_public, reference_public);
++    end
+     checks = checks + 1;
+     if (active_job) active_checks = active_checks + 1;
+     if (actual_scratch !== reference_scratch) private_differences = private_differences + 1;
