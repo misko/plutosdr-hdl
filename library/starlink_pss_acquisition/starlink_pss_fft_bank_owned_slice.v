@@ -138,7 +138,11 @@ module starlink_pss_fft_bank_owned_slice #(
     forward_handoff_identity && product_bank_position == 0 && !product_bank_last &&
     !external_fault_now && !result_fault;
   wire result_destination_ready = next_inverse ? output_bank_ready :
-    (forward_committed ? forward_handoff_ack : (kernel_ready && product_bank_ready));
+    (forward_committed ? product_bank_valid : (kernel_ready && product_bank_ready));
+  // Raw ownership readiness is not the certified forward ACK. While the
+  // forward token is set the guard is inactive: its unchanged idle/current
+  // faults veto ACK retirement. The controller independently requires the
+  // complete identity/position/TLAST/current-fault certificate below.
   wire destination_reserved = next_inverse ? output_bank_ready : product_bank_ready;
   // input_complete is already a registered per-core-epoch certificate. While
   // true, framing/delivery are impossible but a current duplicate job_start
@@ -258,7 +262,8 @@ module starlink_pss_fft_bank_owned_slice #(
           CONFIGURE: if (config_valid && config_ready) state <= ENABLE_INPUT;
           ENABLE_INPUT: state <= RUN_JOB;
           RUN_JOB: if (result_commit) state <= ACK_DRAIN;
-          ACK_DRAIN: if (!result_busy && result_destination_ready) begin
+          ACK_DRAIN: if (!result_busy &&
+              (next_inverse ? output_bank_ready : forward_handoff_ack)) begin
             engine_output_reserved <= 0; core_release <= 0;
             next_inverse <= !next_inverse; state <= RESET0;
           end

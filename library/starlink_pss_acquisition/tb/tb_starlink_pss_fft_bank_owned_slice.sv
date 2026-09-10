@@ -31,6 +31,10 @@ module tb_starlink_pss_fft_bank_owned_slice;
   wire [8:0] shadow_position;
   wire [74:0] shadow_metadata;
   integer completed_return_checks = 0, full_shadow_checks = 0;
+  wire original_destination_ready = dut.next_inverse ? dut.output_bank_ready :
+    (dut.forward_committed ? dut.forward_handoff_ack : (dut.kernel_ready && dut.product_bank_ready));
+  integer raw_ready_handoff_fault_cases = 0, raw_ready_differences = 0, late_ack_witnesses = 0;
+  integer late_orphan_private_advances = 0;
   starlink_pss_realtime_result_guard shadow (
     .clk(fft_clk), .resetn(dut.fast_running), .job_valid(dut.job_valid), .job_ready(shadow_ready),
     .job_descriptor(dut.selected_metadata),
@@ -45,7 +49,7 @@ module tb_starlink_pss_fft_bank_owned_slice;
     .core_output_tlast(dut.core_output_last), .core_status_tdata(dut.core_status_data),
     .core_status_tvalid(dut.core_status_valid), .mailbox_input_valid(shadow_valid),
     .mailbox_private_valid(shadow_private), .mailbox_commit_valid(shadow_commit_valid),
-    .mailbox_input_ready(dut.result_destination_ready),
+    .mailbox_input_ready(original_destination_ready),
     .mailbox_input_fault(dut.output_bank_fault || dut.output_bank_framing_fault_now),
     .mailbox_input_data(shadow_data), .mailbox_input_position(shadow_position),
     .mailbox_input_last(shadow_last), .mailbox_input_metadata(shadow_metadata),
@@ -56,6 +60,18 @@ module tb_starlink_pss_fft_bank_owned_slice;
     #0.001;
     if (dut.fast_running) begin
       full_shadow_checks = full_shadow_checks + 1;
+      if (dut.result_guard.awaiting_ack !== shadow.awaiting_ack)
+        $fatal(1, "raw ownership readiness changed guard ACK-clear edge");
+      if (dut.result_destination_ready !== original_destination_ready) begin
+        raw_ready_differences = raw_ready_differences + 1;
+        if (!dut.forward_committed || dut.result_guard.active || dut.result_guard.return_valid ||
+            (!dut.result_guard.idle_fault_now && !dut.result_fault) ||
+            (!shadow.idle_fault_now && !shadow_fault))
+          $fatal(1, "raw/certified readiness differed outside fault-vetoed inactive handoff");
+      end
+      if (dut.state == dut.ACK_DRAIN && !dut.result_busy && !dut.any_fast_fault &&
+          dut.result_destination_ready !== (dut.next_inverse ? dut.output_bank_ready : dut.forward_handoff_ack))
+        $fatal(1, "raw readiness changed healthy controller drain edge");
       if ({dut.job_ready, dut.return_valid, dut.return_private_valid, dut.return_commit_valid,
            dut.result_busy, dut.result_commit, dut.result_fault, dut.result_guard.fault_reasons} !==
           {shadow_ready, shadow_valid, shadow_private, shadow_commit_valid,
@@ -405,6 +421,61 @@ module tb_starlink_pss_fft_bank_owned_slice;
       FAST_MHZ, total_blocks, total_inverse, total_forward, total_products, purge_cases,
       fault_cases, overlapping_loads, equality_witnesses, completed_input_prefetch_witnesses,
       held_final_ready_witnesses, provisional_prefix_words, max_forward_interval);
+    // Additional raw-ready/certified-ACK tests follow the unchanged suite's
+    // receipt. Any failure still fails the complete log gate; this separate
+    // receipt does not redefine its original numerical/fault counters.
+    for (test_kind = 0; test_kind < 11; test_kind = test_kind + 1) begin
+      reset_epoch(0); expected_fault = 1; expected_results = 0; send_words(0, 512);
+      wait(dut.forward_handoff_ack);
+      if (test_kind >= 7) begin
+        wait(!dut.result_guard.awaiting_ack);
+        if (dut.state != dut.ACK_DRAIN || !dut.core_aresetn)
+          $fatal(1, "no late post-ACK/pre-controller-drain boundary");
+        late_ack_witnesses = late_ack_witnesses + 1;
+      end
+      case (test_kind)
+        0: force dut.product_bank_metadata = 70'h123456789;
+        1: force dut.product_bank_position = 9'd7;
+        2: force dut.product_bank_last = 1;
+        3: force dut.event_frame = 1;
+        4: force dut.core_status_valid = 1;
+        5: force dut.core_output_valid = 1;
+        6: force dut.input_job_start = 1;
+        7: force dut.event_last_missing = 1;
+        8: force dut.event_frame = 1;
+        9: force dut.core_status_valid = 1;
+        10: force dut.core_output_valid = 1;
+      endcase
+      #0.001;
+      if (dut.forward_handoff_ack && test_kind != 3 && test_kind != 4 && test_kind != 5 && test_kind < 8)
+        $fatal(1, "certified handoff ACK missed current external/identity fault");
+      tick(); @(negedge fft_clk);
+      release dut.product_bank_metadata; release dut.product_bank_position; release dut.product_bank_last;
+      release dut.event_frame; release dut.core_status_valid; release dut.core_output_valid;
+      release dut.input_job_start; release dut.event_last_missing;
+      await_fault(); raw_ready_handoff_fault_cases = raw_ready_handoff_fault_cases + 1;
+      if (inverse_jobs || (test_kind < 8 && !dut.core_aresetn))
+        $fatal(1, "raw ownership admitted inverse or reset away handoff external fault");
+      if (test_kind >= 8) begin
+        // Baseline may advance private phase/reset on this controller edge:
+        // current raw orphan faults are owned by the result guard, not the
+        // wrapper's external_fault_now. Its full sticky reason bank survives
+        // core reset and must quarantine before any inverse/new publication.
+        if (!dut.result_fault || !dut.result_guard.fault_reasons || !dut.fast_fault)
+          $fatal(1, "late orphan reason disappeared across private core reset");
+        if (dut.next_inverse && !dut.core_aresetn)
+          late_orphan_private_advances = late_orphan_private_advances + 1;
+      end
+    end
+    // One-sided reset while valid product ownership is waiting for the forward
+    // controller must purge the unpublished/owned state before healthy reuse.
+    reset_epoch(0); expected_results = 0; send_words(0, 512); wait(dut.forward_handoff_ack);
+    reset_epoch(1); send_words(0, 512); await_results(1);
+    if (raw_ready_handoff_fault_cases != 11 || !raw_ready_differences || late_ack_witnesses != 4)
+      $fatal(1, "missing raw-ready/certified-ACK negative witnesses");
+    $display("RAW_READY_CERTIFIED_ACK_PASS handoff_fault_cases=%0d raw_ready_differences=%0d late_ack_witnesses=%0d late_orphan_private_advances=%0d handoff_reset_recovery=1 full_shadow_checks=%0d",
+      raw_ready_handoff_fault_cases, raw_ready_differences, late_ack_witnesses,
+      late_orphan_private_advances, full_shadow_checks);
     $fclose(trace); $finish;
   end
 endmodule
