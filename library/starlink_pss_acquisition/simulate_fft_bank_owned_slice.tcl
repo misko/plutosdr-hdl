@@ -81,5 +81,8 @@ if {[string first "FFT_BANK_OWNED_SLICE_PASS" $log] < 0 || [regexp -nocase {fata
 if {$registered && [string first "REGISTERED_SCHEDULING_PASS" $log] < 0} {
   error "registered scheduling boundary tests did not complete"
 }
+if {$registered && [string first "PREFLIGHT_REASON_SPLIT_PASS" $log] < 0} {
+  error "preflight reason/admission split matrix did not complete"
+}
 close_project
 puts "FFT_BANK_OWNED_ACTUAL_CORE_VERIFIED_NO_PHYSICAL_OR_RF_CLAIM"

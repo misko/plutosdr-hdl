@@ -33,7 +33,12 @@ module starlink_pss_realtime_result_guard #(
   // exact external-fault predicate in that phase. The certificate closes the
   // independent input guard, so both input certificates must then be zero.
   // Full faults_now/reasons are retained for ALL phases. Defaults unchanged.
-  parameter integer USE_COMPLETED_INPUT_FAULT = 0
+  parameter integer USE_COMPLETED_INPUT_FAULT = 0,
+  // Caller guarantees no payload/configuration/publication during preflight.
+  // A rejected preflight may privately admit on this edge, but this reason Q
+  // must quarantine it before any emitted start or public evidence. This input
+  // is deliberately NOT a combinational admission/active-publication predicate.
+  parameter integer USE_PREFLIGHT_REASON_ONLY = 0
 ) (
   input wire clk,
   input wire resetn,
@@ -49,6 +54,7 @@ module starlink_pss_realtime_result_guard #(
   input wire phase_input_fault_now,
   input wire completed_input_certified,
   input wire completed_input_fault_now,
+  input wire preflight_fault_evidence_now,
   input wire core_event_frame_started,
   input wire [47:0] core_output_tdata,
   input wire [23:0] core_output_tuser,
@@ -78,6 +84,8 @@ module starlink_pss_realtime_result_guard #(
       $fatal(1, "USE_PHASE_INPUT_FAULT must be zero or one");
     if (USE_COMPLETED_INPUT_FAULT != 0 && USE_COMPLETED_INPUT_FAULT != 1)
       $fatal(1, "USE_COMPLETED_INPUT_FAULT must be zero or one");
+    if (USE_PREFLIGHT_REASON_ONLY != 0 && USE_PREFLIGHT_REASON_ONLY != 1)
+      $fatal(1, "USE_PREFLIGHT_REASON_ONLY must be zero or one");
     if (WATCHDOG_CYCLES < 2 || WATCHDOG_CYCLES > 1048576)
       $fatal(1, "realtime result guard requires a finite 2..1048576 cycle watchdog");
   end
@@ -235,7 +243,8 @@ module starlink_pss_realtime_result_guard #(
       fault_reasons <= 0;
     end else begin
       commit_pulse <= final_commit;
-      fault_reasons <= fault_reasons | faults_now;
+      fault_reasons <= fault_reasons | faults_now |
+        {7'b0, (USE_PREFLIGHT_REASON_ONLY && preflight_fault_evidence_now)};
       // Stage only private descriptor bits while idle. Every admitted job
       // satisfies this predicate and captures the same descriptor on the same
       // edge, without putting the active-job fault cone on 70 register enables.

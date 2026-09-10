@@ -35,6 +35,7 @@ module starlink_pss_final_auth_probe #(
   wire [8:0] mailbox_input_position;
   wire [74:0] mailbox_input_metadata;
   wire completed_input_certified = 1'bz, completed_input_fault_now = 1'bz;
+  wire preflight_fault_evidence_now = 1'bz;
   starlink_pss_realtime_result_guard #(.USE_PHASE_INPUT_FAULT(1)) result_guard (.*);
   starlink_pss_block_mailbox #(.METADATA_WIDTH(75), .RESET_RELEASE_EXTERNAL(1),
     .EXPLICIT_COMMIT(1)) output_mailbox (

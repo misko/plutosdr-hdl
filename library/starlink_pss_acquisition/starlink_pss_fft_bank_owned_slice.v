@@ -68,7 +68,12 @@ module starlink_pss_fft_bank_owned_slice #(
     CONFIGURE=4, ENABLE_INPUT=5, RUN_JOB=6, ACK_DRAIN=7, QUARANTINE=8,
     VERIFY_LEASE=9, ARM_JOB=10;
   reg [3:0] state;
-  reg core_release, input_job_start, next_inverse;
+  reg core_release, input_job_start_private, next_inverse;
+  // A fresh preflight fault on receipt consumption may advance PRIVATE state.
+  // Its same-edge epoch/reason Q masks this emitted token before the checker
+  // can sample a start. No raw wide comparison is in the token's control cone.
+  wire input_job_start = input_job_start_private &&
+    (!REGISTERED_SCHEDULING || !registered_quarantine);
   reg [69:0] engine_metadata;
   reg engine_input_reserved, engine_output_reserved, forward_committed;
   reg held_phase, held_lease;
@@ -77,6 +82,7 @@ module starlink_pss_fft_bank_owned_slice #(
   reg [69:0] expected_product_metadata;
   reg [5:0] preparation_age;
   (* keep = "true" *) reg [2:0] epoch_input_reasons;
+  (* keep = "true" *) reg [5:0] epoch_preflight_reasons;
   wire core_aresetn = fast_running && core_release;
   wire config_valid = state == CONFIGURE && core_aresetn && !fast_fault;
   wire config_ready;
@@ -100,8 +106,13 @@ module starlink_pss_fft_bank_owned_slice #(
   wire preparation_valid = selected_valid && selected_position == 0 && !selected_last &&
     selected_lease == held_lease && selected_metadata == engine_metadata &&
     descriptor_header_valid && destination_reserved;
-  wire preparation_fault_now = REGISTERED_SCHEDULING && fast_running && preparing &&
-    (!preparation_valid || preparation_age == 63);
+  // Bit order: timeout, destination, descriptor/header, lease, framing, owner.
+  wire [5:0] preflight_events_now = REGISTERED_SCHEDULING && fast_running && preparing ?
+    {preparation_age == 63, !destination_reserved,
+     (selected_metadata != engine_metadata || !descriptor_header_valid),
+     (selected_lease != held_lease), (selected_position != 0 || selected_last),
+     !selected_valid} : 6'b0;
+  wire preparation_fault_now = |preflight_events_now;
   wire job_valid = (REGISTERED_SCHEDULING ?
     state == ARM_JOB && descriptor_certified && !admission_receipt :
     state == WAIT_BANK && selected_valid) && !fast_fault;
@@ -156,7 +167,7 @@ module starlink_pss_fft_bank_owned_slice #(
     (!forward_handoff_identity || product_bank_position != 0 || product_bank_last);
   wire external_fault_now = input_fault_now || input_guard_fault || source_fault_fast[1] ||
     vendor_fault_now || fast_fault || kernel_fault || product_overflow || product_bank_fault ||
-    product_bank_framing_fault_now || handoff_fault_now || preparation_fault_now;
+    product_bank_framing_fault_now || handoff_fault_now;
   wire forward_handoff_ack = forward_committed && product_bank_valid &&
     forward_handoff_identity && product_bank_position == 0 && !product_bank_last &&
     !external_fault_now && !result_fault;
@@ -177,7 +188,8 @@ module starlink_pss_fft_bank_owned_slice #(
   wire completed_input_fault_now = duplicate_start_fault_now || input_guard_fault ||
     source_fault_fast[1] || vendor_fault_now || fast_fault || kernel_fault ||
     product_overflow || product_bank_fault || product_bank_framing_fault_now;
-  starlink_pss_realtime_result_guard #(.USE_COMPLETED_INPUT_FAULT(1)) result_guard (
+  starlink_pss_realtime_result_guard #(.USE_COMPLETED_INPUT_FAULT(1),
+    .USE_PREFLIGHT_REASON_ONLY(REGISTERED_SCHEDULING)) result_guard (
     .clk(fft_clk), .resetn(fast_running), .job_valid(job_valid), .job_ready(job_ready),
     .job_descriptor(REGISTERED_SCHEDULING ? engine_metadata : selected_metadata),
     .input_bank_reserved(!REGISTERED_SCHEDULING && state == WAIT_BANK ? selected_valid : engine_input_reserved),
@@ -185,6 +197,7 @@ module starlink_pss_fft_bank_owned_slice #(
     .certified_input_beat(certified_input_beat), .certified_input_complete(certified_input_complete),
     .final_fence_certified(final_fence), .external_fault_now(external_fault_now),
     .phase_input_fault_now(1'b0), .core_event_frame_started(event_frame),
+    .preflight_fault_evidence_now(preparation_fault_now),
     .completed_input_certified(checked_input_complete),
     .completed_input_fault_now(completed_input_fault_now),
     .core_output_tdata(core_output_data), .core_output_tuser(core_output_user),
@@ -255,8 +268,9 @@ module starlink_pss_fft_bank_owned_slice #(
     .output_data(output_data), .output_position(output_position), .output_last(output_last),
     .output_metadata(output_metadata)
   );
-  wire any_fast_fault = external_fault_now || result_fault || output_bank_fault;
-  wire registered_quarantine = fast_fault || result_fault || (|epoch_input_reasons);
+  wire any_fast_fault = external_fault_now || result_fault || output_bank_fault || preparation_fault_now;
+  wire registered_quarantine = fast_fault || result_fault || (|epoch_input_reasons) ||
+    (|epoch_preflight_reasons);
   wire completion_accept = state == ACK_DRAIN && !result_busy &&
     (next_inverse ? output_bank_ready : forward_handoff_ack) && !any_fast_fault &&
     !certified_input_beat && !certified_input_complete && !event_frame &&
@@ -266,9 +280,11 @@ module starlink_pss_fft_bank_owned_slice #(
   always @(posedge fft_clk) begin
     if (!fast_running) begin
       epoch_input_reasons <= 0;
+      epoch_preflight_reasons <= 0;
       source_consume_generation <= 0; product_consume_generation <= 0;
     end else begin
       epoch_input_reasons <= epoch_input_reasons | input_fault_events_now;
+      epoch_preflight_reasons <= epoch_preflight_reasons | preflight_events_now;
       if (source_valid && source_read_ready && source_last)
         source_consume_generation <= !source_consume_generation;
       if (product_bank_valid && product_bank_read_ready && product_bank_last)
@@ -281,11 +297,11 @@ module starlink_pss_fft_bank_owned_slice #(
   generate if (!REGISTERED_SCHEDULING) begin : original_scheduling
   always @(posedge fft_clk) begin
     if (!fast_running) begin
-      state <= RESET0; core_release <= 0; input_job_start <= 0; next_inverse <= 0;
+      state <= RESET0; core_release <= 0; input_job_start_private <= 0; next_inverse <= 0;
       engine_metadata <= 0; engine_input_reserved <= 0; engine_output_reserved <= 0;
       forward_committed <= 0;
     end else begin
-      input_job_start <= 0;
+      input_job_start_private <= 0;
       if (any_fast_fault) state <= QUARANTINE;
       else begin
         if (certified_input_complete) engine_input_reserved <= 0;
@@ -297,7 +313,7 @@ module starlink_pss_fft_bank_owned_slice #(
           WAIT_BANK: if (job_accept) begin
             engine_metadata <= selected_metadata;
             engine_input_reserved <= 1; engine_output_reserved <= 1;
-            core_release <= 1; input_job_start <= 1; state <= INPUT_ADMIT;
+            core_release <= 1; input_job_start_private <= 1; state <= INPUT_ADMIT;
             // Product ownership survives clearing this completed-forward token.
             forward_committed <= 0;
           end
@@ -322,13 +338,13 @@ module starlink_pss_fft_bank_owned_slice #(
     // A fault-edge private advance is not publication or a bank release.
     always @(posedge fft_clk) begin
       if (!fast_running) begin
-        state <= RESET0; core_release <= 0; input_job_start <= 0; next_inverse <= 0;
+        state <= RESET0; core_release <= 0; input_job_start_private <= 0; next_inverse <= 0;
         engine_metadata <= 0; engine_input_reserved <= 0; engine_output_reserved <= 0;
         forward_committed <= 0; held_phase <= 0; held_lease <= 0;
         descriptor_certified <= 0; admission_receipt <= 0; completion_receipt <= 0;
         expected_product_metadata <= 0; preparation_age <= 0;
       end else begin
-        input_job_start <= 0;
+        input_job_start_private <= 0;
         admission_receipt <= job_accept;
         completion_receipt <= completion_accept;
         if (preparing) preparation_age <= preparation_age + 1'b1;
@@ -354,7 +370,7 @@ module starlink_pss_fft_bank_owned_slice #(
           end
           VERIFY_LEASE: state <= ARM_JOB;
           ARM_JOB: if (admission_receipt) begin
-            core_release <= 1; input_job_start <= 1; state <= INPUT_ADMIT;
+            core_release <= 1; input_job_start_private <= 1; state <= INPUT_ADMIT;
             forward_committed <= 0; descriptor_certified <= 0;
           end
           INPUT_ADMIT: state <= CONFIGURE;
