@@ -1,0 +1,1324 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2022.2 (lin64) Build 3671981 Fri Oct 14 04:59:54 MDT 2022
+| Date         : Thu Sep 10 03:43:13 2026
+| Host         : gauss running 64-bit Ubuntu 26.04 LTS
+| Command      : report_timing -from [get_clocks island_175] -to [get_clocks island_175] -delay_type max -max_paths 20 -file /tmp/starlink-completed-input.5EaJuD/held-preflight-route-v1/island_175_max.rpt
+| Design       : starlink_pss_fft_bank_owned_slice
+| Device       : 7z010-clg400
+| Speed File   : -1  PRODUCTION 1.12 2019-11-22
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (VIOLATED) :        -1.614ns  (required time - arrival time)
+  Source:                 product/output_block_start_index_reg[6]/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            product/sum_imag_reg/CEA2
+                            (rising edge-triggered cell DSP48E1 clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.747ns  (logic 1.462ns (21.670%)  route 5.285ns (78.330%))
+  Logic Levels:           7  (LUT4=1 LUT5=1 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    product/fft_clk
+    SLICE_X14Y9          FDRE                                         r  product/output_block_start_index_reg[6]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X14Y9          FDRE (Prop_fdre_C_Q)         0.419     1.392 r  product/output_block_start_index_reg[6]/Q
+                         net (fo=2, routed)           0.655     2.047    product_bank/D[11]
+    SLICE_X15Y9          LUT6 (Prop_lut6_I3_O)        0.299     2.346 r  product_bank/balanced_metadata.leaf_equal_orig0_inferred__2/i_/O
+                         net (fo=1, routed)           1.028     3.374    product_bank/balanced_metadata.leaf_equal[3]
+    SLICE_X10Y11         LUT6 (Prop_lut6_I5_O)        0.124     3.498 r  product_bank/balanced_metadata.group_equal_orig0/O
+                         net (fo=1, routed)           0.929     4.427    product_bank/balanced_metadata.group_equal[0]
+    SLICE_X12Y9          LUT6 (Prop_lut6_I1_O)        0.124     4.551 r  product_bank/request_toggle_i_2/O
+                         net (fo=3, routed)           0.407     4.958    product_bank/request_toggle_i_2_n_0
+    SLICE_X11Y9          LUT6 (Prop_lut6_I3_O)        0.124     5.082 f  product_bank/fault_reasons[0]_i_9/O
+                         net (fo=4, routed)           0.672     5.754    output_bank/expected_bin_index[8]_i_3_1
+    SLICE_X11Y8          LUT4 (Prop_lut4_I3_O)        0.124     5.878 f  output_bank/expected_bin_index[8]_i_8/O
+                         net (fo=4, routed)           0.321     6.199    result_guard/output_block_exponent_reg[0]
+    SLICE_X13Y8          LUT6 (Prop_lut6_I0_O)        0.124     6.323 f  result_guard/expected_bin_index[8]_i_3/O
+                         net (fo=3, routed)           0.585     6.908    result_guard/expected_bin_index[8]_i_3_n_0
+    SLICE_X13Y8          LUT5 (Prop_lut5_I0_O)        0.124     7.032 r  result_guard/product_ii_reg_i_1/O
+                         net (fo=6, routed)           0.688     7.720    product/input_accept
+    DSP48_X0Y5           DSP48E1                                      r  product/sum_imag_reg/CEA2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    product/fft_clk
+    DSP48_X0Y5           DSP48E1                                      r  product/sum_imag_reg/CLK
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    DSP48_X0Y5           DSP48E1 (Setup_dsp48e1_CLK_CEA2)
+                                                     -0.497     6.106    product/sum_imag_reg
+  -------------------------------------------------------------------
+                         required time                          6.106    
+                         arrival time                          -7.720    
+  -------------------------------------------------------------------
+                         slack                                 -1.614    
+
+Slack (VIOLATED) :        -1.613ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/expected_next_block_start_reg[0]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.038ns  (logic 2.084ns (29.610%)  route 4.954ns (70.390%))
+  Logic Levels:           8  (CARRY4=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.412     6.896    joiner/kernel_rom/output_block_exponent_reg[0]_0
+    SLICE_X11Y7          LUT6 (Prop_lut6_I0_O)        0.124     7.020 r  joiner/kernel_rom/expected_next_block_start[63]_i_1/O
+                         net (fo=65, routed)          0.991     8.011    joiner/kernel_rom/have_previous_block
+    SLICE_X2Y6           FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[0]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X2Y6           FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[0]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X2Y6           FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/expected_next_block_start_reg[0]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -8.011    
+  -------------------------------------------------------------------
+                         slack                                 -1.613    
+
+Slack (VIOLATED) :        -1.582ns  (required time - arrival time)
+  Source:                 product/output_block_start_index_reg[6]/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            product/product_iq_reg/CEA2
+                            (rising edge-triggered cell DSP48E1 clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.715ns  (logic 1.462ns (21.772%)  route 5.253ns (78.228%))
+  Logic Levels:           7  (LUT4=1 LUT5=1 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    product/fft_clk
+    SLICE_X14Y9          FDRE                                         r  product/output_block_start_index_reg[6]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X14Y9          FDRE (Prop_fdre_C_Q)         0.419     1.392 r  product/output_block_start_index_reg[6]/Q
+                         net (fo=2, routed)           0.655     2.047    product_bank/D[11]
+    SLICE_X15Y9          LUT6 (Prop_lut6_I3_O)        0.299     2.346 r  product_bank/balanced_metadata.leaf_equal_orig0_inferred__2/i_/O
+                         net (fo=1, routed)           1.028     3.374    product_bank/balanced_metadata.leaf_equal[3]
+    SLICE_X10Y11         LUT6 (Prop_lut6_I5_O)        0.124     3.498 r  product_bank/balanced_metadata.group_equal_orig0/O
+                         net (fo=1, routed)           0.929     4.427    product_bank/balanced_metadata.group_equal[0]
+    SLICE_X12Y9          LUT6 (Prop_lut6_I1_O)        0.124     4.551 r  product_bank/request_toggle_i_2/O
+                         net (fo=3, routed)           0.407     4.958    product_bank/request_toggle_i_2_n_0
+    SLICE_X11Y9          LUT6 (Prop_lut6_I3_O)        0.124     5.082 f  product_bank/fault_reasons[0]_i_9/O
+                         net (fo=4, routed)           0.672     5.754    output_bank/expected_bin_index[8]_i_3_1
+    SLICE_X11Y8          LUT4 (Prop_lut4_I3_O)        0.124     5.878 f  output_bank/expected_bin_index[8]_i_8/O
+                         net (fo=4, routed)           0.321     6.199    result_guard/output_block_exponent_reg[0]
+    SLICE_X13Y8          LUT6 (Prop_lut6_I0_O)        0.124     6.323 f  result_guard/expected_bin_index[8]_i_3/O
+                         net (fo=3, routed)           0.585     6.908    result_guard/expected_bin_index[8]_i_3_n_0
+    SLICE_X13Y8          LUT5 (Prop_lut5_I0_O)        0.124     7.032 r  result_guard/product_ii_reg_i_1/O
+                         net (fo=6, routed)           0.656     7.688    product/input_accept
+    DSP48_X0Y4           DSP48E1                                      r  product/product_iq_reg/CEA2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    product/fft_clk
+    DSP48_X0Y4           DSP48E1                                      r  product/product_iq_reg/CLK
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    DSP48_X0Y4           DSP48E1 (Setup_dsp48e1_CLK_CEA2)
+                                                     -0.497     6.106    product/product_iq_reg
+  -------------------------------------------------------------------
+                         required time                          6.106    
+                         arrival time                          -7.688    
+  -------------------------------------------------------------------
+                         slack                                 -1.582    
+
+Slack (VIOLATED) :        -1.567ns  (required time - arrival time)
+  Source:                 product/output_block_start_index_reg[6]/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            product/product_ii_reg/CEA2
+                            (rising edge-triggered cell DSP48E1 clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.700ns  (logic 1.462ns (21.822%)  route 5.238ns (78.178%))
+  Logic Levels:           7  (LUT4=1 LUT5=1 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    product/fft_clk
+    SLICE_X14Y9          FDRE                                         r  product/output_block_start_index_reg[6]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X14Y9          FDRE (Prop_fdre_C_Q)         0.419     1.392 r  product/output_block_start_index_reg[6]/Q
+                         net (fo=2, routed)           0.655     2.047    product_bank/D[11]
+    SLICE_X15Y9          LUT6 (Prop_lut6_I3_O)        0.299     2.346 r  product_bank/balanced_metadata.leaf_equal_orig0_inferred__2/i_/O
+                         net (fo=1, routed)           1.028     3.374    product_bank/balanced_metadata.leaf_equal[3]
+    SLICE_X10Y11         LUT6 (Prop_lut6_I5_O)        0.124     3.498 r  product_bank/balanced_metadata.group_equal_orig0/O
+                         net (fo=1, routed)           0.929     4.427    product_bank/balanced_metadata.group_equal[0]
+    SLICE_X12Y9          LUT6 (Prop_lut6_I1_O)        0.124     4.551 r  product_bank/request_toggle_i_2/O
+                         net (fo=3, routed)           0.407     4.958    product_bank/request_toggle_i_2_n_0
+    SLICE_X11Y9          LUT6 (Prop_lut6_I3_O)        0.124     5.082 f  product_bank/fault_reasons[0]_i_9/O
+                         net (fo=4, routed)           0.672     5.754    output_bank/expected_bin_index[8]_i_3_1
+    SLICE_X11Y8          LUT4 (Prop_lut4_I3_O)        0.124     5.878 f  output_bank/expected_bin_index[8]_i_8/O
+                         net (fo=4, routed)           0.321     6.199    result_guard/output_block_exponent_reg[0]
+    SLICE_X13Y8          LUT6 (Prop_lut6_I0_O)        0.124     6.323 f  result_guard/expected_bin_index[8]_i_3/O
+                         net (fo=3, routed)           0.585     6.908    result_guard/expected_bin_index[8]_i_3_n_0
+    SLICE_X13Y8          LUT5 (Prop_lut5_I0_O)        0.124     7.032 r  result_guard/product_ii_reg_i_1/O
+                         net (fo=6, routed)           0.641     7.673    product/input_accept
+    DSP48_X0Y2           DSP48E1                                      r  product/product_ii_reg/CEA2
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    product/fft_clk
+    DSP48_X0Y2           DSP48E1                                      r  product/product_ii_reg/CLK
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    DSP48_X0Y2           DSP48E1 (Setup_dsp48e1_CLK_CEA2)
+                                                     -0.497     6.106    product/product_ii_reg
+  -------------------------------------------------------------------
+                         required time                          6.106    
+                         arrival time                          -7.673    
+  -------------------------------------------------------------------
+                         slack                                 -1.567    
+
+Slack (VIOLATED) :        -1.524ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/expected_next_block_start_reg[29]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.949ns  (logic 2.084ns (29.989%)  route 4.865ns (70.011%))
+  Logic Levels:           8  (CARRY4=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.412     6.896    joiner/kernel_rom/output_block_exponent_reg[0]_0
+    SLICE_X11Y7          LUT6 (Prop_lut6_I0_O)        0.124     7.020 r  joiner/kernel_rom/expected_next_block_start[63]_i_1/O
+                         net (fo=65, routed)          0.902     7.922    joiner/kernel_rom/have_previous_block
+    SLICE_X5Y7           FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[29]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X5Y7           FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[29]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X5Y7           FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/expected_next_block_start_reg[29]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -7.922    
+  -------------------------------------------------------------------
+                         slack                                 -1.524    
+
+Slack (VIOLATED) :        -1.524ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/expected_next_block_start_reg[30]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.949ns  (logic 2.084ns (29.989%)  route 4.865ns (70.011%))
+  Logic Levels:           8  (CARRY4=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.412     6.896    joiner/kernel_rom/output_block_exponent_reg[0]_0
+    SLICE_X11Y7          LUT6 (Prop_lut6_I0_O)        0.124     7.020 r  joiner/kernel_rom/expected_next_block_start[63]_i_1/O
+                         net (fo=65, routed)          0.902     7.922    joiner/kernel_rom/have_previous_block
+    SLICE_X5Y7           FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[30]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X5Y7           FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[30]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X5Y7           FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/expected_next_block_start_reg[30]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -7.922    
+  -------------------------------------------------------------------
+                         slack                                 -1.524    
+
+Slack (VIOLATED) :        -1.524ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/expected_next_block_start_reg[31]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.949ns  (logic 2.084ns (29.989%)  route 4.865ns (70.011%))
+  Logic Levels:           8  (CARRY4=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.412     6.896    joiner/kernel_rom/output_block_exponent_reg[0]_0
+    SLICE_X11Y7          LUT6 (Prop_lut6_I0_O)        0.124     7.020 r  joiner/kernel_rom/expected_next_block_start[63]_i_1/O
+                         net (fo=65, routed)          0.902     7.922    joiner/kernel_rom/have_previous_block
+    SLICE_X5Y7           FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[31]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X5Y7           FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[31]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X5Y7           FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/expected_next_block_start_reg[31]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -7.922    
+  -------------------------------------------------------------------
+                         slack                                 -1.524    
+
+Slack (VIOLATED) :        -1.524ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/expected_next_block_start_reg[32]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.949ns  (logic 2.084ns (29.989%)  route 4.865ns (70.011%))
+  Logic Levels:           8  (CARRY4=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.412     6.896    joiner/kernel_rom/output_block_exponent_reg[0]_0
+    SLICE_X11Y7          LUT6 (Prop_lut6_I0_O)        0.124     7.020 r  joiner/kernel_rom/expected_next_block_start[63]_i_1/O
+                         net (fo=65, routed)          0.902     7.922    joiner/kernel_rom/have_previous_block
+    SLICE_X5Y7           FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[32]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X5Y7           FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[32]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X5Y7           FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/expected_next_block_start_reg[32]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -7.922    
+  -------------------------------------------------------------------
+                         slack                                 -1.524    
+
+Slack (VIOLATED) :        -1.522ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/block_start_index_reg[14]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.947ns  (logic 2.084ns (30.001%)  route 4.863ns (69.999%))
+  Logic Levels:           8  (CARRY4=3 LUT2=1 LUT6=4)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.552     7.036    result_guard/return_last_reg_0
+    SLICE_X11Y6          LUT2 (Prop_lut2_I0_O)        0.124     7.160 r  result_guard/block_start_index[63]_i_1/O
+                         net (fo=69, routed)          0.759     7.920    joiner/kernel_rom/E[0]
+    SLICE_X13Y2          FDRE                                         r  joiner/kernel_rom/block_start_index_reg[14]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X13Y2          FDRE                                         r  joiner/kernel_rom/block_start_index_reg[14]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X13Y2          FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/block_start_index_reg[14]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -7.920    
+  -------------------------------------------------------------------
+                         slack                                 -1.522    
+
+Slack (VIOLATED) :        -1.522ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/block_start_index_reg[22]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.947ns  (logic 2.084ns (30.001%)  route 4.863ns (69.999%))
+  Logic Levels:           8  (CARRY4=3 LUT2=1 LUT6=4)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.552     7.036    result_guard/return_last_reg_0
+    SLICE_X11Y6          LUT2 (Prop_lut2_I0_O)        0.124     7.160 r  result_guard/block_start_index[63]_i_1/O
+                         net (fo=69, routed)          0.759     7.920    joiner/kernel_rom/E[0]
+    SLICE_X13Y2          FDRE                                         r  joiner/kernel_rom/block_start_index_reg[22]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X13Y2          FDRE                                         r  joiner/kernel_rom/block_start_index_reg[22]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X13Y2          FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/block_start_index_reg[22]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -7.920    
+  -------------------------------------------------------------------
+                         slack                                 -1.522    
+
+Slack (VIOLATED) :        -1.522ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/block_start_index_reg[36]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.947ns  (logic 2.084ns (30.001%)  route 4.863ns (69.999%))
+  Logic Levels:           8  (CARRY4=3 LUT2=1 LUT6=4)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.552     7.036    result_guard/return_last_reg_0
+    SLICE_X11Y6          LUT2 (Prop_lut2_I0_O)        0.124     7.160 r  result_guard/block_start_index[63]_i_1/O
+                         net (fo=69, routed)          0.759     7.920    joiner/kernel_rom/E[0]
+    SLICE_X13Y2          FDRE                                         r  joiner/kernel_rom/block_start_index_reg[36]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X13Y2          FDRE                                         r  joiner/kernel_rom/block_start_index_reg[36]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X13Y2          FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/block_start_index_reg[36]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -7.920    
+  -------------------------------------------------------------------
+                         slack                                 -1.522    
+
+Slack (VIOLATED) :        -1.522ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/block_start_index_reg[40]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.947ns  (logic 2.084ns (30.001%)  route 4.863ns (69.999%))
+  Logic Levels:           8  (CARRY4=3 LUT2=1 LUT6=4)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.552     7.036    result_guard/return_last_reg_0
+    SLICE_X11Y6          LUT2 (Prop_lut2_I0_O)        0.124     7.160 r  result_guard/block_start_index[63]_i_1/O
+                         net (fo=69, routed)          0.759     7.920    joiner/kernel_rom/E[0]
+    SLICE_X13Y2          FDRE                                         r  joiner/kernel_rom/block_start_index_reg[40]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X13Y2          FDRE                                         r  joiner/kernel_rom/block_start_index_reg[40]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X13Y2          FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/block_start_index_reg[40]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -7.920    
+  -------------------------------------------------------------------
+                         slack                                 -1.522    
+
+Slack (VIOLATED) :        -1.522ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/block_start_index_reg[45]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.947ns  (logic 2.084ns (30.001%)  route 4.863ns (69.999%))
+  Logic Levels:           8  (CARRY4=3 LUT2=1 LUT6=4)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.552     7.036    result_guard/return_last_reg_0
+    SLICE_X11Y6          LUT2 (Prop_lut2_I0_O)        0.124     7.160 r  result_guard/block_start_index[63]_i_1/O
+                         net (fo=69, routed)          0.759     7.920    joiner/kernel_rom/E[0]
+    SLICE_X13Y2          FDRE                                         r  joiner/kernel_rom/block_start_index_reg[45]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X13Y2          FDRE                                         r  joiner/kernel_rom/block_start_index_reg[45]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X13Y2          FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/block_start_index_reg[45]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -7.920    
+  -------------------------------------------------------------------
+                         slack                                 -1.522    
+
+Slack (VIOLATED) :        -1.522ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/block_start_index_reg[59]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.947ns  (logic 2.084ns (30.001%)  route 4.863ns (69.999%))
+  Logic Levels:           8  (CARRY4=3 LUT2=1 LUT6=4)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.552     7.036    result_guard/return_last_reg_0
+    SLICE_X11Y6          LUT2 (Prop_lut2_I0_O)        0.124     7.160 r  result_guard/block_start_index[63]_i_1/O
+                         net (fo=69, routed)          0.759     7.920    joiner/kernel_rom/E[0]
+    SLICE_X13Y2          FDRE                                         r  joiner/kernel_rom/block_start_index_reg[59]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X13Y2          FDRE                                         r  joiner/kernel_rom/block_start_index_reg[59]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X13Y2          FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/block_start_index_reg[59]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -7.920    
+  -------------------------------------------------------------------
+                         slack                                 -1.522    
+
+Slack (VIOLATED) :        -1.522ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/block_start_index_reg[6]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.947ns  (logic 2.084ns (30.001%)  route 4.863ns (69.999%))
+  Logic Levels:           8  (CARRY4=3 LUT2=1 LUT6=4)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.552     7.036    result_guard/return_last_reg_0
+    SLICE_X11Y6          LUT2 (Prop_lut2_I0_O)        0.124     7.160 r  result_guard/block_start_index[63]_i_1/O
+                         net (fo=69, routed)          0.759     7.920    joiner/kernel_rom/E[0]
+    SLICE_X13Y2          FDRE                                         r  joiner/kernel_rom/block_start_index_reg[6]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X13Y2          FDRE                                         r  joiner/kernel_rom/block_start_index_reg[6]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X13Y2          FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/block_start_index_reg[6]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -7.920    
+  -------------------------------------------------------------------
+                         slack                                 -1.522    
+
+Slack (VIOLATED) :        -1.518ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/expected_next_block_start_reg[49]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.943ns  (logic 2.084ns (30.014%)  route 4.859ns (69.986%))
+  Logic Levels:           8  (CARRY4=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.412     6.896    joiner/kernel_rom/output_block_exponent_reg[0]_0
+    SLICE_X11Y7          LUT6 (Prop_lut6_I0_O)        0.124     7.020 r  joiner/kernel_rom/expected_next_block_start[63]_i_1/O
+                         net (fo=65, routed)          0.896     7.916    joiner/kernel_rom/have_previous_block
+    SLICE_X5Y12          FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[49]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X5Y12          FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[49]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X5Y12          FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/expected_next_block_start_reg[49]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -7.916    
+  -------------------------------------------------------------------
+                         slack                                 -1.518    
+
+Slack (VIOLATED) :        -1.518ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/expected_next_block_start_reg[50]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.943ns  (logic 2.084ns (30.014%)  route 4.859ns (69.986%))
+  Logic Levels:           8  (CARRY4=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.412     6.896    joiner/kernel_rom/output_block_exponent_reg[0]_0
+    SLICE_X11Y7          LUT6 (Prop_lut6_I0_O)        0.124     7.020 r  joiner/kernel_rom/expected_next_block_start[63]_i_1/O
+                         net (fo=65, routed)          0.896     7.916    joiner/kernel_rom/have_previous_block
+    SLICE_X5Y12          FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[50]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X5Y12          FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[50]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X5Y12          FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/expected_next_block_start_reg[50]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -7.916    
+  -------------------------------------------------------------------
+                         slack                                 -1.518    
+
+Slack (VIOLATED) :        -1.518ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/expected_next_block_start_reg[51]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.943ns  (logic 2.084ns (30.014%)  route 4.859ns (69.986%))
+  Logic Levels:           8  (CARRY4=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.412     6.896    joiner/kernel_rom/output_block_exponent_reg[0]_0
+    SLICE_X11Y7          LUT6 (Prop_lut6_I0_O)        0.124     7.020 r  joiner/kernel_rom/expected_next_block_start[63]_i_1/O
+                         net (fo=65, routed)          0.896     7.916    joiner/kernel_rom/have_previous_block
+    SLICE_X5Y12          FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[51]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X5Y12          FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[51]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X5Y12          FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/expected_next_block_start_reg[51]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -7.916    
+  -------------------------------------------------------------------
+                         slack                                 -1.518    
+
+Slack (VIOLATED) :        -1.518ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/expected_next_block_start_reg[52]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.943ns  (logic 2.084ns (30.014%)  route 4.859ns (69.986%))
+  Logic Levels:           8  (CARRY4=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.412     6.896    joiner/kernel_rom/output_block_exponent_reg[0]_0
+    SLICE_X11Y7          LUT6 (Prop_lut6_I0_O)        0.124     7.020 r  joiner/kernel_rom/expected_next_block_start[63]_i_1/O
+                         net (fo=65, routed)          0.896     7.916    joiner/kernel_rom/have_previous_block
+    SLICE_X5Y12          FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[52]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X5Y12          FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[52]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X5Y12          FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/expected_next_block_start_reg[52]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -7.916    
+  -------------------------------------------------------------------
+                         slack                                 -1.518    
+
+Slack (VIOLATED) :        -1.517ns  (required time - arrival time)
+  Source:                 result_guard/descriptor_reg[43]/C
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/expected_next_block_start_reg[17]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        6.942ns  (logic 2.084ns (30.018%)  route 4.858ns (69.982%))
+  Logic Levels:           8  (CARRY4=3 LUT6=5)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.973     0.973    result_guard/fft_clk
+    SLICE_X18Y6          FDCE                                         r  result_guard/descriptor_reg[43]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X18Y6          FDCE (Prop_fdce_C_Q)         0.456     1.429 r  result_guard/descriptor_reg[43]/Q
+                         net (fo=7, routed)           1.757     3.186    joiner/kernel_rom/return_metadata[43]
+    SLICE_X3Y4           LUT6 (Prop_lut6_I2_O)        0.124     3.310 r  joiner/kernel_rom/metadata_error_now1_carry__2_i_4/O
+                         net (fo=1, routed)           0.000     3.310    joiner/kernel_rom/metadata_error_now1_carry__2_i_4_n_0
+    SLICE_X3Y4           CARRY4 (Prop_carry4_S[0]_CO[3])
+                                                      0.532     3.842 r  joiner/kernel_rom/metadata_error_now1_carry__2/CO[3]
+                         net (fo=1, routed)           0.000     3.842    joiner/kernel_rom/metadata_error_now1_carry__2_n_0
+    SLICE_X3Y5           CARRY4 (Prop_carry4_CI_CO[3])
+                                                      0.114     3.956 r  joiner/kernel_rom/metadata_error_now1_carry__3/CO[3]
+                         net (fo=1, routed)           0.000     3.956    joiner/kernel_rom/metadata_error_now1_carry__3_n_0
+    SLICE_X3Y6           CARRY4 (Prop_carry4_CI_CO[1])
+                                                      0.157     4.113 f  joiner/kernel_rom/metadata_error_now1_carry__4/CO[1]
+                         net (fo=1, routed)           0.324     4.437    result_guard/CO[0]
+    SLICE_X1Y7           LUT6 (Prop_lut6_I5_O)        0.329     4.766 r  result_guard/output_kernel_word_reg_i_3/O
+                         net (fo=1, routed)           0.264     5.031    joiner/kernel_rom/protocol_fault_reg_0
+    SLICE_X1Y7           LUT6 (Prop_lut6_I3_O)        0.124     5.155 r  joiner/kernel_rom/output_kernel_word_reg_i_2/O
+                         net (fo=4, routed)           1.205     6.360    result_guard/output_kernel_word_reg
+    SLICE_X10Y9          LUT6 (Prop_lut6_I3_O)        0.124     6.484 r  result_guard/expected_bin_index[8]_i_1_comp_1/O
+                         net (fo=90, routed)          0.412     6.896    joiner/kernel_rom/output_block_exponent_reg[0]_0
+    SLICE_X11Y7          LUT6 (Prop_lut6_I0_O)        0.124     7.020 r  joiner/kernel_rom/expected_next_block_start[63]_i_1/O
+                         net (fo=65, routed)          0.895     7.915    joiner/kernel_rom/have_previous_block
+    SLICE_X5Y4           FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[17]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4716, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X5Y4           FDRE                                         r  joiner/kernel_rom/expected_next_block_start_reg[17]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X5Y4           FDRE (Setup_fdre_C_CE)      -0.205     6.398    joiner/kernel_rom/expected_next_block_start_reg[17]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -7.915    
+  -------------------------------------------------------------------
+                         slack                                 -1.517    
+
+
+
+
