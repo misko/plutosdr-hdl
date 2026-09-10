@@ -1,7 +1,17 @@
 # Actual shared realtime FFT -> reduced phase map -> native synchronous PSMA.
 # Usage: vivado -mode batch -source simulate_realtime_psma_stop.tcl \
 #        -tclargs NEW_OUTPUT EXISTING_NUMERIC_VECTOR_DIRECTORY
-if {$argc != 2} { error "expected NEW_OUTPUT EXISTING_NUMERIC_VECTOR_DIRECTORY" }
+#        optionally append BANK_OWNED=1 FAST_MHZ=175|200
+if {$argc ni {2 4}} { error "expected NEW_OUTPUT EXISTING_NUMERIC_VECTOR_DIRECTORY ?BANK_OWNED=1 FAST_MHZ=175|200?" }
+set use_bank_owned_xfft 0
+set fast_mhz 200
+if {$argc == 4} {
+  set use_bank_owned_xfft [lindex $argv 2]
+  set fast_mhz [lindex $argv 3]
+  if {$use_bank_owned_xfft ne "1" || $fast_mhz ni {175 200}} {
+    error "explicit bank stop probe requires BANK_OWNED=1 FAST_MHZ=175|200"
+  }
+}
 if {[version -short] ne "2022.2"} { error "requires Vivado 2022.2" }
 set script_dir [file dirname [file normalize [info script]]]
 set output_dir [file normalize [lindex $argv 0]]
@@ -20,6 +30,9 @@ set rtl_names {
   starlink_pss_acquisition_health starlink_pss_iq_to_phase_map
 }
 set bench_name tb_starlink_pss_realtime_psma_stop
+if {$use_bank_owned_xfft} {
+  lappend rtl_names starlink_pss_iq_to_score_bank_owned starlink_pss_fft_bank_owned_slice
+}
 set input_paths [list [info script] [file join $script_dir create_shared_realtime_xfft_ip.tcl] \
   [file join $script_dir verify_realtime_probe_result.tcl] \
   [file join $script_dir tb ${bench_name}.sv] \
@@ -59,7 +72,7 @@ source [file join $source_dir create_shared_realtime_xfft_ip.tcl]
 source [file join $source_dir verify_realtime_probe_result.tcl]
 set channel [open [file join $output_dir scope.txt] w]
 puts $channel "scope=actual_realtime_fft_psma_boundary_stop_reduced_447x2"
-puts $channel "slow_clock_ns=10 fft_clock_ns=5 fft_phase_ns=1.3 source_msps=15"
+puts $channel "slow_clock_MHz=100 fast_clock_MHz=$fast_mhz fft_phase_ns=1.3 source_msps=15 use_bank_owned_xfft=$use_bank_owned_xfft"
 puts $channel "fixture_samples=1406 fixture_scores=1341 compared_score_prefix=894 exact_map_words=447"
 puts $channel "retained_intermediates_not_compared_by_this_bench=true"
 puts $channel "source_continuation_is_stimulus_not_canonical_tap_or_pilot_dma=true"
@@ -86,6 +99,7 @@ foreach name [concat $vector_names {upper_edge_pss_kernel_q17.mem}] {
 }
 set_property file_type {Memory Initialization Files} [get_files -of_objects [get_filesets sim_1] *.mem]
 set_property top $bench_name [get_filesets sim_1]
+set_property generic "USE_BANK_OWNED_XFFT=$use_bank_owned_xfft FAST_MHZ=$fast_mhz" [get_filesets sim_1]
 set_property xsim.simulate.runtime {all} [get_filesets sim_1]
 set channel [open [file join $output_dir generated_ip.txt] w]
 puts $channel "generated_wrapper_sha256=[exec sha256sum $wrapper_path]"
@@ -93,11 +107,19 @@ close $channel
 launch_simulation -simset sim_1 -mode behavioral
 close_sim
 set log_path [file join $project_dir ${project_name}.sim sim_1 behav xsim simulate.log]
+set channel [open $log_path r]; set transcript [read $channel]; close $channel
+if {[regexp -line {^REALTIME_PSMA_STOP_(FAIL|FAULT) } $transcript]} {
+  error "boundary-stop bench reported a failed assertion; inspect $log_path"
+}
 require_realtime_probe_pass $log_path [list \
   {REALTIME_PSMA_STOP_HEALTHY_PASS exact_scores=894 exact_map_words=447 actual_third_block_pending=1 source_continues=1 coarse_flush=0 tail_health_clean=1 reduced_geometry_only=1} \
   {REALTIME_PSMA_STOP_LATE_BRIDGE_PASS actual_invalid_release=1 stable_terminal_tuple=1 failed_receipt=1} \
   {REALTIME_PSMA_STOP_LIVE_FAULT_PASS pending_stop=1 vendor_event_in_live_epoch=1 partial_abort=1 no_partial_publication=1 service_health_bit=14} \
-  {REALTIME_PSMA_STOP_PASS healthy_maps=1 exact_map_words=447 fault_cases=2 source_mhz=15 slow_mhz=100 fft_mhz=200 NO_PILOT_DMA_PRODUCTION_CAPACITY_OR_PHYSICAL_CLAIM} \
+  "REALTIME_PSMA_STOP_PASS healthy_maps=1 exact_map_words=447 fault_cases=2 source_mhz=15 slow_mhz=100 fft_mhz=$fast_mhz NO_PILOT_DMA_PRODUCTION_CAPACITY_OR_PHYSICAL_CLAIM" \
 ] REALTIME_PSMA_STOP_ACK 2
+if {$use_bank_owned_xfft} {
+  require_realtime_probe_pass $log_path [list \
+    "BANK_PSMA_STOP_PASS actual_core=1 exact_scores=894 exact_map_words=447 fault_cases=2 fast_mhz=$fast_mhz REDUCED_GEOMETRY_NOT_RECEIVER"] BANK_PSMA_STOP_PASS 1
+}
 close_project
 puts "REALTIME_PSMA_STOP_SIMULATION_VERIFIED reduced_geometry_only=1"

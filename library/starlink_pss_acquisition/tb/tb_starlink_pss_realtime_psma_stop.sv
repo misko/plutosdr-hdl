@@ -1,15 +1,18 @@
-`timescale 1ns/1ps
+`timescale 1ns/1fs
 
 // Actual shared realtime XFFT, score/phase-map pipeline and synchronous PSMA.
 // Reduced 447x2 geometry only. The independently driven source is NOT a PIL1
 // capture, canonical-tap proof, production map, RF signal or routed timing.
-module tb_starlink_pss_realtime_psma_stop;
+module tb_starlink_pss_realtime_psma_stop #(
+  parameter integer USE_BANK_OWNED_XFFT = 0,
+  parameter integer FAST_MHZ = 200
+);
   localparam integer SAMPLE_COUNT = 1406, BINS = 447, TILE_SCORES = 894;
   localparam integer FIXTURE_SCORES = 1341;
   localparam [63:0] FIRST = 64'h00000001fffffff0;
   reg clk = 0, fft_clk = 0, resetn = 0;
   always #5 clk = !clk;
-  initial begin #1.3; forever #2.5 fft_clk = !fft_clk; end
+  initial begin #1.3; forever #(500.0 / FAST_MHZ) fft_clk = !fft_clk; end
   reg source_running = 0, sample_valid = 0;
   wire sample_gap = 1'b0;
   reg signed [15:0] sample_i = 0, sample_q = 0;
@@ -67,6 +70,7 @@ module tb_starlink_pss_realtime_psma_stop;
 
   starlink_pss_iq_to_phase_map #(
     .USE_SHARED_XFFT(1), .USE_REALTIME_XFFT(1), .ENABLE_BOUNDARY_STOP(1),
+    .USE_BANK_OWNED_XFFT(USE_BANK_OWNED_XFFT),
     .PHASE_BINS(BINS), .PHASE_INDEX_WIDTH(9), .TILE_FRAMES(2), .TILE_FRAME_WIDTH(1),
     .MAP_SEGMENT_ADDRESS_WIDTH(9), .MAP_SEGMENT_COUNT(1), .MAP_SEGMENT_INDEX_WIDTH(1)
   ) dut (.fft_resetn(resetn), .enable(acquisition_enable), .flush(acquisition_flush), .*);
@@ -76,6 +80,63 @@ module tb_starlink_pss_realtime_psma_stop;
     .HEALTH_COUNTERS_FROM_FLAGS(1), .MAP_COUNTERS_FROM_FLAG(1)
   ) control (.map_clk(clk), .map_reset(!resetn), .s_axi_aclk(clk),
              .s_axi_aresetn(resetn), .s_axi_awprot(3'd0), .s_axi_arprot(3'd0), .*);
+
+  wire observed_inverse_final, observed_pipeline_active;
+  wire observed_core_live, observed_input_enabled, observed_fast_running;
+  wire observed_forward_busy, observed_inverse_busy;
+  wire [31:0] observed_state;
+  generate if (USE_BANK_OWNED_XFFT) begin : engine_observer
+    // Observe actual forward input acceptance in its OWN clock domain. Source
+    // bank capture alone is not evidence that the third FFT has started.
+    always @(posedge fft_clk)
+      if (!resetn) third_started = 0;
+      else if (dut.bank_transform.iq_to_score.island.core_input_valid &&
+          dut.bank_transform.iq_to_score.island.core_input_ready &&
+          !dut.bank_transform.iq_to_score.island.next_inverse &&
+          dut.bank_transform.iq_to_score.island.selected_position == 0 &&
+          dut.bank_transform.iq_to_score.island.engine_metadata[68:5] == FIRST + TILE_SCORES)
+        third_started = 1;
+    assign observed_inverse_final = dut.bank_transform.iq_to_score.inverse_output_valid &&
+      dut.bank_transform.iq_to_score.inverse_output_last &&
+      dut.bank_transform.iq_to_score.inverse_output_block_start == FIRST + TILE_SCORES;
+    assign observed_pipeline_active = dut.bank_transform.iq_to_score.pipeline_active;
+    assign observed_core_live = dut.bank_transform.iq_to_score.island.core_aresetn;
+    assign observed_input_enabled = dut.bank_transform.iq_to_score.island.engine_input_enable;
+    assign observed_fast_running = dut.bank_transform.iq_to_score.island.fast_running;
+    assign observed_state = dut.bank_transform.iq_to_score.island.state;
+    assign observed_forward_busy = dut.bank_transform.iq_to_score.island.result_busy &&
+      !dut.bank_transform.iq_to_score.island.next_inverse;
+    assign observed_inverse_busy = dut.bank_transform.iq_to_score.island.result_busy &&
+      dut.bank_transform.iq_to_score.island.next_inverse;
+    task automatic inject_vendor_fault;
+      force dut.bank_transform.iq_to_score.island.event_last_missing = 1'b1;
+      repeat (4) @(negedge fft_clk);
+      release dut.bank_transform.iq_to_score.island.event_last_missing;
+    endtask
+  end else begin : engine_observer
+    always @(posedge clk)
+      if (!resetn) third_started = 0;
+      else if (dut.shared_transform.iq_to_score.shared_input_accept &&
+          !dut.shared_transform.iq_to_score.choose_inverse &&
+          dut.shared_transform.iq_to_score.scheduler_fft_position == 0 &&
+          dut.shared_transform.iq_to_score.scheduler_fft_block_start == FIRST + TILE_SCORES)
+        third_started = 1;
+    assign observed_inverse_final = dut.shared_transform.iq_to_score.inverse_output_accept &&
+      dut.shared_transform.iq_to_score.inverse_output_last &&
+      dut.shared_transform.iq_to_score.inverse_output_block_start == FIRST + TILE_SCORES;
+    assign observed_pipeline_active = dut.shared_transform.iq_to_score.pipeline_active;
+    assign observed_core_live = dut.shared_transform.iq_to_score.realtime_transform.transform_service.core_aresetn;
+    assign observed_input_enabled = dut.shared_transform.iq_to_score.realtime_transform.transform_service.engine_input_enable;
+    assign observed_fast_running = dut.shared_transform.iq_to_score.realtime_transform.transform_service.fast_running;
+    assign observed_state = dut.shared_transform.iq_to_score.realtime_transform.transform_service.state;
+    assign observed_forward_busy = dut.shared_transform.iq_to_score.forward_busy;
+    assign observed_inverse_busy = dut.shared_transform.iq_to_score.inverse_busy;
+    task automatic inject_vendor_fault;
+      force dut.shared_transform.iq_to_score.realtime_transform.transform_service.event_last_missing = 1'b1;
+      repeat (4) @(negedge fft_clk);
+      release dut.shared_transform.iq_to_score.realtime_transform.transform_service.event_last_missing;
+    endtask
+  end endgenerate
 
   task automatic fail(input string message);
     $display("REALTIME_PSMA_STOP_FAIL %s cycle=%0d source=%0d scores=%0d accepted=%0d ready=%b health=%08h abort=%0d",
@@ -165,7 +226,7 @@ module tb_starlink_pss_realtime_psma_stop;
     cycles = cycles + 1;
     if (cycles > 120000) fail("bounded simulation watchdog");
     if (!resetn) begin
-      checked_scores = 0; third_started = 0; third_inverse_returned = 0;
+      checked_scores = 0; third_inverse_returned = 0;
       third_in_flight_at_ack = 0; prior_enable = 0; prior_ticket = 0;
       acceptance_edges = 0; ack_edges = 0;
     end else begin
@@ -177,14 +238,7 @@ module tb_starlink_pss_realtime_psma_stop;
           fail("exact frozen score/index/phase/denominator mismatch or post-fence score");
         checked_scores = checked_scores + 1;
       end
-      if (dut.shared_transform.iq_to_score.shared_input_accept &&
-          !dut.shared_transform.iq_to_score.choose_inverse &&
-          dut.shared_transform.iq_to_score.scheduler_fft_position == 0 &&
-          dut.shared_transform.iq_to_score.scheduler_fft_block_start == FIRST + TILE_SCORES)
-        third_started = 1;
-      if (dut.shared_transform.iq_to_score.inverse_output_accept &&
-          dut.shared_transform.iq_to_score.inverse_output_last &&
-          dut.shared_transform.iq_to_score.inverse_output_block_start == FIRST + TILE_SCORES)
+      if (observed_inverse_final)
         third_inverse_returned = 1;
       if (stop_ack) begin
         ack_edges = ack_edges + 1;
@@ -195,9 +249,7 @@ module tb_starlink_pss_realtime_psma_stop;
           fail("missing actual third-block work or publication/ACK ordering witness");
         $display("REALTIME_PSMA_STOP_ACK negative=%0d third_started=%0d third_inverse_returned=%0d service_state=%0d forward_busy=%0d inverse_busy=%0d samples=%0d scores=%0d",
           expected_fault, third_started, third_inverse_returned,
-          dut.shared_transform.iq_to_score.realtime_transform.transform_service.state,
-          dut.shared_transform.iq_to_score.forward_busy,
-          dut.shared_transform.iq_to_score.inverse_busy, source_count, checked_scores);
+          observed_state, observed_forward_busy, observed_inverse_busy, source_count, checked_scores);
       end
       if (!expected_fault && prior_enable && !acquisition_enable && !control.stop_terminal_valid)
         fail("coarse disabled before a terminal boundary receipt");
@@ -251,7 +303,7 @@ module tb_starlink_pss_realtime_psma_stop;
     repeat (BINS + 3000) @(negedge clk);
     if (map_ready_mask || irq || map_publish_count != 1 || accepted_score_count != TILE_SCORES ||
         source_count < source_before + 500 || source_count < SAMPLE_COUNT ||
-        dut.shared_transform.iq_to_score.pipeline_active)
+        observed_pipeline_active)
       fail("post-stop tail created work, lost source continuation, or failed local shutdown");
     terminal_tuple(32'h16); expect_word(10, 0);
     axi_write(8'h30, 1); repeat (5) @(negedge clk);
@@ -275,18 +327,14 @@ module tb_starlink_pss_realtime_psma_stop;
     boot(); expected_fault = 0;
     wait(accepted_score_count >= 200); axi_write(8'hf8, 1);
     wait(accepted_score_count >= 800);
-    wait(dut.shared_transform.iq_to_score.realtime_transform.transform_service.core_aresetn &&
-         dut.shared_transform.iq_to_score.realtime_transform.transform_service.engine_input_enable);
+    wait(observed_core_live && observed_input_enabled);
     @(negedge fft_clk);
     if (!stop_pending || !acquisition_enable ||
-        !dut.shared_transform.iq_to_score.realtime_transform.transform_service.fast_running ||
-        !dut.shared_transform.iq_to_score.realtime_transform.transform_service.core_aresetn ||
+        !observed_fast_running || !observed_core_live ||
         accepted_score_count >= TILE_SCORES)
       fail("vendor-fault injection lacks a live pending-stop service epoch");
     expected_fault = 1; accepted_before_fault = accepted_score_count;
-    force dut.shared_transform.iq_to_score.realtime_transform.transform_service.event_last_missing = 1'b1;
-    repeat (4) @(negedge fft_clk);
-    release dut.shared_transform.iq_to_score.realtime_transform.transform_service.event_last_missing;
+    engine_observer.inject_vendor_fault();
     wait(control.stop_terminal_valid);
     repeat (100) @(negedge clk);
     expect_word(2, 32'ha); expect_word(3, 1); expect_word(4, 1); expect_word(5, 0);
@@ -297,7 +345,9 @@ module tb_starlink_pss_realtime_psma_stop;
         accepted_score_count < accepted_before_fault || accepted_score_count >= TILE_SCORES)
       fail("live vendor late-pending fault was forgiven or published a partial map");
     $display("REALTIME_PSMA_STOP_LIVE_FAULT_PASS pending_stop=1 vendor_event_in_live_epoch=1 partial_abort=1 no_partial_publication=1 service_health_bit=14");
-    $display("REALTIME_PSMA_STOP_PASS healthy_maps=1 exact_map_words=447 fault_cases=2 source_mhz=15 slow_mhz=100 fft_mhz=200 NO_PILOT_DMA_PRODUCTION_CAPACITY_OR_PHYSICAL_CLAIM");
+    $display("REALTIME_PSMA_STOP_PASS healthy_maps=1 exact_map_words=447 fault_cases=2 source_mhz=15 slow_mhz=100 fft_mhz=%0d NO_PILOT_DMA_PRODUCTION_CAPACITY_OR_PHYSICAL_CLAIM", FAST_MHZ);
+    if (USE_BANK_OWNED_XFFT)
+      $display("BANK_PSMA_STOP_PASS actual_core=1 exact_scores=894 exact_map_words=447 fault_cases=2 fast_mhz=%0d REDUCED_GEOMETRY_NOT_RECEIVER", FAST_MHZ);
     $finish;
   end
 endmodule
