@@ -104,5 +104,8 @@ require_realtime_probe_pass [file join $project_dir ${project_name}.sim sim_1 be
     {RETIRED_SERVICE_DUPLICATE_PASS final=1 ACK=1 same_edge_veto=1 actual_checker_fault=1} \
     {REALTIME_SERVICE_CANDIDATE_PASS healthy_jobs=26 exact_words=13312 starvation_cases=6 final_veto_cases=3 malformed_bank_cases=2 independent_reset_cases=6 configure_reset_cases=2 partial_input_reset_cases=2 postcommit_ACK_fault_cases=1 CAUSE_FENCE_REVIEW_REQUIRED CAPACITY_AND_PHYSICAL_UNQUALIFIED}] \
   RT_SERVICE_RESULT 26
+require_realtime_probe_pass [file join $project_dir ${project_name}.sim sim_1 behav xsim simulate.log] \
+  [list {IDLE_MAILBOX_SERVICE_PREMISE_PASS actual_mailbox_and_FFT=1 inactive_and_ACK=1 private_writes_active=1 public_golden=1}] \
+  RT_SERVICE_RESULT 26
 close_project
 puts "REALTIME_SERVICE_CANDIDATE_SIMULATION_VERIFIED CAPACITY_AND_PHYSICAL_UNQUALIFIED"

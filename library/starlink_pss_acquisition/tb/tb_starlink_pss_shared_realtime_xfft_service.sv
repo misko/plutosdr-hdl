@@ -70,10 +70,31 @@ module tb_starlink_pss_shared_realtime_xfft_service;
     .fault_reasons(old_fault_reasons)
   );
   integer shadow_rows = 0, retired_final_rows = 0, retired_ack_rows = 0, idle_input_rows = 0;
+  integer idle_mailbox_rows = 0, idle_mailbox_ack_rows = 0, private_write_rows = 0;
   always @(posedge fft_clk or negedge fft_clk) begin
     #0.2;
     if (dut.fast_running) begin
       shadow_rows = shadow_rows + 1;
+      // Check the opted-in admission predicate on the actual connected output
+      // mailbox, including quarantine and ACK drain. Active/final publication
+      // still uses the full framing predicate and the independent guard shadow.
+      if (!dut.result_guard.active) begin
+        idle_mailbox_rows = idle_mailbox_rows + 1;
+        if (dut.output_mailbox_framing_fault_now !== 1'b0 ||
+            dut.result_guard.mailbox_input_fault !== dut.output_mailbox_fault ||
+            dut.result_guard.idle_mailbox_fault_now !== dut.output_mailbox_fault)
+          $fatal(1, "IDLE_MAILBOX_SERVICE_PREMISE_MISSING");
+      end
+      if (dut.result_guard.awaiting_ack) begin
+        idle_mailbox_ack_rows = idle_mailbox_ack_rows + 1;
+        if (dut.result_guard.active !== 1'b0)
+          $fatal(1, "IDLE_MAILBOX_SERVICE_ACK_ACTIVE");
+      end
+      if (dut.return_private_valid && dut.output_mailbox_ready) begin
+        private_write_rows = private_write_rows + 1;
+        if (dut.result_guard.active !== 1'b1)
+          $fatal(1, "IDLE_MAILBOX_SERVICE_WRITE_INACTIVE");
+      end
       if ({dut.checker_ready, dut.input_transport_ready, dut.core_input_data,
            dut.core_input_valid, dut.core_input_last, dut.certified_input_beat,
            dut.certified_input_complete, dut.checked_input_complete, dut.input_fault_now,
@@ -482,6 +503,10 @@ module tb_starlink_pss_shared_realtime_xfft_service;
       $fatal(1, "service candidate test inventory mismatch");
     if (shadow_rows < 1000 || retired_final_rows < 26 || retired_ack_rows < 26 || idle_input_rows < 26 || duplicate_phase_cases != 2)
       $fatal(1, "RETIRED_SERVICE_SHADOW_COVERAGE_MISSING");
+    if (idle_mailbox_rows < 26 || idle_mailbox_ack_rows < 26 || private_write_rows < 13312)
+      $fatal(1, "IDLE_MAILBOX_SERVICE_COVERAGE_MISSING");
+    $display("IDLE_MAILBOX_SERVICE_PREMISE_PASS actual_mailbox_and_FFT=1 inactive_and_ACK=1 private_writes_active=1 public_golden=1");
+    $display("IDLE_MAILBOX_SERVICE_COUNTS idle_rows=%0d ACK_rows=%0d private_write_rows=%0d", idle_mailbox_rows, idle_mailbox_ack_rows, private_write_rows);
     $display("RETIRED_SERVICE_SHADOW_PASS public_golden=1 original_fence=1 actual_input_checker=1 actual_FFT=1 idle_final_and_ACK_premises=1");
     $display("INPUT_CURSOR_SERVICE_SHADOW_PASS actual_mailbox_and_core=1 public_pins=1 no_internal_deposits=1");
     $display("RETIRED_SERVICE_DUPLICATE_PASS final=1 ACK=1 same_edge_veto=1 actual_checker_fault=1");

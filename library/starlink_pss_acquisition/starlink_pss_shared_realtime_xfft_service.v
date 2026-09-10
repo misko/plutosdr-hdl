@@ -145,7 +145,11 @@ module starlink_pss_shared_realtime_xfft_service (
     input_fault_fast_sync[1] || vendor_fault_now || fast_fault;
   wire final_fence = checked_input_complete && !input_guard_fault &&
     !(core_aresetn && input_job_start);
-  starlink_pss_realtime_result_guard #(.USE_PHASE_INPUT_FAULT(1)) result_guard (
+  // Current output framing faults require return_private_valid, which requires
+  // an active guard. Admission and ACK release require an inactive guard, so
+  // the sticky mailbox fault is the exact idle predicate for this real link.
+  // Keep the complete current fault below for active/final vetoes and reasons.
+  starlink_pss_realtime_result_guard #(.USE_PHASE_INPUT_FAULT(1), .USE_IDLE_MAILBOX_FAULT(1)) result_guard (
     .clk(fft_clk), .resetn(fast_running), .job_valid(job_valid), .job_ready(job_ready),
     .job_descriptor(fast_input_metadata),
     .input_bank_reserved(state == WAIT_BANK ? fast_input_valid : engine_input_reserved),
@@ -161,6 +165,7 @@ module starlink_pss_shared_realtime_xfft_service (
     .mailbox_commit_valid(return_commit_valid),
     .mailbox_input_ready(output_mailbox_ready),
     .mailbox_input_fault(output_mailbox_fault || output_mailbox_framing_fault_now),
+    .idle_mailbox_fault_now(output_mailbox_fault),
     .mailbox_input_data(return_data),
     .mailbox_input_position(return_position), .mailbox_input_last(return_last),
     .mailbox_input_metadata(return_metadata), .busy(result_busy),

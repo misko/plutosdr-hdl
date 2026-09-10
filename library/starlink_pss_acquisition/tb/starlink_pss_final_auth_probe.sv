@@ -31,6 +31,7 @@ module starlink_pss_final_auth_probe #(
   wire mailbox_input_valid, mailbox_private_valid, mailbox_commit_valid;
   wire mailbox_input_ready, mailbox_input_last, mailbox_framing_fault;
   wire mailbox_input_fault = mailbox_fault || mailbox_framing_fault;
+  wire idle_mailbox_fault_now = 1'b0; // Legacy idle mode in this measurement.
   wire [35:0] mailbox_input_data;
   wire [8:0] mailbox_input_position;
   wire [74:0] mailbox_input_metadata;

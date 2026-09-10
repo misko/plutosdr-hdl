@@ -27,7 +27,13 @@ module starlink_pss_realtime_result_guard #(
   // The supplied predicate must equal external_fault_now | both input
   // certificates in these phases while the epoch is not already quarantined.
   // Default callers retain the independent, unrestricted input checks.
-  parameter integer USE_PHASE_INPUT_FAULT = 0
+  parameter integer USE_PHASE_INPUT_FAULT = 0,
+  // Opt in only for a connected private-write mailbox whose current framing
+  // fault requires this guard's mailbox_private_valid. The supplied idle
+  // predicate must equal mailbox_input_fault while inactive, including ACK
+  // drain. Sticky mailbox errors must remain included. Active/final checks
+  // and complete fault-reason accumulation always use mailbox_input_fault.
+  parameter integer USE_IDLE_MAILBOX_FAULT = 0
 ) (
   input wire clk,
   input wire resetn,
@@ -55,6 +61,7 @@ module starlink_pss_realtime_result_guard #(
   output wire mailbox_commit_valid,
   input wire mailbox_input_ready,
   input wire mailbox_input_fault,
+  input wire idle_mailbox_fault_now,
   output wire [35:0] mailbox_input_data,
   output wire [8:0] mailbox_input_position,
   output wire mailbox_input_last,
@@ -66,6 +73,8 @@ module starlink_pss_realtime_result_guard #(
 );
   localparam integer AGE_WIDTH = $clog2(WATCHDOG_CYCLES);
   initial begin
+    if (USE_IDLE_MAILBOX_FAULT !== 0 && USE_IDLE_MAILBOX_FAULT !== 1)
+      $fatal(1, "USE_IDLE_MAILBOX_FAULT must be zero or one");
     if (USE_PHASE_INPUT_FAULT != 0 && USE_PHASE_INPUT_FAULT != 1)
       $fatal(1, "USE_PHASE_INPUT_FAULT must be zero or one");
     if (WATCHDOG_CYCLES < 2 || WATCHDOG_CYCLES > 1048576)
@@ -136,7 +145,8 @@ module starlink_pss_realtime_result_guard #(
   // validation off this path to the caller's admission/state controls.
   wire phase_input_fault = USE_PHASE_INPUT_FAULT ? phase_input_fault_now :
     (external_fault_now || certified_input_beat || certified_input_complete);
-  wire idle_fault_now = phase_input_fault || mailbox_input_fault ||
+  wire idle_mailbox_fault = USE_IDLE_MAILBOX_FAULT ? idle_mailbox_fault_now : mailbox_input_fault;
+  wire idle_fault_now = phase_input_fault || idle_mailbox_fault ||
     core_event_frame_started || core_status_tvalid || core_output_tvalid;
   assign job_ready = resetn && !protocol_fault && !idle_fault_now &&
     !active && !awaiting_ack && !return_valid &&
