@@ -1,0 +1,154 @@
+F..................F................F........F........F................. [ 78%]
+.ss...............ss                                                     [100%]
+=================================== FAILURES ===================================
+______ test_exact_four_module_inverse_and_three_unmodified_frozen_mirrors ______
+
+    def test_exact_four_module_inverse_and_three_unmodified_frozen_mirrors():
+        for kind in KINDS:
+            name = f"starlink_pss_{kind}"
+            baseline = frozen(f"{name}.v")
+            mirror = (TB / f"{name}_7ee87258_golden.v").read_text()
+            for module in KINDS:
+                mirror = mirror.replace(f"starlink_pss_{module}_7ee87258_golden", f"starlink_pss_{module}")
+            assert mirror == baseline
+>           assert restore_payload_module((ACQ / f"{name}.v").read_text(), kind) == tokens(baseline)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_payload_bubbles.py:38: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/starlink_oracle/payload_bubble_contract.py:25: in restore_payload_module
+    source = once(source, tokens('''initial begin
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+source = '`timescale1ns/1psmodulestarlink_pss_forward_kernel_join#(parameterKERNEL_ROM_FILE="upper_edge_pss_kernel_q23.mem",par...ndelseif(PRIVATE_PAYLOAD_BUBBLES?input_ready:input_accept)begincaptured_i<=input_i;captured_q<=input_q;endendendmodule'
+new = 'initialbeginif(PRIVATE_PAYLOAD_BUBBLES!=0&&PRIVATE_PAYLOAD_BUBBLES!=1)$fatal(1,"PRIVATE_PAYLOAD_BUBBLESmustbezeroorone");end'
+old = ''
+
+    def once(source, new, old=""):
+>       assert source.count(new) == 1, new
+               ^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: initialbeginif(PRIVATE_PAYLOAD_BUBBLES!=0&&PRIVATE_PAYLOAD_BUBBLES!=1)$fatal(1,"PRIVATE_PAYLOAD_BUBBLESmustbezeroorone");end
+
+tests/starlink_oracle/payload_bubble_contract.py:7: AssertionError
+________ test_literal_whole_guard_wrapper_and_frozen_old_guard_inverse _________
+
+    def test_literal_whole_guard_wrapper_and_frozen_old_guard_inverse():
+        guard = "starlink_pss_realtime_result_guard"
+        assert restore_forward_guard((ACQ / f"{guard}.v").read_text()) == frozen(f"{guard}.v")
+        assert (TB / f"{guard}_ce6a885e_golden.v").read_text().replace(
+            f"module {guard}_ce6a885e_golden #(", f"module {guard} #(") == frozen(f"{guard}.v")
+        wrapper = "starlink_pss_fft_bank_owned_slice.v"
+>       assert restore_forward_wrapper((ACQ / wrapper).read_text()) == frozen(wrapper)
+E       AssertionError: assert '// SPDX-Lice...\nendmodule\n' == '// SPDX-Lice...\nendmodule\n'
+E         
+E         Skipping 739 identical leading characters in diff, use -v to show
+E         - DULING = 0
+E         + DULING = 0,
+E         ?           +
+E         +   parameter integer DISTRIBUTED_FAST_FAULT = 0,
+E         +   parameter integer PRIVATE_NEXT_START_SCRATCH = 0...
+E         
+E         ...Full output truncated (468 lines hidden), use '-vv' to show
+
+tests/starlink_oracle/test_forward_retirement.py:35: AssertionError
+___________ test_balanced_entire_guard_delta_and_immutable_reference ___________
+
+    def test_balanced_entire_guard_delta_and_immutable_reference():
+        name = "starlink_pss_realtime_input_guard.v"
+        baseline = frozen(name)
+        golden = (ACQ / "tb/starlink_pss_input_guard_d99c251e_golden.v").read_text()
+        assert golden.replace("starlink_pss_input_guard_d99c251e_golden",
+            "starlink_pss_realtime_input_guard") == baseline
+        assert restore_legacy_identity_guard((ACQ / name).read_text()) == tokens(baseline)
+        wrapper = "starlink_pss_fft_bank_owned_slice.v"
+>       candidate = restore_held_preflight_wrapper((ACQ / wrapper).read_text())
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_balanced_identity.py:47: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/starlink_oracle/preflight_identity_contract.py:39: in restore_held_preflight_wrapper
+    source = restore_payload_wrapper(source)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/starlink_oracle/payload_bubble_contract.py:13: in restore_payload_wrapper
+    source = once(source,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+source = '// SPDX-License-Identifier: GPL-2.0\n// Experimental three-bank, one-core FFT/product/IFFT island. No receiver use.\n...cted),\n    .event_tlast_missing(event_last_missing), .event_data_in_channel_halt(event_input_halt)\n  );\nendmodule\n'
+new = '.DATA_WIDTH(18),\n    .PRIVATE_PAYLOAD_BUBBLES(REGISTERED_SCHEDULING),\n    .BALANCED_BLOCK_IDENTITY_EQ(REGISTERED_SCHEDULING)) joiner'
+old = '.DATA_WIDTH(18)) joiner'
+
+    def once(source, new, old=""):
+>       assert source.count(new) == 1, new
+               ^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: .DATA_WIDTH(18),
+E           .PRIVATE_PAYLOAD_BUBBLES(REGISTERED_SCHEDULING),
+E           .BALANCED_BLOCK_IDENTITY_EQ(REGISTERED_SCHEDULING)) joiner
+
+tests/starlink_oracle/payload_bubble_contract.py:7: AssertionError
+_______ test_entire_preflight_delta_preserves_all_other_rtl_and_default ________
+
+    def test_entire_preflight_delta_preserves_all_other_rtl_and_default():
+>       assert restore_held_preflight_wrapper((ACQ / NAME).read_text()) == frozen()
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_preflight_identity.py:34: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/starlink_oracle/preflight_identity_contract.py:39: in restore_held_preflight_wrapper
+    source = restore_payload_wrapper(source)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/starlink_oracle/payload_bubble_contract.py:13: in restore_payload_wrapper
+    source = once(source,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+source = '// SPDX-License-Identifier: GPL-2.0\n// Experimental three-bank, one-core FFT/product/IFFT island. No receiver use.\n...cted),\n    .event_tlast_missing(event_last_missing), .event_data_in_channel_halt(event_input_halt)\n  );\nendmodule\n'
+new = '.DATA_WIDTH(18),\n    .PRIVATE_PAYLOAD_BUBBLES(REGISTERED_SCHEDULING),\n    .BALANCED_BLOCK_IDENTITY_EQ(REGISTERED_SCHEDULING)) joiner'
+old = '.DATA_WIDTH(18)) joiner'
+
+    def once(source, new, old=""):
+>       assert source.count(new) == 1, new
+               ^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: .DATA_WIDTH(18),
+E           .PRIVATE_PAYLOAD_BUBBLES(REGISTERED_SCHEDULING),
+E           .BALANCED_BLOCK_IDENTITY_EQ(REGISTERED_SCHEDULING)) joiner
+
+tests/starlink_oracle/payload_bubble_contract.py:7: AssertionError
+__________________ test_held_phase_is_exact_tuple_only_delta ___________________
+
+    def test_held_phase_is_exact_tuple_only_delta():
+        name = "starlink_pss_fft_bank_owned_slice.v"
+        baseline = subprocess.run([
+            "git", "-C", str(HDL), "show", f"{BASELINE}:library/starlink_pss_acquisition/{name}",
+        ], text=True, capture_output=True, check=True, timeout=10).stdout
+>       candidate = restore_held_preflight_wrapper((ACQ / name).read_text())
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_held_phase_input.py:19: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+tests/starlink_oracle/preflight_identity_contract.py:39: in restore_held_preflight_wrapper
+    source = restore_payload_wrapper(source)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests/starlink_oracle/payload_bubble_contract.py:13: in restore_payload_wrapper
+    source = once(source,
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+source = '// SPDX-License-Identifier: GPL-2.0\n// Experimental three-bank, one-core FFT/product/IFFT island. No receiver use.\n...cted),\n    .event_tlast_missing(event_last_missing), .event_data_in_channel_halt(event_input_halt)\n  );\nendmodule\n'
+new = '.DATA_WIDTH(18),\n    .PRIVATE_PAYLOAD_BUBBLES(REGISTERED_SCHEDULING),\n    .BALANCED_BLOCK_IDENTITY_EQ(REGISTERED_SCHEDULING)) joiner'
+old = '.DATA_WIDTH(18)) joiner'
+
+    def once(source, new, old=""):
+>       assert source.count(new) == 1, new
+               ^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: .DATA_WIDTH(18),
+E           .PRIVATE_PAYLOAD_BUBBLES(REGISTERED_SCHEDULING),
+E           .BALANCED_BLOCK_IDENTITY_EQ(REGISTERED_SCHEDULING)) joiner
+
+tests/starlink_oracle/payload_bubble_contract.py:7: AssertionError
+=========================== short test summary info ============================
+SKIPPED [2] tests/starlink_oracle/test_phase_input_contract.py:130: explicit actual Vivado phase-mode measurement required
+SKIPPED [2] tests/starlink_oracle/test_realtime_occupancy.py:79: explicit actual Vivado guard measurement required
+FAILED tests/starlink_oracle/test_payload_bubbles.py::test_exact_four_module_inverse_and_three_unmodified_frozen_mirrors
+FAILED tests/starlink_oracle/test_forward_retirement.py::test_literal_whole_guard_wrapper_and_frozen_old_guard_inverse
+FAILED tests/starlink_oracle/test_balanced_identity.py::test_balanced_entire_guard_delta_and_immutable_reference
+FAILED tests/starlink_oracle/test_preflight_identity.py::test_entire_preflight_delta_preserves_all_other_rtl_and_default
+FAILED tests/starlink_oracle/test_held_phase_input.py::test_held_phase_is_exact_tuple_only_delta
+5 failed, 83 passed, 4 skipped in 21.03s

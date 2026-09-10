@@ -1,0 +1,154 @@
+diff --git a/library/starlink_pss_acquisition/starlink_pss_fft_bank_owned_slice.v b/library/starlink_pss_acquisition/starlink_pss_fft_bank_owned_slice.v
+index ad7b0bc3..a81c2266 100644
+--- a/library/starlink_pss_acquisition/starlink_pss_fft_bank_owned_slice.v
++++ b/library/starlink_pss_acquisition/starlink_pss_fft_bank_owned_slice.v
+@@ -9,7 +9,9 @@
+ `timescale 1ns/1ps
+ module starlink_pss_fft_bank_owned_slice #(
+   parameter KERNEL_ROM_FILE = "upper_edge_pss_kernel_q17.mem",
+-  parameter integer REGISTERED_SCHEDULING = 0
++  parameter integer REGISTERED_SCHEDULING = 0,
++  parameter integer DISTRIBUTED_FAST_FAULT = 0,
++  parameter integer PRIVATE_NEXT_START_SCRATCH = 0
+ ) (
+   input wire clk, resetn, fft_clk, fft_resetn,
+   input wire input_valid,
+@@ -26,6 +28,12 @@ module starlink_pss_fft_bank_owned_slice #(
+   output wire [74:0] output_metadata,
+   output wire fault
+ );
++  initial begin
++    if (DISTRIBUTED_FAST_FAULT !== 0 && DISTRIBUTED_FAST_FAULT !== 1)
++      $fatal(1, "DISTRIBUTED_FAST_FAULT must be zero or one");
++    if (PRIVATE_NEXT_START_SCRATCH !== 0 && PRIVATE_NEXT_START_SCRATCH !== 1)
++      $fatal(1, "PRIVATE_NEXT_START_SCRATCH must be zero or one");
++  end
+   (* ASYNC_REG = "TRUE" *) reg [1:0] slow_reset_fast, fast_reset_fast;
+   (* ASYNC_REG = "TRUE" *) reg [1:0] slow_reset_slow, fast_reset_slow;
+   always @(posedge fft_clk or negedge resetn)
+@@ -257,7 +265,8 @@ module starlink_pss_fft_bank_owned_slice #(
+   // The final result is admitted ONLY on the original guard's qualified commit.
+   starlink_pss_forward_kernel_join #(.KERNEL_ROM_FILE(KERNEL_ROM_FILE), .DATA_WIDTH(18),
+     .PRIVATE_PAYLOAD_BUBBLES(REGISTERED_SCHEDULING),
+-    .BALANCED_BLOCK_IDENTITY_EQ(REGISTERED_SCHEDULING)) joiner (
++    .BALANCED_BLOCK_IDENTITY_EQ(REGISTERED_SCHEDULING),
++    .PRIVATE_NEXT_START_SCRATCH(PRIVATE_NEXT_START_SCRATCH)) joiner (
+     .clk(fft_clk), .resetn(fast_running), .flush(1'b0),
+     // Match the guard's exact retirement event, including a held final word.
+     // An owned bank should remain ready, but a readiness fault/stall must never
+@@ -338,9 +347,29 @@ module starlink_pss_fft_bank_owned_slice #(
+         product_consume_generation <= !product_consume_generation;
+     end
+   end
+-  always @(posedge fft_clk)
+-    if (!fast_running) fast_fault <= 0;
+-    else if (any_fast_fault) fast_fault <= 1;
++  // BEGIN DISTRIBUTED_FAST_FAULT: the exact scalar recurrence, factored at Q.
++  // Every non-self term of any_fast_fault is present. Raw publication fences
++  // and detailed reasons remain untouched; this does NOT register their OR
++  // one cycle later. Per-bit if semantics also retain the scalar's X behavior:
++  // only a definitely asserted cause sets a sticky bit.
++  generate if (DISTRIBUTED_FAST_FAULT) begin : distributed_fast_fault
++    wire [11:0] causes_now = {preparation_fault_now, output_bank_fault,
++      result_fault, handoff_fault_now, product_bank_framing_fault_now,
++      product_bank_fault, product_overflow, kernel_fault, vendor_fault_now,
++      source_fault_fast[1], input_guard_fault, input_fault_now};
++    (* keep = "true" *) reg [11:0] cause_sticky;
++    for (genvar cause_index = 0; cause_index < 12; cause_index = cause_index + 1) begin : causes
++      always @(posedge fft_clk)
++        if (!fast_running) cause_sticky[cause_index] <= 0;
++        else if (causes_now[cause_index]) cause_sticky[cause_index] <= 1;
++    end
++    always @* fast_fault = |cause_sticky;
++  end else begin : scalar_fast_fault
++    always @(posedge fft_clk)
++      if (!fast_running) fast_fault <= 0;
++      else if (any_fast_fault) fast_fault <= 1;
++  end endgenerate
++  // END DISTRIBUTED_FAST_FAULT
+   generate if (!REGISTERED_SCHEDULING) begin : original_scheduling
+   always @(posedge fft_clk) begin
+     if (!fast_running) begin
+diff --git a/library/starlink_pss_acquisition/starlink_pss_forward_kernel_join.v b/library/starlink_pss_acquisition/starlink_pss_forward_kernel_join.v
+index 75f1aa2f..e4d410c1 100644
+--- a/library/starlink_pss_acquisition/starlink_pss_forward_kernel_join.v
++++ b/library/starlink_pss_acquisition/starlink_pss_forward_kernel_join.v
+@@ -12,7 +12,8 @@ module starlink_pss_forward_kernel_join #(
+   parameter KERNEL_ROM_FILE = "upper_edge_pss_kernel_q23.mem",
+   parameter integer DATA_WIDTH = 24,
+   parameter integer PRIVATE_PAYLOAD_BUBBLES = 0,
+-  parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0
++  parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0,
++  parameter integer PRIVATE_NEXT_START_SCRATCH = 0
+ ) (
+   input  wire                    clk,
+   input  wire                    resetn,
+@@ -52,6 +53,8 @@ module starlink_pss_forward_kernel_join #(
+   wire input_accept;
+ 
+   initial begin
++    if (PRIVATE_NEXT_START_SCRATCH !== 0 && PRIVATE_NEXT_START_SCRATCH !== 1)
++      $fatal(1, "PRIVATE_NEXT_START_SCRATCH must be zero or one");
+     if (PRIVATE_PAYLOAD_BUBBLES != 0 && PRIVATE_PAYLOAD_BUBBLES != 1)
+       $fatal(1, "PRIVATE_PAYLOAD_BUBBLES must be zero or one");
+   end
+@@ -63,7 +66,8 @@ module starlink_pss_forward_kernel_join #(
+   starlink_pss_kernel_rom #(
+     .ROM_FILE  (KERNEL_ROM_FILE),
+     .DATA_WIDTH(DATA_WIDTH),
+-    .BALANCED_BLOCK_IDENTITY_EQ(BALANCED_BLOCK_IDENTITY_EQ)
++    .BALANCED_BLOCK_IDENTITY_EQ(BALANCED_BLOCK_IDENTITY_EQ),
++    .PRIVATE_NEXT_START_SCRATCH(PRIVATE_NEXT_START_SCRATCH)
+   ) kernel_rom (
+     .clk                       (clk),
+     .resetn                    (resetn),
+diff --git a/library/starlink_pss_acquisition/starlink_pss_kernel_rom.v b/library/starlink_pss_acquisition/starlink_pss_kernel_rom.v
+index e67934ef..8a418329 100644
+--- a/library/starlink_pss_acquisition/starlink_pss_kernel_rom.v
++++ b/library/starlink_pss_acquisition/starlink_pss_kernel_rom.v
+@@ -12,7 +12,8 @@
+ module starlink_pss_kernel_rom #(
+   parameter ROM_FILE = "upper_edge_pss_kernel_q23.mem",
+   parameter integer DATA_WIDTH = 24,
+-  parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0
++  parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0,
++  parameter integer PRIVATE_NEXT_START_SCRATCH = 0
+ ) (
+   input  wire                    clk,
+   input  wire                    resetn,
+@@ -82,6 +83,8 @@ module starlink_pss_kernel_rom #(
+   end endgenerate
+ 
+   initial begin
++    if (PRIVATE_NEXT_START_SCRATCH !== 0 && PRIVATE_NEXT_START_SCRATCH !== 1)
++      $fatal(1, "PRIVATE_NEXT_START_SCRATCH must be zero or one");
+     if (BALANCED_BLOCK_IDENTITY_EQ != 0 && BALANCED_BLOCK_IDENTITY_EQ != 1)
+       $fatal(1, "BALANCED_BLOCK_IDENTITY_EQ must be zero or one");
+     if (DATA_WIDTH < 2 || DATA_WIDTH > 24)
+@@ -132,6 +135,14 @@ module starlink_pss_kernel_rom #(
+       sequence_error_pulse <= 1'b0;
+       metadata_error_pulse <= 1'b0;
+ 
++      // BEGIN PRIVATE_NEXT_START_SCRATCH: only this unused-at-bin511 value
++      // may speculate. A healthy accepted final rewrites it on the same edge
++      // before index0 can consult it; a malformed final quarantines instead.
++      // No input acceptance, checker, history flag or public payload changes.
++      if (PRIVATE_NEXT_START_SCRATCH && input_ready && expected_bin_index == 9'd511)
++        expected_next_block_start <= input_block_start_index + VALID_RESULTS_PER_BLOCK;
++      // END PRIVATE_NEXT_START_SCRATCH
++
+       if (output_stage_ready)
+         output_valid <= 1'b0;
+ 
+@@ -156,8 +167,9 @@ module starlink_pss_kernel_rom #(
+ 
+           if (expected_bin_index == 9'd511) begin
+             expected_bin_index <= 0;
+-            expected_next_block_start <= input_block_start_index +
+-                                         VALID_RESULTS_PER_BLOCK;
++            if (!PRIVATE_NEXT_START_SCRATCH)
++              expected_next_block_start <= input_block_start_index +
++                                           VALID_RESULTS_PER_BLOCK;
+             have_previous_block <= 1'b1;
+             input_block_complete_pulse <= 1'b1;
+           end else begin
