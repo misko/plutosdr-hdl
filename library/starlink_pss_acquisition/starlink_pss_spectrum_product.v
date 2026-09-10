@@ -10,7 +10,8 @@
 `timescale 1ns/1ps
 
 module starlink_pss_spectrum_product #(
-  parameter integer DATA_WIDTH = 24
+  parameter integer DATA_WIDTH = 24,
+  parameter integer BOUNDARY_ROUND_SAT = 0
 ) (
   input  wire                 clk,
   input  wire                 resetn,
@@ -79,8 +80,16 @@ module starlink_pss_spectrum_product #(
   assign sum_stage_ready = !sum_valid || output_stage_ready;
   assign product_stage_ready = !product_valid || sum_stage_ready;
   assign input_ready = resetn && !flush && product_stage_ready;
-  assign rounded_real = round_and_saturate(sum_real);
-  assign rounded_imag = round_and_saturate(sum_imag);
+  // BEGIN BOUNDARY_ROUND_SAT: combinational only, no new latency or state.
+  initial begin
+    if (BOUNDARY_ROUND_SAT !== 0 && BOUNDARY_ROUND_SAT !== 1)
+      $fatal(1, "BOUNDARY_ROUND_SAT must be zero or one");
+    if (BOUNDARY_ROUND_SAT && DATA_WIDTH < 2)
+      $fatal(1, "BOUNDARY_ROUND_SAT requires DATA_WIDTH >= 2");
+  end
+  assign rounded_real = BOUNDARY_ROUND_SAT ? boundary_round_and_saturate(sum_real) : round_and_saturate(sum_real);
+  assign rounded_imag = BOUNDARY_ROUND_SAT ? boundary_round_and_saturate(sum_imag) : round_and_saturate(sum_imag);
+  // END BOUNDARY_ROUND_SAT
 
   // The MSB is the overflow flag; the remaining bits are the saturated
   // Q1.(DATA_WIDTH-1) result.
@@ -108,6 +117,39 @@ module starlink_pss_spectrum_product #(
         round_and_saturate = {1'b0, rounded[DATA_WIDTH-1:0]};
     end
   endfunction
+
+  // BEGIN BOUNDARY_ROUND_FUNCTION
+  // The floor quotient of a signed (2D+1)-bit sum shifted D is exactly D+1
+  // bits. Decide clipping BEFORE its increment, avoiding a wide add followed
+  // by wide signed comparisons. The only carry chain produces D payload bits.
+  // q > MAX iff its top two bits are 01; q < MIN iff they are 10.
+  // At q=MAX, an increment overflows. At q=MIN-1 it rescues the result.
+  // Both boundary quotients have all D-1 low bits set. This proof is for
+  // binary arithmetic data; unknown invalid payload is not a numeric result.
+  function automatic [DATA_WIDTH:0] boundary_round_and_saturate;
+    input signed [SUM_WIDTH-1:0] value;
+    reg [DATA_WIDTH:0] quotient;
+    reg increment, low_ones, positive_overflow, negative_overflow;
+    reg [DATA_WIDTH-1:0] payload;
+    begin
+      quotient = value[SUM_WIDTH-1:ROUND_SHIFT];
+      increment = value[ROUND_SHIFT-1] &&
+        (((ROUND_SHIFT > 1) && (|value[(ROUND_SHIFT > 1 ? ROUND_SHIFT-2 : 0):0])) || quotient[0]);
+      low_ones = (DATA_WIDTH == 1) || (&quotient[(DATA_WIDTH > 1 ? DATA_WIDTH-2 : 0):0]);
+      positive_overflow = !quotient[DATA_WIDTH] &&
+        (quotient[DATA_WIDTH-1] || (low_ones && increment));
+      negative_overflow = quotient[DATA_WIDTH] &&
+        !quotient[DATA_WIDTH-1] && !(low_ones && increment);
+      payload = quotient[DATA_WIDTH-1:0] + increment;
+      if (positive_overflow)
+        boundary_round_and_saturate = {1'b1, 1'b0, {(DATA_WIDTH-1){1'b1}}};
+      else if (negative_overflow)
+        boundary_round_and_saturate = {1'b1, 1'b1, {(DATA_WIDTH-1){1'b0}}};
+      else
+        boundary_round_and_saturate = {1'b0, payload};
+    end
+  endfunction
+  // END BOUNDARY_ROUND_FUNCTION
 
   always @(posedge clk) begin
     if (!resetn || flush) begin
