@@ -21,8 +21,8 @@ set_param general.maxThreads 2
 read_verilog starlink_pss_spectrum_product.v
 synth_design -mode out_of_context -flatten_hierarchy rebuilt \
   -directive AreaOptimized_high -top starlink_pss_spectrum_product \
-  -part xc7z010clg400-1 -generic DATA_WIDTH=18 \
-  -generic BOUNDARY_ROUND_SAT=$option_value
+  -part xc7z010clg400-1 -generic [list DATA_WIDTH=18 BOUNDARY_ROUND_SAT=$option_value]
+if {[llength [get_ports {input_i[*]}]] != 18} { error "wrong synthesized component width" }
 # Logical OOC port budgets, identical to the old product study except for the
 # explicitly tested175MHz clock. These are NOT measured ADC/board IO delays.
 create_clock -name product_clk -period 5.714 [get_ports clk]
