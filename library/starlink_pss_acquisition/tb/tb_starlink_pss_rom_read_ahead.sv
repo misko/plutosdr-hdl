@@ -57,7 +57,7 @@ module tb_starlink_pss_rom_read_ahead;
       tick(); tick(); resetn=1; tick();
     end
   endtask
-  task block(input [63:0] base, input [4:0] exponent);
+  task block(input [63:0] base, input [4:0] exponent, input integer bubbles);
     integer n;
     begin
       for(n=0;n<512;n=n+1) begin
@@ -66,14 +66,16 @@ module tb_starlink_pss_rom_read_ahead;
         output_ready=1; tick();
         if(candidate.output_valid!==1 || candidate.output_kernel_word!==words[n])
           $fatal(1,"accepted coefficient latency/value mismatch");
-        if(n%7==0) begin
+        if(bubbles && n%7==0) begin
           output_ready=0; input_valid=1; input_bin_index=~n;
           input_block_start_index=~base; tick(); tick(); stalls=stalls+2;
         end
         // Reading a bubble must not change the last visible coefficient.
-        output_ready=1; input_valid=0; input_bin_index=n^9'h155;
-        tick();
-        if(candidate.output_kernel_word!==words[n]) $fatal(1,"invalid coefficient changed");
+        if(bubbles) begin
+          output_ready=1; input_valid=0; input_bin_index=n^9'h155;
+          tick();
+          if(candidate.output_kernel_word!==words[n]) $fatal(1,"invalid coefficient changed");
+        end
       end
       healthy=healthy+1;
     end
@@ -82,7 +84,7 @@ module tb_starlink_pss_rom_read_ahead;
   initial begin
     if($bits(`VIEW(original))>1024) $fatal(1,"comparison truncation");
     $readmemh("kernel.mem",words);
-    #1; reset_epoch(); block(64'h123456780,5'd3); block(64'h12345693f,5'd7);
+    #1; reset_epoch(); block(64'h123456780,5'd3,0); block(64'h12345693f,5'd7,1);
     for(bit_index=0;bit_index<64;bit_index=bit_index+1) begin
       reset_epoch(); output_ready=1; input_valid=1; input_bin_index=0;
       input_last=0; input_block_start_index=64'h123456780; input_block_exponent=3; tick();
@@ -117,7 +119,7 @@ module tb_starlink_pss_rom_read_ahead;
       endcase
       tick();
     end
-    reset_epoch(); block(64'h2468,5'd2); flush=1; tick(); flush=0; tick();
+    reset_epoch(); block(64'h2468,5'd2,1); flush=1; tick(); flush=0; tick();
     if(healthy!=3 || faults!=64 || unknowns!=2 || stalls==0)
       $fatal(1,"missing coverage");
     $display("ROM_READ_AHEAD_OFFLINE_PASS width=%0d balanced=%0d scratch=%0d healthy=%0d faults=%0d unknown_metadata=%0d stalls=%0d cycles=%0d checks=%0d",WIDTH,BALANCED,SCRATCH,healthy,faults,unknowns,stalls,cycles,checks);
