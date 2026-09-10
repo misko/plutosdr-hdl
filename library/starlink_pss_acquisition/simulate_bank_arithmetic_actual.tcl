@@ -44,7 +44,7 @@ close_sim
 if {[lindex [exec sha256sum $wrapper] 0] ne $wrapper_hash} { error "generated FFT wrapper changed during run" }
 set channel [open [file join $output_dir generated_ip_after.txt] w]
 puts $channel [exec sha256sum $wrapper]; close $channel
-exec {*}$python_command results $output_dir > [file join $output_dir results.json]
+set result_json [exec {*}$python_command results $output_dir]
 close_project
 } run_result run_options]
 # Always independently verify after the run body, including project/IP/launch,
@@ -60,4 +60,6 @@ puts $channel "after_status=$after_status\nafter_result=$after_result\nafter_opt
 close $channel
 if {$run_status} { return -options $run_options $run_result }
 if {$after_status} { return -options $after_options $after_result }
+set channel [open [file join $output_dir results.json] {WRONLY CREAT EXCL}]
+puts $channel $result_json; close $channel
 puts "BANK_ARITHMETIC_ACTUAL_CORE_VERIFIED_NO_SCORER_RTL_PHYSICAL_OR_RF_CLAIM"
