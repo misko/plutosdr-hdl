@@ -319,6 +319,17 @@ module tb_starlink_inverse_sealed_guard;
         $fatal(1,"FINAL_READ_STALL_NOT_RETAINED");
       $display("FIRST_FINAL_SLOW_STALL first_cycles=23 final_cycles=29");
       drain_job();
+    end else if(CASE==12) begin
+      start_job(); send_status(); output_ready=1;
+      wait(lease_release); @(negedge fft_clk);
+      if(reads[1]!=512 || !reader_ack || busy[1] || releases)
+        $fatal(1,"RELEASE_EDGE_PREMISE_NOT_REACHED");
+      external_fault=1; #0.001;
+      if(lease_release || reusable) $fatal(1,"RELEASE_EDGE_CURRENT_FAULT_NOT_VETOED");
+      repeat(8) @(negedge fft_clk);
+      if(releases || reusable || !bank_fault[1] || !guard_fault[1])
+        $fatal(1,"LATE_RELEASE_FAULT_OWNERSHIP_ESCAPED");
+      $display("RELEASE_EDGE_CURRENT_VETO reads=512 release=0 reusable=0");
     end else $fatal(1,"UNKNOWN_NONZERO_CASE");
     $display("INVERSE_GUARD_OFFLINE_PASS case=%0d phase_ps=%0d synthetic_not_fft=1",CASE,PHASE_PS);
     $finish(0);
