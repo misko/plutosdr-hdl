@@ -1,8 +1,10 @@
-`timescale 1ns/1ps
+`timescale 1ns/1fs
 
 module tb_starlink_pss_iq_to_phase_map_xfft #(
   parameter integer USE_SHARED_XFFT = 0,
-  parameter integer USE_REALTIME_XFFT = 0
+  parameter integer USE_REALTIME_XFFT = 0,
+  parameter integer USE_BANK_OWNED_XFFT = 0,
+  parameter integer FAST_MHZ = 200
 );
 
   localparam integer SAMPLE_COUNT = 1406;
@@ -14,7 +16,7 @@ module tb_starlink_pss_iq_to_phase_map_xfft #(
 
   reg clk = 1'b0;
   reg fft_clk = 1'b0;
-  initial begin #1.3; forever #2.5 fft_clk = !fft_clk; end
+  initial begin #1.3; forever #(500.0 / FAST_MHZ) fft_clk = !fft_clk; end
   reg resetn = 1'b0;
   reg enable = 1'b0;
   reg flush = 1'b0;
@@ -92,6 +94,7 @@ module tb_starlink_pss_iq_to_phase_map_xfft #(
   starlink_pss_iq_to_phase_map #(
     .USE_SHARED_XFFT         (USE_SHARED_XFFT),
     .USE_REALTIME_XFFT       (USE_REALTIME_XFFT),
+    .USE_BANK_OWNED_XFFT     (USE_BANK_OWNED_XFFT),
     .PHASE_BINS              (PHASE_BINS),
     .PHASE_INDEX_WIDTH       (PHASE_INDEX_WIDTH),
     .TILE_FRAMES             (BLOCK_COUNT),
@@ -228,7 +231,16 @@ module tb_starlink_pss_iq_to_phase_map_xfft #(
   generate if (USE_SHARED_XFFT) begin : shared_fault_test
     // Keep the real service boundary in the selected branch. Realtime error
     // injection exercises the same raw vendor veto as the isolated core tests.
-    if (USE_REALTIME_XFFT) begin : realtime_fault
+    if (USE_BANK_OWNED_XFFT) begin : bank_fault
+      initial begin
+        wait (start_fault_test);
+        wait (accepted_score_count > SCORE_COUNT + 100);
+        @(negedge fft_clk);
+        force dut.bank_transform.iq_to_score.island.event_last_missing = 1'b1;
+        repeat (20) @(negedge fft_clk);
+        release dut.bank_transform.iq_to_score.island.event_last_missing;
+      end
+    end else if (USE_REALTIME_XFFT) begin : realtime_fault
       initial begin
         wait (start_fault_test);
         wait (accepted_score_count > SCORE_COUNT + 100);
@@ -373,6 +385,8 @@ module tb_starlink_pss_iq_to_phase_map_xfft #(
     end
     if (USE_REALTIME_XFFT)
       $display("REALTIME_PHASE_MAP_PASS exact_scores=1341 exact_map_reads=447 reduced_geometry_only=1 CAPACITY_AND_PHYSICAL_UNQUALIFIED");
+    if (USE_BANK_OWNED_XFFT)
+      $display("BANK_PHASE_MAP_PASS exact_scores=1341 exact_map_reads=447 partial_fault_abort=1 service_health_bit=14 fast_mhz=%0d REDUCED_GEOMETRY_NOT_RECEIVER", FAST_MHZ);
     $finish;
   end
 

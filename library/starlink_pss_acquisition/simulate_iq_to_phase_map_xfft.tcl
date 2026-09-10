@@ -1,16 +1,29 @@
 # Vivado 2022.2 behavioral gate for the shared real XFFT through the phase map.
 # Usage: vivado -mode batch -source simulate_iq_to_phase_map_xfft.tcl \
 #        -tclargs OUTPUT VECTOR_DIRECTORY ?USE_SHARED_XFFT=0|1? ?USE_REALTIME_XFFT=0|1?
+#        ?USE_BANK_OWNED_XFFT=0|1? ?FAST_MHZ=175|200?
 
-if {$argc < 2 || $argc > 4} {
-  error "expected output and vector directories, optional USE_SHARED_XFFT=0|1 USE_REALTIME_XFFT=0|1"
+if {$argc < 2 || $argc > 6} {
+  error "expected output and vectors, optional USE_SHARED_XFFT=0|1 USE_REALTIME_XFFT=0|1 USE_BANK_OWNED_XFFT=0|1 FAST_MHZ=175|200"
 }
 set use_shared_xfft 0
 set use_realtime_xfft 0
+set use_bank_owned_xfft 0
+set fast_mhz 200
 if {$argc >= 3} { set use_shared_xfft [lindex $argv 2] }
-if {$argc == 4} { set use_realtime_xfft [lindex $argv 3] }
+if {$argc >= 4} { set use_realtime_xfft [lindex $argv 3] }
+if {$argc >= 5} { set use_bank_owned_xfft [lindex $argv 4] }
+if {$argc == 6} { set fast_mhz [lindex $argv 5] }
 if {$use_shared_xfft ni {0 1}} { error "USE_SHARED_XFFT must be 0 or 1" }
 if {$use_realtime_xfft ni {0 1}} { error "USE_REALTIME_XFFT must be 0 or 1" }
+if {$use_bank_owned_xfft ni {0 1}} { error "USE_BANK_OWNED_XFFT must be 0 or 1" }
+if {$fast_mhz ni {175 200}} { error "FAST_MHZ must be 175 or 200" }
+if {$use_bank_owned_xfft && (!$use_shared_xfft || !$use_realtime_xfft)} {
+  error "bank-owned phase-map simulation requires explicit shared realtime composition"
+}
+if {!$use_bank_owned_xfft && $fast_mhz != 200} {
+  error "alternate simulation clock requires explicit bank-owned composition"
+}
 if {$use_realtime_xfft && !$use_shared_xfft} {
   error "realtime phase-map simulation requires explicit shared composition"
 }
@@ -60,6 +73,9 @@ set source_dir $script_dir
 if {$use_realtime_xfft} {
   lappend rtl_sources starlink_pss_shared_realtime_xfft_service.v \
     starlink_pss_realtime_input_guard.v starlink_pss_realtime_result_guard.v
+}
+if {$use_bank_owned_xfft} {
+  lappend rtl_sources starlink_pss_iq_to_score_bank_owned.v starlink_pss_fft_bank_owned_slice.v
 }
 if {$use_shared_xfft} {
   set helpers {verify_realtime_probe_result.tcl}
@@ -150,12 +166,13 @@ foreach vector_file $vector_names {
 set_property file_type {Memory Initialization Files} \
   [get_files -of_objects [get_filesets sim_1] *.mem]
 set_property top tb_starlink_pss_iq_to_phase_map_xfft [get_filesets sim_1]
-set_property generic "USE_SHARED_XFFT=$use_shared_xfft USE_REALTIME_XFFT=$use_realtime_xfft" [get_filesets sim_1]
+set_property generic "USE_SHARED_XFFT=$use_shared_xfft USE_REALTIME_XFFT=$use_realtime_xfft USE_BANK_OWNED_XFFT=$use_bank_owned_xfft FAST_MHZ=$fast_mhz" [get_filesets sim_1]
 set_property xsim.simulate.runtime {all} [get_filesets sim_1]
 if {$use_shared_xfft} {
   set channel [open [file join $output_dir scope.txt] w]
   puts $channel "scope=shared_phase_map_reduced_geometry_3x447_not_receiver"
-  puts $channel "actual_clocks_ns=100MHz:10,200MHz:5 source_msps=15"
+  puts $channel "slow_clock_MHz=100 fast_clock_MHz=$fast_mhz source_msps=15"
+  puts $channel "use_bank_owned_xfft=$use_bank_owned_xfft reduced_geometry_only=true"
   puts $channel "use_shared_xfft=1 use_realtime_xfft=$use_realtime_xfft psma_health_service_bit=14"
   puts $channel "production_geometry_capacity_physical_timing_CDC_qualified=false"
   puts $channel "hdl_commit=[exec git -C $script_dir rev-parse HEAD]"
@@ -172,6 +189,14 @@ if {$use_shared_xfft} {
     lappend terminal_markers \
       {REALTIME_PHASE_MAP_PASS exact_scores=1341 exact_map_reads=447 reduced_geometry_only=1 CAPACITY_AND_PHYSICAL_UNQUALIFIED} \
       {REALTIME_PHASE_MAP_FAULT_PASS partial_tile_aborted=1 service_health_bit=14}
+  }
+  set logfile [file join $project_dir ${project_name}.sim sim_1 behav xsim simulate.log]
+  set channel [open $logfile r]; set transcript [read $channel]; close $channel
+  if {[regexp -line {^IQ_TO_PHASE_MAP_XFFT_(FAIL|FAULT) } $transcript]} {
+    error "phase-map assertion failed; inspect $logfile"
+  }
+  if {$use_bank_owned_xfft} {
+    lappend terminal_markers "BANK_PHASE_MAP_PASS exact_scores=1341 exact_map_reads=447 partial_fault_abort=1 service_health_bit=14 fast_mhz=$fast_mhz REDUCED_GEOMETRY_NOT_RECEIVER"
   }
   require_realtime_probe_pass [file join $project_dir ${project_name}.sim sim_1 behav xsim simulate.log] \
     $terminal_markers \

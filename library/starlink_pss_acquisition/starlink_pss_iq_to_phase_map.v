@@ -20,7 +20,8 @@ module starlink_pss_iq_to_phase_map #(
   parameter integer MAP_SEGMENT_INDEX_WIDTH = 4,
   parameter integer USE_SHARED_XFFT = 0,
   parameter integer USE_REALTIME_XFFT = 0,
-  parameter integer ENABLE_BOUNDARY_STOP = 0
+  parameter integer ENABLE_BOUNDARY_STOP = 0,
+  parameter integer USE_BANK_OWNED_XFFT = 0
 ) (
   input  wire                          clk,
   input  wire                          resetn,
@@ -117,6 +118,10 @@ module starlink_pss_iq_to_phase_map #(
   reg map_stream_discontinuity;
 
   initial begin
+    if (USE_BANK_OWNED_XFFT != 0 && USE_BANK_OWNED_XFFT != 1)
+      $fatal(1, "USE_BANK_OWNED_XFFT must be zero or one");
+    if (USE_BANK_OWNED_XFFT && (!USE_SHARED_XFFT || !USE_REALTIME_XFFT))
+      $fatal(1, "bank-owned phase map requires explicit shared realtime composition");
     if (ENABLE_BOUNDARY_STOP != 0 && ENABLE_BOUNDARY_STOP != 1)
       $fatal(1, "ENABLE_BOUNDARY_STOP must be zero or one");
     if (ENABLE_BOUNDARY_STOP && USE_SHARED_XFFT != 1)
@@ -136,7 +141,32 @@ module starlink_pss_iq_to_phase_map #(
       scheduler_index_error_pulse || scheduler_overflow_pulse ||
       detector_fault;
 
-  generate if (USE_SHARED_XFFT) begin : shared_transform
+  // Additive experiment only: no AXI/receiver profile exposes this selector yet.
+  // Map arithmetic, publication/stop semantics and health bit14 remain shared.
+  generate if (USE_BANK_OWNED_XFFT) begin : bank_transform
+  starlink_pss_iq_to_score_bank_owned #(
+    .KERNEL_ROM_FILE(KERNEL_ROM_FILE),
+    .COEFFICIENT_ENERGY(COEFFICIENT_ENERGY)
+  ) iq_to_score (
+    .fft_clk(fft_clk), .fft_resetn(fft_resetn), .clk(clk), .resetn(resetn),
+    .enable(enable), .flush(flush), .sample_valid(sample_valid),
+    .sample_gap(sample_gap), .sample_i(sample_i), .sample_q(sample_q),
+    .sample_index(sample_index), .score_valid(raw_score_valid),
+    .score_ready(1'b1), .score_value(raw_score_value),
+    .score_start_index(raw_score_start_index),
+    .score_denominator_zero(raw_score_denominator_zero),
+    .detector_fault(detector_fault), .scheduler_gap_pulse(scheduler_gap_pulse),
+    .scheduler_index_error_pulse(scheduler_index_error_pulse),
+    .scheduler_overflow_pulse(scheduler_overflow_pulse),
+    .forward_fft_fault(forward_fft_fault), .kernel_join_fault(kernel_join_fault),
+    .product_overflow_fault(product_overflow_fault),
+    .inverse_fft_fault(inverse_fft_fault),
+    .forward_exponent_fault(forward_exponent_fault),
+    .candidate_path_fault(candidate_path_fault),
+    .candidate_fifo_stored_count(candidate_fifo_stored_count),
+    .candidate_fifo_maximum_stored_count(candidate_fifo_maximum_stored_count)
+  );
+  end else if (USE_SHARED_XFFT) begin : shared_transform
   starlink_pss_iq_to_score_shared #(
     .USE_REALTIME_XFFT (USE_REALTIME_XFFT),
     .KERNEL_ROM_FILE   (KERNEL_ROM_FILE),
