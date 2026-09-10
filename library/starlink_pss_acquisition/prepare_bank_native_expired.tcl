@@ -3,6 +3,11 @@ source [file join [file dirname [file normalize [info script]]] prepare_bank_nat
 
 proc prepare_expired_paired_bench {bench checks} {
   set bench [prepare_native_paired_bench $bench $checks]
+  # Negative-profile elaboration repair only. The healthy helper is unchanged.
+  # Move the existing initialized variable before its first instance/port use.
+  set bench [native_replace_once $bench {  reg source_enable = 0;} {}]
+  set bench [native_replace_once $bench {  reg sample_strobe = 0;} {  reg source_enable = 0;
+  reg sample_strobe = 0;}]
   return [native_replace_once $bench {module tb_starlink_bank_native_paired #(} {module tb_starlink_bank_native_expired #(}]
 }
 

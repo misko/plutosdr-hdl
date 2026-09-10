@@ -38,6 +38,32 @@
     .s_axi_awprot(3'd0), .s_axi_arprot(3'd0)
   );
 
+  task automatic native_configuration_guard;
+    // Coefficient preparation is not a captured candidate job. This whitelist
+    // is exact case matching: unknown flags/state/busy never qualify.
+    if (native_configured === 1'b0) begin
+      if (source_enable !== 1'b0 || sample_strobe !== 1'b0)
+        fail("expired configuration source is not explicitly inactive");
+      case (`EN_RAW.i_sliding_correlator.state)
+        `EN_RAW.i_sliding_correlator.STATE_IDLE:
+          if (`EN_RAW.correlator_busy !== 1'b0)
+            fail("expired idle configuration has correlator busy");
+        `EN_RAW.i_sliding_correlator.STATE_COEFFICIENT_ENERGY,
+        `EN_RAW.i_sliding_correlator.STATE_COEFFICIENT_ENERGY_FLUSH,
+        `EN_RAW.i_sliding_correlator.STATE_COEFFICIENT_CHECK,
+        `EN_RAW.i_sliding_correlator.STATE_COEFFICIENT_COPY,
+        `EN_RAW.i_sliding_correlator.STATE_COEFFICIENT_COPY_FINISH:
+          if (`EN_RAW.correlator_busy !== 1'b1)
+            fail("expired coefficient preparation lacks exact busy state");
+        default: fail("expired configuration entered non-coefficient or unknown state");
+      endcase
+    end else if (native_configured === 1'b1) begin
+      if (`EN_RAW.i_sliding_correlator.state !== `EN_RAW.i_sliding_correlator.STATE_IDLE ||
+          `EN_RAW.correlator_busy !== 1'b0)
+        fail("expired configured correlator unexpectedly busy or non-idle");
+    end else fail("expired configuration flag is unknown");
+  endtask
+
   task automatic native_empty;
     if (native_injected !== 0 || native_irq !== 0 || native.result_available !== 0 ||
         native.result_word_read !== 0 || native.result_release !== 0 ||
@@ -47,8 +73,8 @@
         native.reducer_emitted_result_count !== 0 || native.reducer_invalid_tuple_count !== 0 ||
         native.reducer_bound_error_count !== 0 || native.reducer_protocol_error_count !== 0 ||
         native.result_published_count !== 0 || native.result_overrun_count !== 0 ||
-        native.result_consumed_count !== 0 || `EN_RAW.correlator_busy !== 0) begin
-      // Diagnostic-only: retain the original predicate and fatal result.
+        native.result_consumed_count !== 0) begin
+      // Retain every unconditional no-work/fault operand and its diagnostics.
       $display("BANK_EXPIRED_EMPTY_DIAGNOSTIC time=%0t injected=%b irq=%b available=%b word_read=%b release=%b command_overrun=%0d coefficient_overrun=%0d queue_overrun=%0d engine_consumed=%0d correlator_bound=%0d reducer_processed=%0d reducer_emitted=%0d reducer_invalid=%0d reducer_bound=%0d reducer_protocol=%0d result_published=%0d result_overrun=%0d result_consumed=%0d correlator_busy=%b",
         $time, native_injected, native_irq, native.result_available,
         native.result_word_read, native.result_release,
@@ -70,7 +96,8 @@
         native.coefficient_generation_stage);
       fail("expired request unexpectedly produced work/result/IRQ or control fault");
     end
-    if (native_configured && (native.active_coefficient_valid !== 1 ||
+    native_configuration_guard();
+    if (native_configured === 1'b1 && (native.active_coefficient_valid !== 1 ||
         native.active_coefficient_generation !== NATIVE_GENERATION ||
         native.active_coefficient_energy !== 48'd1073742825))
       fail("expired epoch coefficient identity changed");
@@ -78,7 +105,8 @@
 
   always @(posedge sample_clk) if (resetn) begin
     if (`EN_SCHED.command_handshake) begin
-      if (!expired_issued || !expired_window || !source_enable || !sample_strobe ||
+      if (!expired_issued || !expired_window || native_configured !== 1'b1 ||
+          source_enable !== 1'b1 || sample_strobe !== 1'b1 ||
           `EN_SCHED.sample_is_consecutive !== 1 || `EN_SCHED.command_late !== 1 ||
           `EN_SCHED.command_lead[63] !== 1 || `EN_SCHED.command_duplicate !== 0 ||
           `EN_SCHED.command_overlap !== 0 || `EN_SCHED.last_admitted_valid !== 0 ||
@@ -125,7 +153,8 @@
     if (native.up_wreq && native.up_waddr == native.REG_CANDIDATE_CONTROL && native.up_wdata[0]) begin
       if (!expired_issued || !expired_window || native.up_wdata != 1 ||
           sample_index < FIRST + 620 || sample_index > FIRST + 624 ||
-          !source_enable || !observed_pipeline_active || !pilot_enable)
+          native_configured !== 1'b1 || source_enable !== 1'b1 || sample_strobe !== 1'b1 ||
+          !observed_pipeline_active || !pilot_enable)
         fail("expired public submission outside bounded active source epoch");
       expired_public_submits = expired_public_submits + 1;
       expired_submit_index = sample_index;
