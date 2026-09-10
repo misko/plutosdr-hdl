@@ -14,7 +14,8 @@ module starlink_pss_kernel_rom_read_ahead #(
   parameter integer DATA_WIDTH = 24,
   parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0,
   parameter integer PRIVATE_NEXT_START_SCRATCH = 0,
-  parameter integer PRIVATE_ROM_READ_AHEAD = 0
+  parameter integer PRIVATE_ROM_READ_AHEAD = 0,
+  parameter integer PRIVATE_BLOCK_METADATA_READ_AHEAD = 0
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -50,8 +51,8 @@ module starlink_pss_kernel_rom_read_ahead #(
   wire [2*DATA_WIDTH-1:0] output_kernel_word;
 
   reg [8:0] expected_bin_index;
-  reg [4:0] block_exponent;
-  reg [63:0] block_start_index;
+  wire [4:0] block_exponent;
+  wire [63:0] block_start_index;
   reg [63:0] expected_next_block_start;
   reg have_previous_block;
 
@@ -84,6 +85,8 @@ module starlink_pss_kernel_rom_read_ahead #(
   end endgenerate
 
   initial begin
+    if (PRIVATE_BLOCK_METADATA_READ_AHEAD !== 0 && PRIVATE_BLOCK_METADATA_READ_AHEAD !== 1)
+      $fatal(1, "PRIVATE_BLOCK_METADATA_READ_AHEAD must be zero or one");
     if (PRIVATE_ROM_READ_AHEAD !== 0 && PRIVATE_ROM_READ_AHEAD !== 1)
       $fatal(1, "PRIVATE_ROM_READ_AHEAD must be zero or one");
     if (PRIVATE_NEXT_START_SCRATCH !== 0 && PRIVATE_NEXT_START_SCRATCH !== 1)
@@ -111,6 +114,51 @@ module starlink_pss_kernel_rom_read_ahead #(
     (input_block_exponent != block_exponent ||
      !block_identity_equal[0]);
   assign protocol_error_now = sequence_error_now || metadata_error_now;
+
+  // The checker-visible block tuple remains exact on every cycle. Only its
+  // private capture excludes current acceptance/framing; the selector follows
+  // the original nested first-beat update, including procedural X/Z semantics.
+  generate if (PRIVATE_BLOCK_METADATA_READ_AHEAD) begin : private_block_metadata_read_ahead
+    reg [68:0] speculative_metadata;
+    reg [68:0] retained_metadata;
+    reg metadata_selected;
+    always @(posedge clk)
+      if (input_ready && at_block_start)
+        speculative_metadata <= {input_block_start_index, input_block_exponent};
+    always @(posedge clk) begin
+      if (!resetn || flush) begin
+        retained_metadata <= 0;
+        metadata_selected <= 0;
+      end else begin
+        if (metadata_selected)
+          retained_metadata <= speculative_metadata;
+        metadata_selected <= 0;
+        if (input_accept) begin
+          if (protocol_error_now)
+            metadata_selected <= 0;
+          else if (at_block_start)
+            metadata_selected <= 1;
+        end
+      end
+    end
+    assign {block_start_index, block_exponent} =
+      metadata_selected ? speculative_metadata : retained_metadata;
+  end else begin : legacy_block_metadata
+    reg [68:0] legacy_metadata;
+    always @(posedge clk) begin
+      if (!resetn || flush)
+        legacy_metadata <= 0;
+      else if (input_accept) begin
+        if (protocol_error_now) begin
+          // The original fault branch does not update block metadata.
+        end else begin
+          if (at_block_start)
+            legacy_metadata <= {input_block_start_index, input_block_exponent};
+        end
+      end
+    end
+    assign {block_start_index, block_exponent} = legacy_metadata;
+  end endgenerate
 
   // Read-ahead is private. The mux and retained word preserve every visible
   // coefficient bit, including invalid and fault cycles, without added latency.
@@ -159,8 +207,6 @@ module starlink_pss_kernel_rom_read_ahead #(
   always @(posedge clk) begin
     if (!resetn || flush) begin
       expected_bin_index <= 0;
-      block_exponent <= 0;
-      block_start_index <= 0;
       expected_next_block_start <= 0;
       have_previous_block <= 1'b0;
       output_valid <= 1'b0;
@@ -204,11 +250,6 @@ module starlink_pss_kernel_rom_read_ahead #(
           output_block_exponent <= input_block_exponent;
           output_last <= input_last;
           output_block_start_index <= input_block_start_index;
-
-          if (at_block_start) begin
-            block_exponent <= input_block_exponent;
-            block_start_index <= input_block_start_index;
-          end
 
           if (expected_bin_index == 9'd511) begin
             expected_bin_index <= 0;
