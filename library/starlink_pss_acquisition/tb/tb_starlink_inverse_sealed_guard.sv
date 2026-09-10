@@ -119,6 +119,11 @@ module tb_starlink_inverse_sealed_guard;
     fast_cycle=fast_cycle+1;
     if(fast_cycle>40000) $fatal(1,"INVERSE_GUARD_WATCHDOG");
     if(fast_running) begin
+      if((CASE==13 || CASE==14) && status_valid) begin
+        if(!core_valid || core_user[8:0]!==(CASE==13?9'd0:9'd2) || status_data!==9)
+          $fatal(1,"EARLY_STATUS_RAW_POSITION_PREMISE");
+        $display("EARLY_STATUS %0d %0d %0d data=9 raw_position=%0d",fast_cycle,epoch,job,core_user[8:0]);
+      end
       if(job_valid && job_ready[1]) begin
         admission_cycle=fast_cycle;
         $display("ADMIT %0d %0d %0d lease=%0d",fast_cycle,epoch,job,issuer.bank_lease);
@@ -194,6 +199,7 @@ module tb_starlink_inverse_sealed_guard;
       @(negedge fft_clk); core_valid=1; core_last=(pos==511);
       core_data={6'b0,18'(word_for(job,pos)>>18),6'b0,18'(word_for(job,pos))};
       core_user={3'b0,5'd9,7'b0,9'(pos)};
+      if(CASE==13 || CASE==14) begin status_valid=(pos==(CASE==13?0:2)); status_data=9; end
       @(posedge fft_clk);
     end
     @(negedge fft_clk); core_valid=0; core_last=0;
@@ -209,6 +215,7 @@ module tb_starlink_inverse_sealed_guard;
     if(takes!=512 || certs!=1 || pubs!=1 || releases!=1 || bank_fault[1] || guard_fault[1])
       $fatal(1,"NONZERO_LIFECYCLE_COUNTS");
     $display("LIFECYCLE job=%0d publication_delta=%0d ack_to_release=%0d reuse_delta=%0d takes=%0d",job,candidate_publish-original_publish,release_cycle-ack_cycle,candidate_reuse-original_reuse,takes);
+    if(CASE==13 || CASE==14) $display("EARLY_SERVICE job=%0d admit=%0d publication=%0d reader_ack=%0d release=%0d original_reuse=%0d candidate_reuse=%0d",job,admission_cycle,candidate_publish,ack_cycle,release_cycle,original_reuse,candidate_reuse);
     output_ready=0; input_closed=0;
   endtask
   task common_reset;
@@ -229,7 +236,7 @@ module tb_starlink_inverse_sealed_guard;
   initial begin
     clear_counts(); #1; resetn=1; fft_resetn=1; epoch=1;
     wait(epoch_active); repeat(3) @(negedge fft_clk);
-    if(CASE==0 || CASE==1) begin
+    if(CASE==0 || CASE==1 || CASE==13 || CASE==14) begin
       for(job=0;job<2;job=job+1) begin
         start_job();
         if(CASE==1) begin
@@ -237,7 +244,8 @@ module tb_starlink_inverse_sealed_guard;
           if(takes!=512 || pubs || certs || bank_fault[1] || guard_fault[1])
             $fatal(1,"HELD_FINAL_REWRITE_OR_EARLY_CERTIFICATE");
         end
-        send_status(); drain_job();
+        if(CASE!=13 && CASE!=14) send_status();
+        drain_job();
       end
     end else if(CASE==2) begin
       start_job();
