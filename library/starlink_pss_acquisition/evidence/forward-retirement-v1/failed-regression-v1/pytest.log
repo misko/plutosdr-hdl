@@ -1,0 +1,1142 @@
+........................................................................ [  9%]
+........................................................................ [ 18%]
+................................................FFFF.................... [ 27%]
+...............................ssss..........................ss......... [ 36%]
+...FF....FFF.....................FFFFss................................. [ 45%]
+........................................................................ [ 55%]
+......................................................................FF [ 64%]
+........................................................................ [ 73%]
+...........FFFFFFFFFFFF..FFFss.......................................... [ 82%]
+........................................................................ [ 91%]
+.................................................................        [100%]
+=================================== FAILURES ===================================
+_____ test_new_output_is_subject_to_all_existing_final_veto_rows[0-False] ______
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_new_output_is_subject_to_0')
+mutation = False, completed = 0
+
+    @pytest.mark.parametrize("mutation", [False, True])
+    @pytest.mark.parametrize("completed", [0, 1])
+    def test_new_output_is_subject_to_all_existing_final_veto_rows(tmp_path, mutation, completed):
+        top = "tb_starlink_pss_realtime_final_veto_equivalence"
+        source = (ACQ / "starlink_pss_realtime_result_guard.v").read_text()
+        if mutation:
+            source = replace_once(source,
+                "return_phase_allowed && return_last && final_qualified && !final_public_fault;",
+                "return_phase_allowed && return_last && final_qualified;")
+        runtime = tmp_path / "guard.v"
+        runtime.write_text(source)
+        bench_source = (ACQ / "tb" / f"{top}.sv").read_text()
+        if completed:
+            # Full-tuple algebraic adapter, not a claim that injected input events
+            # satisfy the bank slice's closed-input producer premise. Both wrapper
+            # scheduling modes use this same enabled final-public veto; actual-core
+            # suites independently check that producer premise and scheduling.
+            bench_source = replace_once(bench_source,
+                "wire completed_input_certified = 1'bz, completed_input_fault_now = 1'bz;",
+                "wire completed_input_certified = 1'b1;\n"
+                "wire completed_input_fault_now = external_fault_now || "
+                "certified_input_beat || certified_input_complete;")
+            bench_source = replace_once(bench_source,
+                "#(.WATCHDOG_CYCLES(WATCHDOG_CYCLES)) dut",
+                "#(.WATCHDOG_CYCLES(WATCHDOG_CYCLES), .USE_COMPLETED_INPUT_FAULT(1)) dut")
+        bench = tmp_path / f"{top}.sv"
+        bench.write_text(bench_source)
+        executable = tmp_path / "final_auth.vvp"
+        compiled = subprocess.run(["iverilog", "-g2012", "-Wall", "-s", top,
+            "-o", str(executable), str(runtime), str(bench)],
+            text=True, capture_output=True, timeout=30, check=False)
+>       assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+E       AssertionError: /tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_new_output_is_subject_to_0/tb_starlink_pss_realtime_final_veto_equivalence.sv:39: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_final_veto_equivalence', '-o', '...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_final_authorization.py:100: AssertionError
+______ test_new_output_is_subject_to_all_existing_final_veto_rows[0-True] ______
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_new_output_is_subject_to_1')
+mutation = True, completed = 0
+
+    @pytest.mark.parametrize("mutation", [False, True])
+    @pytest.mark.parametrize("completed", [0, 1])
+    def test_new_output_is_subject_to_all_existing_final_veto_rows(tmp_path, mutation, completed):
+        top = "tb_starlink_pss_realtime_final_veto_equivalence"
+        source = (ACQ / "starlink_pss_realtime_result_guard.v").read_text()
+        if mutation:
+            source = replace_once(source,
+                "return_phase_allowed && return_last && final_qualified && !final_public_fault;",
+                "return_phase_allowed && return_last && final_qualified;")
+        runtime = tmp_path / "guard.v"
+        runtime.write_text(source)
+        bench_source = (ACQ / "tb" / f"{top}.sv").read_text()
+        if completed:
+            # Full-tuple algebraic adapter, not a claim that injected input events
+            # satisfy the bank slice's closed-input producer premise. Both wrapper
+            # scheduling modes use this same enabled final-public veto; actual-core
+            # suites independently check that producer premise and scheduling.
+            bench_source = replace_once(bench_source,
+                "wire completed_input_certified = 1'bz, completed_input_fault_now = 1'bz;",
+                "wire completed_input_certified = 1'b1;\n"
+                "wire completed_input_fault_now = external_fault_now || "
+                "certified_input_beat || certified_input_complete;")
+            bench_source = replace_once(bench_source,
+                "#(.WATCHDOG_CYCLES(WATCHDOG_CYCLES)) dut",
+                "#(.WATCHDOG_CYCLES(WATCHDOG_CYCLES), .USE_COMPLETED_INPUT_FAULT(1)) dut")
+        bench = tmp_path / f"{top}.sv"
+        bench.write_text(bench_source)
+        executable = tmp_path / "final_auth.vvp"
+        compiled = subprocess.run(["iverilog", "-g2012", "-Wall", "-s", top,
+            "-o", str(executable), str(runtime), str(bench)],
+            text=True, capture_output=True, timeout=30, check=False)
+>       assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+E       AssertionError: /tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_new_output_is_subject_to_1/tb_starlink_pss_realtime_final_veto_equivalence.sv:39: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_final_veto_equivalence', '-o', '...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_final_authorization.py:100: AssertionError
+_____ test_new_output_is_subject_to_all_existing_final_veto_rows[1-False] ______
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_new_output_is_subject_to_2')
+mutation = False, completed = 1
+
+    @pytest.mark.parametrize("mutation", [False, True])
+    @pytest.mark.parametrize("completed", [0, 1])
+    def test_new_output_is_subject_to_all_existing_final_veto_rows(tmp_path, mutation, completed):
+        top = "tb_starlink_pss_realtime_final_veto_equivalence"
+        source = (ACQ / "starlink_pss_realtime_result_guard.v").read_text()
+        if mutation:
+            source = replace_once(source,
+                "return_phase_allowed && return_last && final_qualified && !final_public_fault;",
+                "return_phase_allowed && return_last && final_qualified;")
+        runtime = tmp_path / "guard.v"
+        runtime.write_text(source)
+        bench_source = (ACQ / "tb" / f"{top}.sv").read_text()
+        if completed:
+            # Full-tuple algebraic adapter, not a claim that injected input events
+            # satisfy the bank slice's closed-input producer premise. Both wrapper
+            # scheduling modes use this same enabled final-public veto; actual-core
+            # suites independently check that producer premise and scheduling.
+            bench_source = replace_once(bench_source,
+                "wire completed_input_certified = 1'bz, completed_input_fault_now = 1'bz;",
+                "wire completed_input_certified = 1'b1;\n"
+                "wire completed_input_fault_now = external_fault_now || "
+                "certified_input_beat || certified_input_complete;")
+            bench_source = replace_once(bench_source,
+                "#(.WATCHDOG_CYCLES(WATCHDOG_CYCLES)) dut",
+                "#(.WATCHDOG_CYCLES(WATCHDOG_CYCLES), .USE_COMPLETED_INPUT_FAULT(1)) dut")
+        bench = tmp_path / f"{top}.sv"
+        bench.write_text(bench_source)
+        executable = tmp_path / "final_auth.vvp"
+        compiled = subprocess.run(["iverilog", "-g2012", "-Wall", "-s", top,
+            "-o", str(executable), str(runtime), str(bench)],
+            text=True, capture_output=True, timeout=30, check=False)
+>       assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+E       AssertionError: /tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_new_output_is_subject_to_2/tb_starlink_pss_realtime_final_veto_equivalence.sv:40: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_final_veto_equivalence', '-o', '...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_final_authorization.py:100: AssertionError
+______ test_new_output_is_subject_to_all_existing_final_veto_rows[1-True] ______
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_new_output_is_subject_to_3')
+mutation = True, completed = 1
+
+    @pytest.mark.parametrize("mutation", [False, True])
+    @pytest.mark.parametrize("completed", [0, 1])
+    def test_new_output_is_subject_to_all_existing_final_veto_rows(tmp_path, mutation, completed):
+        top = "tb_starlink_pss_realtime_final_veto_equivalence"
+        source = (ACQ / "starlink_pss_realtime_result_guard.v").read_text()
+        if mutation:
+            source = replace_once(source,
+                "return_phase_allowed && return_last && final_qualified && !final_public_fault;",
+                "return_phase_allowed && return_last && final_qualified;")
+        runtime = tmp_path / "guard.v"
+        runtime.write_text(source)
+        bench_source = (ACQ / "tb" / f"{top}.sv").read_text()
+        if completed:
+            # Full-tuple algebraic adapter, not a claim that injected input events
+            # satisfy the bank slice's closed-input producer premise. Both wrapper
+            # scheduling modes use this same enabled final-public veto; actual-core
+            # suites independently check that producer premise and scheduling.
+            bench_source = replace_once(bench_source,
+                "wire completed_input_certified = 1'bz, completed_input_fault_now = 1'bz;",
+                "wire completed_input_certified = 1'b1;\n"
+                "wire completed_input_fault_now = external_fault_now || "
+                "certified_input_beat || certified_input_complete;")
+            bench_source = replace_once(bench_source,
+                "#(.WATCHDOG_CYCLES(WATCHDOG_CYCLES)) dut",
+                "#(.WATCHDOG_CYCLES(WATCHDOG_CYCLES), .USE_COMPLETED_INPUT_FAULT(1)) dut")
+        bench = tmp_path / f"{top}.sv"
+        bench.write_text(bench_source)
+        executable = tmp_path / "final_auth.vvp"
+        compiled = subprocess.run(["iverilog", "-g2012", "-Wall", "-s", top,
+            "-o", str(executable), str(runtime), str(bench)],
+            text=True, capture_output=True, timeout=30, check=False)
+>       assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+E       AssertionError: /tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_new_output_is_subject_to_3/tb_starlink_pss_realtime_final_veto_equivalence.sv:40: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_final_veto_equivalence', '-o', '...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_final_authorization.py:100: AssertionError
+_____________ test_actual_map_driver_contract_and_health_functions _____________
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_actual_map_driver_contrac0')
+
+    def test_actual_map_driver_contract_and_health_functions(tmp_path):
+>       driver = (ROOT / "linux/drivers/iio/adc/adi_starlink_pss_map.c").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_map_driver_contract.py:26: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/mouse9911/.local/share/uv/python/cpython-3.11.16-linux-x86_64-gnu/lib/python3.11/pathlib.py:1058: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/linux/drivers/iio/adc/adi_starlink_pss_map.c')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/linux/drivers/iio/adc/adi_starlink_pss_map.c'
+
+/home/mouse9911/.local/share/uv/python/cpython-3.11.16-linux-x86_64-gnu/lib/python3.11/pathlib.py:1044: FileNotFoundError
+________________ test_actual_map_health_receipt_and_late_fault _________________
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_actual_map_health_receipt0')
+
+    def test_actual_map_health_receipt_and_late_fault(tmp_path):
+>       driver = (ROOT / "linux/drivers/iio/adc/adi_starlink_pss_map.c").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_map_health_receipt.py:29: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/mouse9911/.local/share/uv/python/cpython-3.11.16-linux-x86_64-gnu/lib/python3.11/pathlib.py:1058: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/linux/drivers/iio/adc/adi_starlink_pss_map.c')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/linux/drivers/iio/adc/adi_starlink_pss_map.c'
+
+/home/mouse9911/.local/share/uv/python/cpython-3.11.16-linux-x86_64-gnu/lib/python3.11/pathlib.py:1044: FileNotFoundError
+_________ test_acquisition_health_is_additive_read_only_iio_attribute __________
+
+    def test_acquisition_health_is_additive_read_only_iio_attribute():
+>       driver = (ROOT / "linux/drivers/iio/adc/adi_starlink_pss_map.c").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_map_health_receipt.py:81: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/mouse9911/.local/share/uv/python/cpython-3.11.16-linux-x86_64-gnu/lib/python3.11/pathlib.py:1058: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/linux/drivers/iio/adc/adi_starlink_pss_map.c')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/linux/drivers/iio/adc/adi_starlink_pss_map.c'
+
+/home/mouse9911/.local/share/uv/python/cpython-3.11.16-linux-x86_64-gnu/lib/python3.11/pathlib.py:1044: FileNotFoundError
+________________ test_actual_stop_request_receipt_and_irq_drain ________________
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_actual_stop_request_recei0')
+
+    def test_actual_stop_request_receipt_and_irq_drain(tmp_path):
+>       driver = (ROOT / "linux/drivers/iio/adc/adi_starlink_pss_map.c").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_map_stop_driver.py:22: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/mouse9911/.local/share/uv/python/cpython-3.11.16-linux-x86_64-gnu/lib/python3.11/pathlib.py:1058: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/linux/drivers/iio/adc/adi_starlink_pss_map.c')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/linux/drivers/iio/adc/adi_starlink_pss_map.c'
+
+/home/mouse9911/.local/share/uv/python/cpython-3.11.16-linux-x86_64-gnu/lib/python3.11/pathlib.py:1044: FileNotFoundError
+______________ test_stop_attributes_are_separate_typed_operations ______________
+
+    def test_stop_attributes_are_separate_typed_operations():
+>       driver = (ROOT / "linux/drivers/iio/adc/adi_starlink_pss_map.c").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_map_stop_driver.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/mouse9911/.local/share/uv/python/cpython-3.11.16-linux-x86_64-gnu/lib/python3.11/pathlib.py:1058: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/linux/drivers/iio/adc/adi_starlink_pss_map.c')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/linux/drivers/iio/adc/adi_starlink_pss_map.c'
+
+/home/mouse9911/.local/share/uv/python/cpython-3.11.16-linux-x86_64-gnu/lib/python3.11/pathlib.py:1044: FileNotFoundError
+_______ test_public_guard_contract_with_explicit_full_tuple_adapter[0-0] _______
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_public_guard_contract_wit0')
+mode = 0, mutation = 0
+
+    @pytest.mark.parametrize("mode,mutation", [(0, 0), (1, 0), (1, 1), (2, 0)])
+    def test_public_guard_contract_with_explicit_full_tuple_adapter(tmp_path, mode, mutation):
+        top = "tb_starlink_pss_realtime_occupancy"
+        executable = tmp_path / "phase.vvp"
+        # Test-only adapter: exactly the old public stimulus, with an explicitly
+        # selected guard mode and a caller that summarizes the FULL input tuple.
+        # Keep the committed bench directly usable with parameter-free netlists.
+        bench_source = (ACQ / "tb" / f"{top}.sv").read_text()
+        bench_source = replace_once(bench_source,
+            "wire phase_input_fault_now = 1'bz;",
+            "wire phase_input_fault_now = " + ("1'bz;" if mode == 0 else
+            ("" if mutation else "external_fault_now || ") + "certified_input_beat || certified_input_complete;"))
+        bench_source = replace_once(bench_source, "starlink_pss_realtime_result_guard dut (.*);",
+            f"starlink_pss_realtime_result_guard #(.USE_PHASE_INPUT_FAULT({mode})) dut (.*);")
+        bench = tmp_path / f"{top}.sv"
+        bench.write_text(bench_source)
+        compile_result = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", top, "-o", str(executable),
+            str(ACQ / "starlink_pss_realtime_result_guard.v"),
+            str(ACQ / "tb/starlink_pss_realtime_result_guard_ff4229_golden.v"),
+            str(bench),
+        ], text=True, capture_output=True, timeout=30, check=False)
+>       assert compile_result.returncode == 0, compile_result.stdout + compile_result.stderr
+E       AssertionError: /tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_public_guard_contract_wit0/tb_starlink_pss_realtime_occupancy.sv:34: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_occupancy', '-o', '/tmp/starlink...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_phase_input_contract.py:112: AssertionError
+_______ test_public_guard_contract_with_explicit_full_tuple_adapter[1-0] _______
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_public_guard_contract_wit1')
+mode = 1, mutation = 0
+
+    @pytest.mark.parametrize("mode,mutation", [(0, 0), (1, 0), (1, 1), (2, 0)])
+    def test_public_guard_contract_with_explicit_full_tuple_adapter(tmp_path, mode, mutation):
+        top = "tb_starlink_pss_realtime_occupancy"
+        executable = tmp_path / "phase.vvp"
+        # Test-only adapter: exactly the old public stimulus, with an explicitly
+        # selected guard mode and a caller that summarizes the FULL input tuple.
+        # Keep the committed bench directly usable with parameter-free netlists.
+        bench_source = (ACQ / "tb" / f"{top}.sv").read_text()
+        bench_source = replace_once(bench_source,
+            "wire phase_input_fault_now = 1'bz;",
+            "wire phase_input_fault_now = " + ("1'bz;" if mode == 0 else
+            ("" if mutation else "external_fault_now || ") + "certified_input_beat || certified_input_complete;"))
+        bench_source = replace_once(bench_source, "starlink_pss_realtime_result_guard dut (.*);",
+            f"starlink_pss_realtime_result_guard #(.USE_PHASE_INPUT_FAULT({mode})) dut (.*);")
+        bench = tmp_path / f"{top}.sv"
+        bench.write_text(bench_source)
+        compile_result = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", top, "-o", str(executable),
+            str(ACQ / "starlink_pss_realtime_result_guard.v"),
+            str(ACQ / "tb/starlink_pss_realtime_result_guard_ff4229_golden.v"),
+            str(bench),
+        ], text=True, capture_output=True, timeout=30, check=False)
+>       assert compile_result.returncode == 0, compile_result.stdout + compile_result.stderr
+E       AssertionError: /tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_public_guard_contract_wit1/tb_starlink_pss_realtime_occupancy.sv:34: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_occupancy', '-o', '/tmp/starlink...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_phase_input_contract.py:112: AssertionError
+_______ test_public_guard_contract_with_explicit_full_tuple_adapter[1-1] _______
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_public_guard_contract_wit2')
+mode = 1, mutation = 1
+
+    @pytest.mark.parametrize("mode,mutation", [(0, 0), (1, 0), (1, 1), (2, 0)])
+    def test_public_guard_contract_with_explicit_full_tuple_adapter(tmp_path, mode, mutation):
+        top = "tb_starlink_pss_realtime_occupancy"
+        executable = tmp_path / "phase.vvp"
+        # Test-only adapter: exactly the old public stimulus, with an explicitly
+        # selected guard mode and a caller that summarizes the FULL input tuple.
+        # Keep the committed bench directly usable with parameter-free netlists.
+        bench_source = (ACQ / "tb" / f"{top}.sv").read_text()
+        bench_source = replace_once(bench_source,
+            "wire phase_input_fault_now = 1'bz;",
+            "wire phase_input_fault_now = " + ("1'bz;" if mode == 0 else
+            ("" if mutation else "external_fault_now || ") + "certified_input_beat || certified_input_complete;"))
+        bench_source = replace_once(bench_source, "starlink_pss_realtime_result_guard dut (.*);",
+            f"starlink_pss_realtime_result_guard #(.USE_PHASE_INPUT_FAULT({mode})) dut (.*);")
+        bench = tmp_path / f"{top}.sv"
+        bench.write_text(bench_source)
+        compile_result = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", top, "-o", str(executable),
+            str(ACQ / "starlink_pss_realtime_result_guard.v"),
+            str(ACQ / "tb/starlink_pss_realtime_result_guard_ff4229_golden.v"),
+            str(bench),
+        ], text=True, capture_output=True, timeout=30, check=False)
+>       assert compile_result.returncode == 0, compile_result.stdout + compile_result.stderr
+E       AssertionError: /tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_public_guard_contract_wit2/tb_starlink_pss_realtime_occupancy.sv:34: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_occupancy', '-o', '/tmp/starlink...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_phase_input_contract.py:112: AssertionError
+_______ test_public_guard_contract_with_explicit_full_tuple_adapter[2-0] _______
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_public_guard_contract_wit3')
+mode = 2, mutation = 0
+
+    @pytest.mark.parametrize("mode,mutation", [(0, 0), (1, 0), (1, 1), (2, 0)])
+    def test_public_guard_contract_with_explicit_full_tuple_adapter(tmp_path, mode, mutation):
+        top = "tb_starlink_pss_realtime_occupancy"
+        executable = tmp_path / "phase.vvp"
+        # Test-only adapter: exactly the old public stimulus, with an explicitly
+        # selected guard mode and a caller that summarizes the FULL input tuple.
+        # Keep the committed bench directly usable with parameter-free netlists.
+        bench_source = (ACQ / "tb" / f"{top}.sv").read_text()
+        bench_source = replace_once(bench_source,
+            "wire phase_input_fault_now = 1'bz;",
+            "wire phase_input_fault_now = " + ("1'bz;" if mode == 0 else
+            ("" if mutation else "external_fault_now || ") + "certified_input_beat || certified_input_complete;"))
+        bench_source = replace_once(bench_source, "starlink_pss_realtime_result_guard dut (.*);",
+            f"starlink_pss_realtime_result_guard #(.USE_PHASE_INPUT_FAULT({mode})) dut (.*);")
+        bench = tmp_path / f"{top}.sv"
+        bench.write_text(bench_source)
+        compile_result = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", top, "-o", str(executable),
+            str(ACQ / "starlink_pss_realtime_result_guard.v"),
+            str(ACQ / "tb/starlink_pss_realtime_result_guard_ff4229_golden.v"),
+            str(bench),
+        ], text=True, capture_output=True, timeout=30, check=False)
+>       assert compile_result.returncode == 0, compile_result.stdout + compile_result.stderr
+E       AssertionError: /tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_public_guard_contract_wit3/tb_starlink_pss_realtime_occupancy.sv:34: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_occupancy', '-o', '/tmp/starlink...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_phase_input_contract.py:112: AssertionError
+___________ test_frozen_pilot_dma_geometry_matches_the_local_backend ___________
+
+    def test_frozen_pilot_dma_geometry_matches_the_local_backend():
+        """Fail if the fixed ABI cap/alignment requires a new backend review."""
+        design = (ROOT / "hdl/projects/pluto/system_bd.tcl").read_text()
+>       dma = (ROOT / "linux/drivers/dma/dma-axi-dmac.c").read_text()
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_pilot_driver_lifecycle.py:18: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/mouse9911/.local/share/uv/python/cpython-3.11.16-linux-x86_64-gnu/lib/python3.11/pathlib.py:1058: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/linux/drivers/dma/dma-axi-dmac.c')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/linux/drivers/dma/dma-axi-dmac.c'
+
+/home/mouse9911/.local/share/uv/python/cpython-3.11.16-linux-x86_64-gnu/lib/python3.11/pathlib.py:1044: FileNotFoundError
+_______________ test_actual_pilot_driver_geometry_and_lifecycle ________________
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_actual_pilot_driver_geome0')
+
+    def test_actual_pilot_driver_geometry_and_lifecycle(tmp_path):
+>       driver = (ROOT / "linux/drivers/iio/adc/adi_starlink_pilot.c").read_text()
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_pilot_driver_lifecycle.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+/home/mouse9911/.local/share/uv/python/cpython-3.11.16-linux-x86_64-gnu/lib/python3.11/pathlib.py:1058: in read_text
+    with self.open(mode='r', encoding=encoding, errors=errors) as f:
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = PosixPath('/tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/linux/drivers/iio/adc/adi_starlink_pilot.c')
+mode = 'r', buffering = -1, encoding = 'locale', errors = None, newline = None
+
+    def open(self, mode='r', buffering=-1, encoding=None,
+             errors=None, newline=None):
+        """
+        Open the file pointed by this path and return a file object, as
+        the built-in open() function does.
+        """
+        if "b" not in mode:
+            encoding = io.text_encoding(encoding)
+>       return io.open(self, mode, buffering, encoding, errors, newline)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       FileNotFoundError: [Errno 2] No such file or directory: '/tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/linux/drivers/iio/adc/adi_starlink_pilot.c'
+
+/home/mouse9911/.local/share/uv/python/cpython-3.11.16-linux-x86_64-gnu/lib/python3.11/pathlib.py:1044: FileNotFoundError
+__ test_final_veto_equivalence_all_events_exponents_gates_and_actual_edges[2] __
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_final_veto_equivalence_al0')
+watchdog = 2
+
+    @pytest.mark.parametrize("watchdog", [2, 5, 17])
+    def test_final_veto_equivalence_all_events_exponents_gates_and_actual_edges(tmp_path, watchdog):
+>       result = _run(tmp_path, watchdog=watchdog)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:30: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_final_veto_equivalence_al0')
+watchdog = 2, omit = -1
+
+    def _run(tmp_path, *, watchdog=5, omit=-1):
+        executable = tmp_path / f"final_veto_{watchdog}_{omit}.vvp"
+        compiled = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", TOP,
+            f"-P{TOP}.WATCHDOG_CYCLES={watchdog}", f"-P{TOP}.OMIT_VETO={omit}",
+            "-o", str(executable), str(ACQ / "starlink_pss_realtime_result_guard.v"),
+            str(ACQ / "tb" / f"{TOP}.sv"),
+        ], capture_output=True, text=True, timeout=30, check=False)
+>       assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+E       AssertionError: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl/library/starlink_pss_acquisition/tb/tb_starlink_pss_realtime_final_veto_equivalence.sv:39: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_final_veto_equivalence', '-Ptb_s...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:22: AssertionError
+__ test_final_veto_equivalence_all_events_exponents_gates_and_actual_edges[5] __
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_final_veto_equivalence_al1')
+watchdog = 5
+
+    @pytest.mark.parametrize("watchdog", [2, 5, 17])
+    def test_final_veto_equivalence_all_events_exponents_gates_and_actual_edges(tmp_path, watchdog):
+>       result = _run(tmp_path, watchdog=watchdog)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:30: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_final_veto_equivalence_al1')
+watchdog = 5, omit = -1
+
+    def _run(tmp_path, *, watchdog=5, omit=-1):
+        executable = tmp_path / f"final_veto_{watchdog}_{omit}.vvp"
+        compiled = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", TOP,
+            f"-P{TOP}.WATCHDOG_CYCLES={watchdog}", f"-P{TOP}.OMIT_VETO={omit}",
+            "-o", str(executable), str(ACQ / "starlink_pss_realtime_result_guard.v"),
+            str(ACQ / "tb" / f"{TOP}.sv"),
+        ], capture_output=True, text=True, timeout=30, check=False)
+>       assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+E       AssertionError: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl/library/starlink_pss_acquisition/tb/tb_starlink_pss_realtime_final_veto_equivalence.sv:39: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_final_veto_equivalence', '-Ptb_s...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:22: AssertionError
+_ test_final_veto_equivalence_all_events_exponents_gates_and_actual_edges[17] __
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_final_veto_equivalence_al2')
+watchdog = 17
+
+    @pytest.mark.parametrize("watchdog", [2, 5, 17])
+    def test_final_veto_equivalence_all_events_exponents_gates_and_actual_edges(tmp_path, watchdog):
+>       result = _run(tmp_path, watchdog=watchdog)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:30: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_final_veto_equivalence_al2')
+watchdog = 17, omit = -1
+
+    def _run(tmp_path, *, watchdog=5, omit=-1):
+        executable = tmp_path / f"final_veto_{watchdog}_{omit}.vvp"
+        compiled = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", TOP,
+            f"-P{TOP}.WATCHDOG_CYCLES={watchdog}", f"-P{TOP}.OMIT_VETO={omit}",
+            "-o", str(executable), str(ACQ / "starlink_pss_realtime_result_guard.v"),
+            str(ACQ / "tb" / f"{TOP}.sv"),
+        ], capture_output=True, text=True, timeout=30, check=False)
+>       assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+E       AssertionError: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl/library/starlink_pss_acquisition/tb/tb_starlink_pss_realtime_final_veto_equivalence.sv:39: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_final_veto_equivalence', '-Ptb_s...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:22: AssertionError
+___ test_omitting_each_final_veto_is_detected_on_its_single_event_witness[0] ___
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_0')
+omit = 0
+
+    @pytest.mark.parametrize("omit", range(9))
+    def test_omitting_each_final_veto_is_detected_on_its_single_event_witness(tmp_path, omit):
+>       result = _run(tmp_path, omit=omit)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_0')
+watchdog = 5, omit = 0
+
+    def _run(tmp_path, *, watchdog=5, omit=-1):
+        executable = tmp_path / f"final_veto_{watchdog}_{omit}.vvp"
+        compiled = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", TOP,
+            f"-P{TOP}.WATCHDOG_CYCLES={watchdog}", f"-P{TOP}.OMIT_VETO={omit}",
+            "-o", str(executable), str(ACQ / "starlink_pss_realtime_result_guard.v"),
+            str(ACQ / "tb" / f"{TOP}.sv"),
+        ], capture_output=True, text=True, timeout=30, check=False)
+>       assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+E       AssertionError: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl/library/starlink_pss_acquisition/tb/tb_starlink_pss_realtime_final_veto_equivalence.sv:39: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_final_veto_equivalence', '-Ptb_s...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:22: AssertionError
+___ test_omitting_each_final_veto_is_detected_on_its_single_event_witness[1] ___
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_1')
+omit = 1
+
+    @pytest.mark.parametrize("omit", range(9))
+    def test_omitting_each_final_veto_is_detected_on_its_single_event_witness(tmp_path, omit):
+>       result = _run(tmp_path, omit=omit)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_1')
+watchdog = 5, omit = 1
+
+    def _run(tmp_path, *, watchdog=5, omit=-1):
+        executable = tmp_path / f"final_veto_{watchdog}_{omit}.vvp"
+        compiled = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", TOP,
+            f"-P{TOP}.WATCHDOG_CYCLES={watchdog}", f"-P{TOP}.OMIT_VETO={omit}",
+            "-o", str(executable), str(ACQ / "starlink_pss_realtime_result_guard.v"),
+            str(ACQ / "tb" / f"{TOP}.sv"),
+        ], capture_output=True, text=True, timeout=30, check=False)
+>       assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+E       AssertionError: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl/library/starlink_pss_acquisition/tb/tb_starlink_pss_realtime_final_veto_equivalence.sv:39: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_final_veto_equivalence', '-Ptb_s...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:22: AssertionError
+___ test_omitting_each_final_veto_is_detected_on_its_single_event_witness[2] ___
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_2')
+omit = 2
+
+    @pytest.mark.parametrize("omit", range(9))
+    def test_omitting_each_final_veto_is_detected_on_its_single_event_witness(tmp_path, omit):
+>       result = _run(tmp_path, omit=omit)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_2')
+watchdog = 5, omit = 2
+
+    def _run(tmp_path, *, watchdog=5, omit=-1):
+        executable = tmp_path / f"final_veto_{watchdog}_{omit}.vvp"
+        compiled = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", TOP,
+            f"-P{TOP}.WATCHDOG_CYCLES={watchdog}", f"-P{TOP}.OMIT_VETO={omit}",
+            "-o", str(executable), str(ACQ / "starlink_pss_realtime_result_guard.v"),
+            str(ACQ / "tb" / f"{TOP}.sv"),
+        ], capture_output=True, text=True, timeout=30, check=False)
+>       assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+E       AssertionError: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl/library/starlink_pss_acquisition/tb/tb_starlink_pss_realtime_final_veto_equivalence.sv:39: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_final_veto_equivalence', '-Ptb_s...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:22: AssertionError
+___ test_omitting_each_final_veto_is_detected_on_its_single_event_witness[3] ___
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_3')
+omit = 3
+
+    @pytest.mark.parametrize("omit", range(9))
+    def test_omitting_each_final_veto_is_detected_on_its_single_event_witness(tmp_path, omit):
+>       result = _run(tmp_path, omit=omit)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_3')
+watchdog = 5, omit = 3
+
+    def _run(tmp_path, *, watchdog=5, omit=-1):
+        executable = tmp_path / f"final_veto_{watchdog}_{omit}.vvp"
+        compiled = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", TOP,
+            f"-P{TOP}.WATCHDOG_CYCLES={watchdog}", f"-P{TOP}.OMIT_VETO={omit}",
+            "-o", str(executable), str(ACQ / "starlink_pss_realtime_result_guard.v"),
+            str(ACQ / "tb" / f"{TOP}.sv"),
+        ], capture_output=True, text=True, timeout=30, check=False)
+>       assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+E       AssertionError: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl/library/starlink_pss_acquisition/tb/tb_starlink_pss_realtime_final_veto_equivalence.sv:39: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_final_veto_equivalence', '-Ptb_s...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:22: AssertionError
+___ test_omitting_each_final_veto_is_detected_on_its_single_event_witness[4] ___
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_4')
+omit = 4
+
+    @pytest.mark.parametrize("omit", range(9))
+    def test_omitting_each_final_veto_is_detected_on_its_single_event_witness(tmp_path, omit):
+>       result = _run(tmp_path, omit=omit)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_4')
+watchdog = 5, omit = 4
+
+    def _run(tmp_path, *, watchdog=5, omit=-1):
+        executable = tmp_path / f"final_veto_{watchdog}_{omit}.vvp"
+        compiled = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", TOP,
+            f"-P{TOP}.WATCHDOG_CYCLES={watchdog}", f"-P{TOP}.OMIT_VETO={omit}",
+            "-o", str(executable), str(ACQ / "starlink_pss_realtime_result_guard.v"),
+            str(ACQ / "tb" / f"{TOP}.sv"),
+        ], capture_output=True, text=True, timeout=30, check=False)
+>       assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+E       AssertionError: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl/library/starlink_pss_acquisition/tb/tb_starlink_pss_realtime_final_veto_equivalence.sv:39: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_final_veto_equivalence', '-Ptb_s...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:22: AssertionError
+___ test_omitting_each_final_veto_is_detected_on_its_single_event_witness[5] ___
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_5')
+omit = 5
+
+    @pytest.mark.parametrize("omit", range(9))
+    def test_omitting_each_final_veto_is_detected_on_its_single_event_witness(tmp_path, omit):
+>       result = _run(tmp_path, omit=omit)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_5')
+watchdog = 5, omit = 5
+
+    def _run(tmp_path, *, watchdog=5, omit=-1):
+        executable = tmp_path / f"final_veto_{watchdog}_{omit}.vvp"
+        compiled = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", TOP,
+            f"-P{TOP}.WATCHDOG_CYCLES={watchdog}", f"-P{TOP}.OMIT_VETO={omit}",
+            "-o", str(executable), str(ACQ / "starlink_pss_realtime_result_guard.v"),
+            str(ACQ / "tb" / f"{TOP}.sv"),
+        ], capture_output=True, text=True, timeout=30, check=False)
+>       assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+E       AssertionError: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl/library/starlink_pss_acquisition/tb/tb_starlink_pss_realtime_final_veto_equivalence.sv:39: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_final_veto_equivalence', '-Ptb_s...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:22: AssertionError
+___ test_omitting_each_final_veto_is_detected_on_its_single_event_witness[6] ___
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_6')
+omit = 6
+
+    @pytest.mark.parametrize("omit", range(9))
+    def test_omitting_each_final_veto_is_detected_on_its_single_event_witness(tmp_path, omit):
+>       result = _run(tmp_path, omit=omit)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_6')
+watchdog = 5, omit = 6
+
+    def _run(tmp_path, *, watchdog=5, omit=-1):
+        executable = tmp_path / f"final_veto_{watchdog}_{omit}.vvp"
+        compiled = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", TOP,
+            f"-P{TOP}.WATCHDOG_CYCLES={watchdog}", f"-P{TOP}.OMIT_VETO={omit}",
+            "-o", str(executable), str(ACQ / "starlink_pss_realtime_result_guard.v"),
+            str(ACQ / "tb" / f"{TOP}.sv"),
+        ], capture_output=True, text=True, timeout=30, check=False)
+>       assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+E       AssertionError: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl/library/starlink_pss_acquisition/tb/tb_starlink_pss_realtime_final_veto_equivalence.sv:39: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_final_veto_equivalence', '-Ptb_s...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:22: AssertionError
+___ test_omitting_each_final_veto_is_detected_on_its_single_event_witness[7] ___
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_7')
+omit = 7
+
+    @pytest.mark.parametrize("omit", range(9))
+    def test_omitting_each_final_veto_is_detected_on_its_single_event_witness(tmp_path, omit):
+>       result = _run(tmp_path, omit=omit)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_7')
+watchdog = 5, omit = 7
+
+    def _run(tmp_path, *, watchdog=5, omit=-1):
+        executable = tmp_path / f"final_veto_{watchdog}_{omit}.vvp"
+        compiled = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", TOP,
+            f"-P{TOP}.WATCHDOG_CYCLES={watchdog}", f"-P{TOP}.OMIT_VETO={omit}",
+            "-o", str(executable), str(ACQ / "starlink_pss_realtime_result_guard.v"),
+            str(ACQ / "tb" / f"{TOP}.sv"),
+        ], capture_output=True, text=True, timeout=30, check=False)
+>       assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+E       AssertionError: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl/library/starlink_pss_acquisition/tb/tb_starlink_pss_realtime_final_veto_equivalence.sv:39: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_final_veto_equivalence', '-Ptb_s...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:22: AssertionError
+___ test_omitting_each_final_veto_is_detected_on_its_single_event_witness[8] ___
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_8')
+omit = 8
+
+    @pytest.mark.parametrize("omit", range(9))
+    def test_omitting_each_final_veto_is_detected_on_its_single_event_witness(tmp_path, omit):
+>       result = _run(tmp_path, omit=omit)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_omitting_each_final_veto_8')
+watchdog = 5, omit = 8
+
+    def _run(tmp_path, *, watchdog=5, omit=-1):
+        executable = tmp_path / f"final_veto_{watchdog}_{omit}.vvp"
+        compiled = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", TOP,
+            f"-P{TOP}.WATCHDOG_CYCLES={watchdog}", f"-P{TOP}.OMIT_VETO={omit}",
+            "-o", str(executable), str(ACQ / "starlink_pss_realtime_result_guard.v"),
+            str(ACQ / "tb" / f"{TOP}.sv"),
+        ], capture_output=True, text=True, timeout=30, check=False)
+>       assert compiled.returncode == 0, compiled.stdout + compiled.stderr
+E       AssertionError: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl/library/starlink_pss_acquisition/tb/tb_starlink_pss_realtime_final_veto_equivalence.sv:39: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_final_veto_equivalence', '-Ptb_s...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_realtime_final_veto_equivalence.py:22: AssertionError
+____ test_reachable_ack_wait_all_orphans_and_next_cycle_reason_accumulation ____
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_reachable_ack_wait_all_or0')
+
+    def test_reachable_ack_wait_all_orphans_and_next_cycle_reason_accumulation(tmp_path):
+>       result = run_probe(tmp_path)
+                 ^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_realtime_occupancy.py:58: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_reachable_ack_wait_all_or0')
+mutation = None, netlist = None
+
+    def run_probe(tmp_path, mutation=None, netlist=None):
+        runtime = netlist or ACQ / "starlink_pss_realtime_result_guard.v"
+        if netlist:
+            # Use the vendor's precompiled primitive models for actual synthesized
+            # netlists. Icarus + source UNISIM models produced initialization Xs in
+            # the unchanged baseline; retain those failed diagnostics separately.
+            vendor = Path("/opt/Xilinx/Vivado/2022.2")
+            environment = dict(os.environ, LD_LIBRARY_PATH=str(vendor / "lib/lnx64.o/SuSE"))
+            commands = [
+                [str(vendor / "bin/xvlog"), "--sv", str(netlist),
+                 str(ACQ / "tb/starlink_pss_realtime_result_guard_ff4229_golden.v"),
+                 str(ACQ / "tb" / f"{TOP}.sv"), str(vendor / "data/verilog/src/glbl.v")],
+                [str(vendor / "bin/xelab"), "--debug", "typical", "--relax", "--mt", "2",
+                 "-L", "unisims_ver", TOP, "glbl", "-s", "occupancy_snapshot"],
+                [str(vendor / "bin/xsim"), "occupancy_snapshot", "-runall"],
+            ]
+            for command in commands:
+                result = subprocess.run(command, cwd=tmp_path, env=environment, capture_output=True,
+                                        text=True, timeout=120, check=False)
+                assert result.returncode == 0, result.stdout + result.stderr
+            return result
+        if mutation:
+            old, new = mutation
+            source = runtime.read_text()
+            assert source.count(old) == 1
+            runtime = tmp_path / "mutant.v"
+            runtime.write_text(source.replace(old, new, 1))
+        executable = tmp_path / "occupancy.vvp"
+        result = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", TOP, "-o", str(executable), str(runtime),
+            str(ACQ / "tb/starlink_pss_realtime_result_guard_ff4229_golden.v"),
+            str(ACQ / "tb" / f"{TOP}.sv"),
+        ], capture_output=True, text=True, timeout=30, check=False)
+>       assert result.returncode == 0, result.stdout + result.stderr
+E       AssertionError: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl/library/starlink_pss_acquisition/tb/tb_starlink_pss_realtime_occupancy.sv:34: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_occupancy', '-o', '/tmp/starlink...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_realtime_occupancy.py:52: AssertionError
+_ test_public_probe_rejects_faulted_ack_release_and_missing_ack_ownership[if (awaiting_ack && mailbox_input_ready && !protocol_fault && !idle_fault_now)-if (awaiting_ack && mailbox_input_ready)] _
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_public_probe_rejects_faul0')
+old = 'if (awaiting_ack && mailbox_input_ready && !protocol_fault && !idle_fault_now)'
+new = 'if (awaiting_ack && mailbox_input_ready)'
+
+    @pytest.mark.parametrize("old,new", [
+        ("if (awaiting_ack && mailbox_input_ready && !protocol_fault && !idle_fault_now)",
+         "if (awaiting_ack && mailbox_input_ready)"),
+        ("if (final_commit) awaiting_ack <= 1;", "if (final_commit) awaiting_ack <= 0;"),
+    ])
+    def test_public_probe_rejects_faulted_ack_release_and_missing_ack_ownership(tmp_path, old, new):
+>       result = run_probe(tmp_path, (old, new))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_realtime_occupancy.py:69: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_public_probe_rejects_faul0')
+mutation = ('if (awaiting_ack && mailbox_input_ready && !protocol_fault && !idle_fault_now)', 'if (awaiting_ack && mailbox_input_ready)')
+netlist = None
+
+    def run_probe(tmp_path, mutation=None, netlist=None):
+        runtime = netlist or ACQ / "starlink_pss_realtime_result_guard.v"
+        if netlist:
+            # Use the vendor's precompiled primitive models for actual synthesized
+            # netlists. Icarus + source UNISIM models produced initialization Xs in
+            # the unchanged baseline; retain those failed diagnostics separately.
+            vendor = Path("/opt/Xilinx/Vivado/2022.2")
+            environment = dict(os.environ, LD_LIBRARY_PATH=str(vendor / "lib/lnx64.o/SuSE"))
+            commands = [
+                [str(vendor / "bin/xvlog"), "--sv", str(netlist),
+                 str(ACQ / "tb/starlink_pss_realtime_result_guard_ff4229_golden.v"),
+                 str(ACQ / "tb" / f"{TOP}.sv"), str(vendor / "data/verilog/src/glbl.v")],
+                [str(vendor / "bin/xelab"), "--debug", "typical", "--relax", "--mt", "2",
+                 "-L", "unisims_ver", TOP, "glbl", "-s", "occupancy_snapshot"],
+                [str(vendor / "bin/xsim"), "occupancy_snapshot", "-runall"],
+            ]
+            for command in commands:
+                result = subprocess.run(command, cwd=tmp_path, env=environment, capture_output=True,
+                                        text=True, timeout=120, check=False)
+                assert result.returncode == 0, result.stdout + result.stderr
+            return result
+        if mutation:
+            old, new = mutation
+            source = runtime.read_text()
+            assert source.count(old) == 1
+            runtime = tmp_path / "mutant.v"
+            runtime.write_text(source.replace(old, new, 1))
+        executable = tmp_path / "occupancy.vvp"
+        result = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", TOP, "-o", str(executable), str(runtime),
+            str(ACQ / "tb/starlink_pss_realtime_result_guard_ff4229_golden.v"),
+            str(ACQ / "tb" / f"{TOP}.sv"),
+        ], capture_output=True, text=True, timeout=30, check=False)
+>       assert result.returncode == 0, result.stdout + result.stderr
+E       AssertionError: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl/library/starlink_pss_acquisition/tb/tb_starlink_pss_realtime_occupancy.sv:34: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_occupancy', '-o', '/tmp/starlink...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_realtime_occupancy.py:52: AssertionError
+_ test_public_probe_rejects_faulted_ack_release_and_missing_ack_ownership[if (final_commit) awaiting_ack <= 1;-if (final_commit) awaiting_ack <= 0;] _
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_public_probe_rejects_faul1')
+old = 'if (final_commit) awaiting_ack <= 1;'
+new = 'if (final_commit) awaiting_ack <= 0;'
+
+    @pytest.mark.parametrize("old,new", [
+        ("if (awaiting_ack && mailbox_input_ready && !protocol_fault && !idle_fault_now)",
+         "if (awaiting_ack && mailbox_input_ready)"),
+        ("if (final_commit) awaiting_ack <= 1;", "if (final_commit) awaiting_ack <= 0;"),
+    ])
+    def test_public_probe_rejects_faulted_ack_release_and_missing_ack_ownership(tmp_path, old, new):
+>       result = run_probe(tmp_path, (old, new))
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests/starlink_oracle/test_realtime_occupancy.py:69: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/forward-retirement-regression-v1/test_public_probe_rejects_faul1')
+mutation = ('if (final_commit) awaiting_ack <= 1;', 'if (final_commit) awaiting_ack <= 0;')
+netlist = None
+
+    def run_probe(tmp_path, mutation=None, netlist=None):
+        runtime = netlist or ACQ / "starlink_pss_realtime_result_guard.v"
+        if netlist:
+            # Use the vendor's precompiled primitive models for actual synthesized
+            # netlists. Icarus + source UNISIM models produced initialization Xs in
+            # the unchanged baseline; retain those failed diagnostics separately.
+            vendor = Path("/opt/Xilinx/Vivado/2022.2")
+            environment = dict(os.environ, LD_LIBRARY_PATH=str(vendor / "lib/lnx64.o/SuSE"))
+            commands = [
+                [str(vendor / "bin/xvlog"), "--sv", str(netlist),
+                 str(ACQ / "tb/starlink_pss_realtime_result_guard_ff4229_golden.v"),
+                 str(ACQ / "tb" / f"{TOP}.sv"), str(vendor / "data/verilog/src/glbl.v")],
+                [str(vendor / "bin/xelab"), "--debug", "typical", "--relax", "--mt", "2",
+                 "-L", "unisims_ver", TOP, "glbl", "-s", "occupancy_snapshot"],
+                [str(vendor / "bin/xsim"), "occupancy_snapshot", "-runall"],
+            ]
+            for command in commands:
+                result = subprocess.run(command, cwd=tmp_path, env=environment, capture_output=True,
+                                        text=True, timeout=120, check=False)
+                assert result.returncode == 0, result.stdout + result.stderr
+            return result
+        if mutation:
+            old, new = mutation
+            source = runtime.read_text()
+            assert source.count(old) == 1
+            runtime = tmp_path / "mutant.v"
+            runtime.write_text(source.replace(old, new, 1))
+        executable = tmp_path / "occupancy.vvp"
+        result = subprocess.run([
+            "iverilog", "-g2012", "-Wall", "-s", TOP, "-o", str(executable), str(runtime),
+            str(ACQ / "tb/starlink_pss_realtime_result_guard_ff4229_golden.v"),
+            str(ACQ / "tb" / f"{TOP}.sv"),
+        ], capture_output=True, text=True, timeout=30, check=False)
+>       assert result.returncode == 0, result.stdout + result.stderr
+E       AssertionError: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl/library/starlink_pss_acquisition/tb/tb_starlink_pss_realtime_occupancy.sv:34: error: Wildcard named port connection (.*) did not find a matching identifier for port 28 (inverse_phase).
+E         1 error(s) during elaboration.
+E         
+E       assert 1 == 0
+E        +  where 1 = CompletedProcess(args=['iverilog', '-g2012', '-Wall', '-s', 'tb_starlink_pss_realtime_occupancy', '-o', '/tmp/starlink...ort connection (.*) did not find a matching identifier for port 28 (inverse_phase).\n1 error(s) during elaboration.\n').returncode
+
+tests/starlink_oracle/test_realtime_occupancy.py:52: AssertionError
+=========================== short test summary info ============================
+SKIPPED [4] tests/starlink_oracle/test_input_cursor_equivalence.py:79: explicit actual Vivado input-cursor measurement required
+SKIPPED [2] tests/starlink_oracle/test_mailbox_metadata_tree.py:229: explicit actual Vivado metadata-tree measurement required
+SKIPPED [2] tests/starlink_oracle/test_phase_input_contract.py:128: explicit actual Vivado phase-mode measurement required
+SKIPPED [2] tests/starlink_oracle/test_realtime_occupancy.py:79: explicit actual Vivado guard measurement required
+FAILED tests/starlink_oracle/test_final_authorization.py::test_new_output_is_subject_to_all_existing_final_veto_rows[0-False]
+FAILED tests/starlink_oracle/test_final_authorization.py::test_new_output_is_subject_to_all_existing_final_veto_rows[0-True]
+FAILED tests/starlink_oracle/test_final_authorization.py::test_new_output_is_subject_to_all_existing_final_veto_rows[1-False]
+FAILED tests/starlink_oracle/test_final_authorization.py::test_new_output_is_subject_to_all_existing_final_veto_rows[1-True]
+FAILED tests/starlink_oracle/test_map_driver_contract.py::test_actual_map_driver_contract_and_health_functions
+FAILED tests/starlink_oracle/test_map_health_receipt.py::test_actual_map_health_receipt_and_late_fault
+FAILED tests/starlink_oracle/test_map_health_receipt.py::test_acquisition_health_is_additive_read_only_iio_attribute
+FAILED tests/starlink_oracle/test_map_stop_driver.py::test_actual_stop_request_receipt_and_irq_drain
+FAILED tests/starlink_oracle/test_map_stop_driver.py::test_stop_attributes_are_separate_typed_operations
+FAILED tests/starlink_oracle/test_phase_input_contract.py::test_public_guard_contract_with_explicit_full_tuple_adapter[0-0]
+FAILED tests/starlink_oracle/test_phase_input_contract.py::test_public_guard_contract_with_explicit_full_tuple_adapter[1-0]
+FAILED tests/starlink_oracle/test_phase_input_contract.py::test_public_guard_contract_with_explicit_full_tuple_adapter[1-1]
+FAILED tests/starlink_oracle/test_phase_input_contract.py::test_public_guard_contract_with_explicit_full_tuple_adapter[2-0]
+FAILED tests/starlink_oracle/test_pilot_driver_lifecycle.py::test_frozen_pilot_dma_geometry_matches_the_local_backend
+FAILED tests/starlink_oracle/test_pilot_driver_lifecycle.py::test_actual_pilot_driver_geometry_and_lifecycle
+FAILED tests/starlink_oracle/test_realtime_final_veto_equivalence.py::test_final_veto_equivalence_all_events_exponents_gates_and_actual_edges[2]
+FAILED tests/starlink_oracle/test_realtime_final_veto_equivalence.py::test_final_veto_equivalence_all_events_exponents_gates_and_actual_edges[5]
+FAILED tests/starlink_oracle/test_realtime_final_veto_equivalence.py::test_final_veto_equivalence_all_events_exponents_gates_and_actual_edges[17]
+FAILED tests/starlink_oracle/test_realtime_final_veto_equivalence.py::test_omitting_each_final_veto_is_detected_on_its_single_event_witness[0]
+FAILED tests/starlink_oracle/test_realtime_final_veto_equivalence.py::test_omitting_each_final_veto_is_detected_on_its_single_event_witness[1]
+FAILED tests/starlink_oracle/test_realtime_final_veto_equivalence.py::test_omitting_each_final_veto_is_detected_on_its_single_event_witness[2]
+FAILED tests/starlink_oracle/test_realtime_final_veto_equivalence.py::test_omitting_each_final_veto_is_detected_on_its_single_event_witness[3]
+FAILED tests/starlink_oracle/test_realtime_final_veto_equivalence.py::test_omitting_each_final_veto_is_detected_on_its_single_event_witness[4]
+FAILED tests/starlink_oracle/test_realtime_final_veto_equivalence.py::test_omitting_each_final_veto_is_detected_on_its_single_event_witness[5]
+FAILED tests/starlink_oracle/test_realtime_final_veto_equivalence.py::test_omitting_each_final_veto_is_detected_on_its_single_event_witness[6]
+FAILED tests/starlink_oracle/test_realtime_final_veto_equivalence.py::test_omitting_each_final_veto_is_detected_on_its_single_event_witness[7]
+FAILED tests/starlink_oracle/test_realtime_final_veto_equivalence.py::test_omitting_each_final_veto_is_detected_on_its_single_event_witness[8]
+FAILED tests/starlink_oracle/test_realtime_occupancy.py::test_reachable_ack_wait_all_orphans_and_next_cycle_reason_accumulation
+FAILED tests/starlink_oracle/test_realtime_occupancy.py::test_public_probe_rejects_faulted_ack_release_and_missing_ack_ownership[if (awaiting_ack && mailbox_input_ready && !protocol_fault && !idle_fault_now)-if (awaiting_ack && mailbox_input_ready)]
+FAILED tests/starlink_oracle/test_realtime_occupancy.py::test_public_probe_rejects_faulted_ack_release_and_missing_ack_ownership[if (final_commit) awaiting_ack <= 1;-if (final_commit) awaiting_ack <= 0;]
+30 failed, 745 passed, 10 skipped in 154.06s (0:02:34)
