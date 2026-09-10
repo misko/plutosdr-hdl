@@ -29,7 +29,8 @@ module axi_starlink_pss_phase_map_sync #(
   parameter [30:0] COEFFICIENT_ENERGY = 31'd1073742825,
   parameter integer USE_BANK_OWNED_XFFT = 0,
   parameter integer USE_REALTIME_XFFT = 0,
-  parameter integer ENABLE_PILOT_TAP = 0
+  parameter integer ENABLE_PILOT_TAP = 0,
+  parameter integer ENABLE_BANK60_PAIRED = 0
 ) (
   input  wire                          map_clk,
   input  wire                          map_reset,
@@ -124,13 +125,22 @@ module axi_starlink_pss_phase_map_sync #(
   localparam [31:0] IDENTIFICATION = 32'h5053_4d41;
   localparam integer DDC_ENABLED = INPUT_RATE_MSPS != 15;
   initial begin
+    if (ENABLE_BANK60_PAIRED !== 0 && ENABLE_BANK60_PAIRED !== 1)
+      $fatal(1, "ENABLE_BANK60_PAIRED must be zero or one");
+    if (ENABLE_BANK60_PAIRED === 1 && (INPUT_RATE_MSPS !== 60 ||
+        USE_BANK_OWNED_XFFT !== 1 || ENABLE_PILOT_TAP !== 1 ||
+        USE_SHARED_XFFT !== 1 || USE_REALTIME_XFFT !== 1 ||
+        ENABLE_BOUNDARY_STOP !== 1 || COEFFICIENT_ENERGY !== 31'd1073765335))
+      $fatal(1, "bank-owned PSMA 1.8 requires explicit 60 MS/s upper paired-pilot realtime shared STOP and conditioned energy");
     if (USE_BANK_OWNED_XFFT !== 0 && USE_BANK_OWNED_XFFT !== 1)
       $fatal(1, "USE_BANK_OWNED_XFFT must be zero or one");
+    if (ENABLE_BANK60_PAIRED === 0) begin
     if (USE_BANK_OWNED_XFFT === 1 && (INPUT_RATE_MSPS !== 30 ||
         ENABLE_PILOT_TAP !== 1 || USE_SHARED_XFFT !== 1 ||
         USE_REALTIME_XFFT !== 1 || ENABLE_BOUNDARY_STOP !== 1 ||
         COEFFICIENT_ENERGY !== 31'd1073744004))
       $fatal(1, "bank-owned PSMA 1.7 requires 30 MS/s upper paired-pilot realtime shared STOP and conditioned energy");
+    end
     if (MAP_COUNTERS_FROM_FLAG != 0 && MAP_COUNTERS_FROM_FLAG != 1)
       $fatal(1, "MAP_COUNTERS_FROM_FLAG must be zero or one");
     if (HEALTH_COUNTERS_FROM_FLAGS != 0 && HEALTH_COUNTERS_FROM_FLAGS != 1)
@@ -150,7 +160,11 @@ module axi_starlink_pss_phase_map_sync #(
   // Old kernel/host readers must reject this version until explicitly updated.
   // ABI 1.7 is explicit source-30/upper bank-owned paired STOP only. Bit 10
   // identifies bank ownership; bit 7 exposes the existing 64-bit counters.
-  localparam [31:0] VERSION = USE_BANK_OWNED_XFFT ? 32'h0001_0007 :
+  // ABI 1.8 is separately opted-in upper source-60 bank paired STOP. It
+  // retains the existing feature bits and x4 kernel/filter identity; its
+  // DDC discontinuity input counts cumulative events from BOTH x2 stages.
+  localparam [31:0] VERSION = ENABLE_BANK60_PAIRED ? 32'h0001_0008 :
+      USE_BANK_OWNED_XFFT ? 32'h0001_0007 :
       ENABLE_BOUNDARY_STOP ? 32'h0001_0006 :
       USE_SHARED_XFFT ? 32'h0001_0005 : (INPUT_RATE_MSPS == 60) ?
       32'h0001_0004 :

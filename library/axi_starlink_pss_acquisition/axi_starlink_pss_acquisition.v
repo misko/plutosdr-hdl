@@ -16,7 +16,8 @@ module axi_starlink_pss_acquisition #(
   parameter integer USE_SHARED_XFFT = 0,
   parameter integer USE_REALTIME_XFFT = 0,
   parameter integer ENABLE_BOUNDARY_STOP = 0,
-  parameter integer USE_BANK_OWNED_XFFT = 0
+  parameter integer USE_BANK_OWNED_XFFT = 0,
+  parameter integer ENABLE_BANK60_PAIRED = 0
 ) (
   input  wire                 sample_clk,
   input  wire                 fft_clk,
@@ -181,14 +182,24 @@ module axi_starlink_pss_acquisition #(
       ((INPUT_RATE_MSPS == 30) ? 31'd1073744004 : 31'd1073742825);
 
   initial begin
+    if (ENABLE_BANK60_PAIRED !== 0 && ENABLE_BANK60_PAIRED !== 1)
+      $fatal(1, "ENABLE_BANK60_PAIRED must be zero or one");
+    if (ENABLE_BANK60_PAIRED === 1 && (INPUT_RATE_MSPS !== 60 ||
+        USE_BANK_OWNED_XFFT !== 1 || ENABLE_PILOT_TAP !== 1 ||
+        USE_SHARED_XFFT !== 1 || USE_REALTIME_XFFT !== 1 ||
+        ENABLE_BOUNDARY_STOP !== 1 ||
+        ACQUISITION_COEFFICIENT_ENERGY !== 31'd1073765335))
+      $fatal(1, "bank-owned PSMA 1.8 requires explicit 60 MS/s upper paired-pilot realtime shared STOP and conditioned energy");
     if (USE_BANK_OWNED_XFFT !== 0 && USE_BANK_OWNED_XFFT !== 1)
       $fatal(1, "USE_BANK_OWNED_XFFT must be zero or one");
+    if (ENABLE_BANK60_PAIRED === 0) begin
     // Public bank admission is deliberately narrower than the internal core.
     // No source-60/lower-edge or historical-profile promotion is implied.
     if (USE_BANK_OWNED_XFFT === 1 && (INPUT_RATE_MSPS !== 30 ||
         ENABLE_PILOT_TAP !== 1 || USE_SHARED_XFFT !== 1 ||
         USE_REALTIME_XFFT !== 1 || ENABLE_BOUNDARY_STOP !== 1))
       $fatal(1, "bank-owned PSMA 1.7 requires 30 MS/s upper paired-pilot realtime shared STOP");
+    end
     if (ENABLE_BOUNDARY_STOP != 0 && ENABLE_BOUNDARY_STOP != 1)
       $fatal(1, "ENABLE_BOUNDARY_STOP must be zero or one");
     if (ENABLE_BOUNDARY_STOP && !USE_BANK_OWNED_XFFT &&
@@ -261,6 +272,9 @@ module axi_starlink_pss_acquisition #(
       wire [32:0] saturation_sum =
           {1'b0, stage_60_saturation_count} +
           {1'b0, stage_30_saturation_count};
+      wire [32:0] discontinuity_sum =
+          {1'b0, stage_60_discontinuity_count} +
+          {1'b0, stage_30_discontinuity_count};
 
       // Both stages use the same absolute-index Fs/4 mixer and half-band FIR.
       // The first translates and decimates 60->30 MS/s; the second performs
@@ -318,7 +332,14 @@ module axi_starlink_pss_acquisition #(
 
       assign ddc_accepted_sample_count = stage_60_accepted_count;
       assign ddc_emitted_sample_count = stage_30_emitted_count;
-      assign ddc_discontinuity_count = stage_30_discontinuity_count;
+      // ABI 1.8 counts stage events, not distinct raw discontinuities: one
+      // propagated gap may count twice. A first-stage event remains visible
+      // even if disable/flush prevents propagation to the second stage.
+      // Both cumulative producers reset only under s_axi_aresetn; legacy
+      // source-60 keeps its historical second-stage-only observation.
+      assign ddc_discontinuity_count = ENABLE_BANK60_PAIRED ?
+          (discontinuity_sum[32] ? 32'hffff_ffff : discontinuity_sum[31:0]) :
+          stage_30_discontinuity_count;
       assign ddc_saturation_event_count = saturation_sum[32] ?
           32'hffff_ffff : saturation_sum[31:0];
 
@@ -410,6 +431,7 @@ module axi_starlink_pss_acquisition #(
   );
 
   axi_starlink_pss_phase_map_sync #(
+    .ENABLE_BANK60_PAIRED(ENABLE_BANK60_PAIRED),
     .USE_BANK_OWNED_XFFT(USE_BANK_OWNED_XFFT),
     .USE_REALTIME_XFFT(USE_REALTIME_XFFT),
     .ENABLE_PILOT_TAP(ENABLE_PILOT_TAP),
