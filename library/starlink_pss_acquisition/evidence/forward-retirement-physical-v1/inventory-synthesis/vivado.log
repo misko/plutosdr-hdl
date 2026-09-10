@@ -1,0 +1,461 @@
+#-----------------------------------------------------------
+# Vivado v2022.2 (64-bit)
+# SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+# IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+# Start of session at: Thu Sep 10 05:12:22 2026
+# Process ID: 3268642
+# Current directory: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl
+# Command line: vivado -mode batch -nojournal -log /tmp/starlink-completed-input.5EaJuD/forward-retirement-inventory-synth-v1.log -source library/starlink_pss_acquisition/inventory_forward_retirement_checkpoint.tcl -tclargs /tmp/starlink-completed-input.5EaJuD/forward-retirement-synth-v1/fft_bank_owned_synth.dcp 9a141a44350da32e3ca2609b7e9911b2c41e5e9f4377c5edf3021ac459841941 /tmp/starlink-completed-input.5EaJuD/forward-retirement-inventory-synth-v1
+# Log file: /tmp/starlink-completed-input.5EaJuD/forward-retirement-inventory-synth-v1.log
+# Journal file: 
+# Running On: gauss, OS: Linux, CPU Frequency: 5400.053 MHz, CPU Physical cores: 24, Host memory: 132067 MB
+#-----------------------------------------------------------
+source library/starlink_pss_acquisition/inventory_forward_retirement_checkpoint.tcl
+# set forward_inspection_script [file normalize [info script]]
+# source [file join [file dirname $forward_inspection_script] inventory_payload_dsp_checkpoint.tcl]
+## if {$argc != 3 || [version -short] ne "2022.2"} {
+##   error "expected Vivado2022.2 SOURCE_DCP EXPECTED_SHA256 NEW_OUTPUT"
+## }
+## set source_dcp [file normalize [lindex $argv 0]]
+## set expected [lindex $argv 1]
+## set output_dir [file normalize [lindex $argv 2]]
+## if {[file exists $output_dir]} { error "refusing to overwrite inventory" }
+## if {![regexp {^[0-9a-f]{64}$} $expected] ||
+##     [lindex [exec sha256sum $source_dcp] 0] ne $expected} {
+##   error "unexpected checkpoint input"
+## }
+## file mkdir $output_dir
+## file copy [info script] [file join $output_dir inventory.tcl]
+## set_param general.maxThreads 2
+## open_checkpoint $source_dcp
+Command: open_checkpoint /tmp/starlink-completed-input.5EaJuD/forward-retirement-synth-v1/fft_bank_owned_synth.dcp
+
+Starting open_checkpoint Task
+
+Time (s): cpu = 00:00:00.03 ; elapsed = 00:00:00.02 . Memory (MB): peak = 1324.375 ; gain = 0.000 ; free physical = 9662 ; free virtual = 154066
+INFO: [Device 21-403] Loading part xc7z010clg400-1
+Netlist sorting complete. Time (s): cpu = 00:00:00.03 ; elapsed = 00:00:00.03 . Memory (MB): peak = 1557.746 ; gain = 0.000 ; free physical = 8879 ; free virtual = 153284
+INFO: [Netlist 29-17] Analyzing 192 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-479] Netlist was created with Vivado 2022.2
+INFO: [Project 1-570] Preparing netlist for logic optimization
+INFO: [Timing 38-478] Restoring timing data from binary archive.
+INFO: [Timing 38-479] Binary timing data restore complete.
+INFO: [Project 1-856] Restoring constraints from binary archive.
+INFO: [Project 1-853] Binary constraint restore complete.
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2138.012 ; gain = 0.000 ; free physical = 7943 ; free virtual = 152348
+INFO: [Project 1-111] Unisim Transformation Summary:
+No Unisim elements were transformed.
+
+INFO: [Project 1-604] Checkpoint was created with Vivado v2022.2 (64-bit) build 3671981
+OpenCheckpoint Checksum | Checksum: 58fca788
+----- Checksum: PlaceDB: 00000000 ShapeSum: 58fca788 RouteDB: 00000000 
+open_checkpoint: Time (s): cpu = 00:00:07 ; elapsed = 00:00:07 . Memory (MB): peak = 2138.012 ; gain = 934.605 ; free physical = 7943 ; free virtual = 152348
+## if {[llength [get_cells -quiet -hier -filter {IS_BLACKBOX == 1}]]} {
+##   error "black box in supposedly complete slice"
+## }
+## report_clocks -file [file join $output_dir clocks.rpt]
+## set inventory [open [file join $output_dir dsp_inventory.txt] w]
+## puts $inventory "source_dcp=$source_dcp"
+## puts $inventory "source_dcp_sha256=$expected"
+## puts $inventory "inspection_only=true; no_design_or_constraint_mutation=true"
+## set dsps [get_cells -quiet -hier -filter {REF_NAME == DSP48E1}]
+## puts $inventory "dsp_count=[llength $dsps]"
+## if {[llength $dsps] != 21} { error "unexpected complete-slice DSP count" }
+## set product_count 0
+## foreach cell [lsort $dsps] {
+##   set name [get_property NAME $cell]
+##   puts $inventory "\nCELL=$name"
+##   # Preserve all actual primitive properties, not preliminary inference text.
+##   # Vivado exposes primitive generics under CONFIG.* in some netlist views.
+##   foreach property [lsort [list_property $cell]] {
+##     puts $inventory "property.$property=[get_property $property $cell]"
+##   }
+##   if {![string match "product/*" $name]} { continue }
+##   incr product_count
+##   regsub -all {[^A-Za-z0-9_]} $name _ stem
+##   foreach pin [lsort [get_pins -quiet -of_objects $cell -filter {REF_PIN_NAME =~ CE*}]] {
+##     set pin_name [get_property REF_PIN_NAME $pin]
+##     set nets [get_nets -quiet -segments -of_objects $pin]
+##     set drivers [get_pins -quiet -leaf -of_objects $nets -filter {DIRECTION == OUT}]
+##     puts $inventory "enable.$pin_name.nets=[lsort $nets]"
+##     puts $inventory "enable.$pin_name.drivers=[lsort $drivers]"
+##     foreach driver $drivers {
+##       foreach driver_cell [get_cells -quiet -of_objects $driver] {
+##         set ref [get_property REF_NAME $driver_cell]
+##         puts $inventory "enable.$pin_name.driver_cell=$driver_cell ref=$ref"
+##         if {[lsearch -exact [list_property $driver_cell] INIT] >= 0} {
+##           puts $inventory "enable.$pin_name.driver_INIT=[get_property INIT $driver_cell]"
+##         }
+##       }
+##     }
+##     set starts [all_fanin -flat -startpoints_only -to $pin]
+##     set cone [all_fanin -flat -only_cells -to $pin]
+##     puts $inventory "enable.$pin_name.startpoints=[lsort $starts]"
+##     puts $inventory "enable.$pin_name.cone_cells=[lsort $cone]"
+##     set counts [dict create]
+##     foreach cone_cell $cone {
+##       dict incr counts [get_property REF_NAME $cone_cell]
+##     }
+##     puts $inventory "enable.$pin_name.cone_ref_counts=$counts"
+##     set paths [get_timing_paths -quiet -to $pin -delay_type max -max_paths 1]
+##     if {[llength $paths]} {
+##       set path [lindex $paths 0]
+##       puts $inventory "enable.$pin_name.worst_start=[get_property STARTPOINT_PIN $path]"
+##       puts $inventory "enable.$pin_name.worst_end=[get_property ENDPOINT_PIN $path]"
+##       puts $inventory "enable.$pin_name.slack=[get_property SLACK $path]"
+##       report_timing -to $pin -delay_type max -max_paths 1 \
+##         -file [file join $output_dir ${stem}_${pin_name}.rpt]
+##     } else {
+##       puts $inventory "enable.$pin_name.timing_path=none"
+##     }
+##   }
+## }
+WARNING: [Vivado 12-8382] 'product/product_ii_reg' is not an AIE cell.  Property 'AIE.COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_ii_reg' is not an AIE cell.  Property 'AIE.COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_ii_reg' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_ii_reg' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_ii_reg' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.BANK' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_ii_reg' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.COLUMN' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_ii_reg' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.OFFSET' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_ii_reg' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.ROW' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_ii_reg' is not an AIE cell.  Property 'AIE.RUNTIME' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_ii_reg' is not an AIE cell.  Property 'AIE.TILE.COLUMN' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_ii_reg' is not an AIE cell.  Property 'AIE.TILE.NAME' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_ii_reg' is not an AIE cell.  Property 'AIE.TILE.ROW' is only valid on AIE cell(s).
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 1 -nworst 1 -delay_type max -sort_by slack.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 1 -nworst 1 -delay_type max -sort_by slack.
+WARNING: [Vivado 12-8382] 'product/product_iq_reg' is not an AIE cell.  Property 'AIE.COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_iq_reg' is not an AIE cell.  Property 'AIE.COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_iq_reg' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_iq_reg' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_iq_reg' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.BANK' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_iq_reg' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.COLUMN' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_iq_reg' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.OFFSET' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_iq_reg' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.ROW' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_iq_reg' is not an AIE cell.  Property 'AIE.RUNTIME' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_iq_reg' is not an AIE cell.  Property 'AIE.TILE.COLUMN' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_iq_reg' is not an AIE cell.  Property 'AIE.TILE.NAME' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/product_iq_reg' is not an AIE cell.  Property 'AIE.TILE.ROW' is only valid on AIE cell(s).
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 1 -nworst 1 -delay_type max -sort_by slack.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 1 -nworst 1 -delay_type max -sort_by slack.
+WARNING: [Vivado 12-8382] 'product/sum_imag_reg' is not an AIE cell.  Property 'AIE.COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_imag_reg' is not an AIE cell.  Property 'AIE.COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_imag_reg' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_imag_reg' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_imag_reg' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.BANK' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_imag_reg' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.COLUMN' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_imag_reg' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.OFFSET' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_imag_reg' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.ROW' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_imag_reg' is not an AIE cell.  Property 'AIE.RUNTIME' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_imag_reg' is not an AIE cell.  Property 'AIE.TILE.COLUMN' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_imag_reg' is not an AIE cell.  Property 'AIE.TILE.NAME' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_imag_reg' is not an AIE cell.  Property 'AIE.TILE.ROW' is only valid on AIE cell(s).
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 1 -nworst 1 -delay_type max -sort_by slack.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 1 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 1 -nworst 1 -delay_type max -sort_by slack.
+WARNING: [Vivado 12-8382] 'product/sum_real_reg' is not an AIE cell.  Property 'AIE.COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_real_reg' is not an AIE cell.  Property 'AIE.COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_real_reg' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_real_reg' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_real_reg' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.BANK' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_real_reg' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.COLUMN' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_real_reg' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.OFFSET' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_real_reg' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.ROW' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_real_reg' is not an AIE cell.  Property 'AIE.RUNTIME' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_real_reg' is not an AIE cell.  Property 'AIE.TILE.COLUMN' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_real_reg' is not an AIE cell.  Property 'AIE.TILE.NAME' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'product/sum_real_reg' is not an AIE cell.  Property 'AIE.TILE.ROW' is only valid on AIE cell(s).
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 1 -nworst 1 -delay_type max -sort_by slack.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+WARNING: [Vivado 12-829] No fanin objects found for 'all_fanin -flat -startpoints_only -to product/GND/G'.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 1 -nworst 1 -delay_type max -sort_by slack.
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 1 -nworst 1 -delay_type max -sort_by slack.
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.BANK' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.COLUMN' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.OFFSET' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.ROW' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RUNTIME' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.TILE.COLUMN' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.TILE.NAME' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.TILE.ROW' is only valid on AIE cell(s).
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult2_preadder_d_plus_a.mult2/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult2_preadder_d_plus_a.mult2/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult2_preadder_d_plus_a.mult2/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult2_preadder_d_plus_a.mult2/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult2_preadder_d_plus_a.mult2/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.BANK' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult2_preadder_d_plus_a.mult2/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.COLUMN' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult2_preadder_d_plus_a.mult2/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.OFFSET' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult2_preadder_d_plus_a.mult2/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.ROW' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult2_preadder_d_plus_a.mult2/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RUNTIME' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult2_preadder_d_plus_a.mult2/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.TILE.COLUMN' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult2_preadder_d_plus_a.mult2/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.TILE.NAME' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult2_preadder_d_plus_a.mult2/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.TILE.ROW' is only valid on AIE cell(s).
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult3_preadder_d_minus_a.mult3/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult3_preadder_d_minus_a.mult3/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult3_preadder_d_minus_a.mult3/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult3_preadder_d_minus_a.mult3/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult3_preadder_d_minus_a.mult3/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.BANK' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult3_preadder_d_minus_a.mult3/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.COLUMN' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult3_preadder_d_minus_a.mult3/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.OFFSET' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult3_preadder_d_minus_a.mult3/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.ROW' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult3_preadder_d_minus_a.mult3/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RUNTIME' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult3_preadder_d_minus_a.mult3/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.TILE.COLUMN' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult3_preadder_d_minus_a.mult3/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.TILE.NAME' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult1/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult3_preadder_d_minus_a.mult3/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.TILE.ROW' is only valid on AIE cell(s).
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult2/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult2/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult2/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult2/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult2/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.BANK' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult2/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.COLUMN' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult2/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.OFFSET' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult2/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RESERVED_MEMORY.ROW' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult2/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.RUNTIME' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult2/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.TILE.COLUMN' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult2/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.TILE.NAME' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult2/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult1_preadder_d_plus_a.mult1/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.TILE.ROW' is only valid on AIE cell(s).
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult2/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult2_preadder_d_plus_a.mult2/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult2/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult2_preadder_d_plus_a.mult2/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.COLOCATED_NODES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult2/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult2_preadder_d_plus_a.mult2/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_MEMORIES' is only valid on AIE cell(s).
+WARNING: [Vivado 12-8382] 'shared_xfft/U0/i_synth/xfft_inst/non_floating_point.arch_b.xfft_inst/single_channel.datapath/pe/mult_gen.Mult2/i_cmpy/three_mult_structure.use_dsp.i_dsp48/mult2_preadder_d_plus_a.mult2/mult/use_prim.appDSP48[0].bppDSP48[0].use_dsp.use_dsp48e1.iDSP48E1' is not an AIE cell.  Property 'AIE.NOT_COLOCATED_NODES' is only valid on AIE cell(s).
+INFO: [Common 17-14] Message 'Vivado 12-8382' appears 100 times and further instances of the messages will be disabled. Use the Tcl command set_msg_config to change the current settings.
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+WARNING: [Common 17-69] Command failed: HD.ISOLATED cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.ISOLATED_EXEMPT cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.RECONFIGURABLE cannot be applied to a cell in out-of-context module flows
+WARNING: [Common 17-69] Command failed: HD.TANDEM can only be applied for target parts that support Tandem flow.
+## puts $inventory "product_dsp_count=$product_count"
+## close $inventory
+## if {$product_count != 4} { error "unexpected product DSP hierarchy" }
+## close_design
+## if {[lindex [exec sha256sum $source_dcp] 0] ne $expected} {
+##   error "checkpoint changed during read-only observation"
+## }
+## puts "PAYLOAD_DSP_CHECKPOINT_INVENTORY_RECORDED_NO_PHYSICAL_MUTATION"
+PAYLOAD_DSP_CHECKPOINT_INVENTORY_RECORDED_NO_PHYSICAL_MUTATION
+# file copy $forward_inspection_script [file join $output_dir forward_inventory.tcl]
+# set_param general.maxThreads 2
+# open_checkpoint $source_dcp
+Command: open_checkpoint /tmp/starlink-completed-input.5EaJuD/forward-retirement-synth-v1/fft_bank_owned_synth.dcp
+
+Starting open_checkpoint Task
+
+Time (s): cpu = 00:00:00 ; elapsed = 00:00:00 . Memory (MB): peak = 2139.016 ; gain = 0.000 ; free physical = 7829 ; free virtual = 152234
+Netlist sorting complete. Time (s): cpu = 00:00:00.04 ; elapsed = 00:00:00.04 . Memory (MB): peak = 2139.016 ; gain = 0.000 ; free physical = 7811 ; free virtual = 152217
+INFO: [Netlist 29-17] Analyzing 192 Unisim elements for replacement
+INFO: [Netlist 29-28] Unisim Transformation completed in 0 CPU seconds
+INFO: [Project 1-479] Netlist was created with Vivado 2022.2
+INFO: [Project 1-570] Preparing netlist for logic optimization
+INFO: [Timing 38-478] Restoring timing data from binary archive.
+INFO: [Timing 38-479] Binary timing data restore complete.
+INFO: [Project 1-856] Restoring constraints from binary archive.
+INFO: [Project 1-853] Binary constraint restore complete.
+Netlist sorting complete. Time (s): cpu = 00:00:00 ; elapsed = 00:00:00.01 . Memory (MB): peak = 2144.953 ; gain = 0.000 ; free physical = 7694 ; free virtual = 152100
+INFO: [Project 1-111] Unisim Transformation Summary:
+No Unisim elements were transformed.
+
+INFO: [Project 1-604] Checkpoint was created with Vivado v2022.2 (64-bit) build 3671981
+OpenCheckpoint Checksum | Checksum: 58fca788
+----- Checksum: PlaceDB: 00000000 ShapeSum: 58fca788 RouteDB: 00000000 
+# if {[llength [get_cells -quiet -hier -filter {IS_BLACKBOX == 1}]]} {
+#   error "black box in kernel enable inspection"
+# }
+# set kernel_registers [get_cells -quiet -hier -filter {
+#   NAME =~ joiner/kernel_rom/expected_next_block_start_reg* && REF_NAME =~ FD*
+# }]
+# set kernel_enables [get_pins -quiet -of_objects $kernel_registers -filter {REF_PIN_NAME == CE}]
+# if {![llength $kernel_enables]} { error "no actual expected-next kernel register enables" }
+# set kernel_inventory [open [file join $output_dir kernel_enable_inventory.txt] w]
+# puts $kernel_inventory "source_dcp=$source_dcp"
+# puts $kernel_inventory "source_dcp_sha256=$expected"
+# puts $kernel_inventory "inspection_only=true; no_design_or_constraint_mutation=true"
+# puts $kernel_inventory "kernel_register_count=[llength $kernel_registers]"
+# puts $kernel_inventory "kernel_ce_count=[llength $kernel_enables]"
+# set kernel_groups [dict create]
+# foreach kernel_pin [lsort $kernel_enables] {
+#   set kernel_nets [get_nets -quiet -segments -of_objects $kernel_pin]
+#   set kernel_drivers [lsort [get_pins -quiet -leaf -of_objects $kernel_nets -filter {DIRECTION == OUT}]]
+#   puts $kernel_inventory "pin=$kernel_pin nets=[lsort $kernel_nets] drivers=$kernel_drivers"
+#   dict lappend kernel_groups $kernel_drivers $kernel_pin
+# }
+# puts $kernel_inventory "distinct_ce_driver_groups=[dict size $kernel_groups]"
+# set kernel_group_index 0
+# dict for {kernel_drivers kernel_pins} $kernel_groups {
+#   set kernel_pin [lindex $kernel_pins 0]
+#   set kernel_starts [lsort [all_fanin -flat -startpoints_only -to $kernel_pin]]
+#   set kernel_cone [lsort [all_fanin -flat -only_cells -to $kernel_pin]]
+#   puts $kernel_inventory "\nGROUP=$kernel_group_index"
+#   puts $kernel_inventory "drivers=$kernel_drivers"
+#   puts $kernel_inventory "destination_pins=$kernel_pins"
+#   puts $kernel_inventory "startpoints=$kernel_starts"
+#   puts $kernel_inventory "cone_cells=$kernel_cone"
+#   set kernel_counts [dict create]
+#   foreach kernel_cell $kernel_cone {
+#     dict incr kernel_counts [get_property REF_NAME $kernel_cell]
+#   }
+#   puts $kernel_inventory "cone_ref_counts=$kernel_counts"
+#   foreach {kernel_label kernel_pattern kernel_objects} [list \
+#     output_bank_held_metadata_starts {output_bank/metadata_in_hold_reg*} $kernel_starts \
+#     result_descriptor_starts {result_guard/descriptor_reg*} $kernel_starts \
+#     output_bank_metadata_cells {output_bank/balanced_metadata*} $kernel_cone \
+#     output_bank_all_cells {output_bank/*} $kernel_cone \
+#     kernel_identity_cells {joiner/kernel_rom/balanced_block_identity*} $kernel_cone \
+#     product_bank_metadata_cells {product_bank/balanced_metadata*} $kernel_cone] {
+#     set kernel_matches [lsearch -all -inline -glob $kernel_objects $kernel_pattern]
+#     puts $kernel_inventory "$kernel_label.count=[llength $kernel_matches]"
+#     puts $kernel_inventory "$kernel_label.objects=$kernel_matches"
+#   }
+#   foreach kernel_driver $kernel_drivers {
+#     foreach kernel_cell [get_cells -quiet -of_objects $kernel_driver] {
+#       puts $kernel_inventory "driver_cell=$kernel_cell ref=[get_property REF_NAME $kernel_cell]"
+#       if {[lsearch -exact [list_property $kernel_cell] INIT] >= 0} {
+#         puts $kernel_inventory "driver_INIT=[get_property INIT $kernel_cell]"
+#       }
+#     }
+#   }
+#   set kernel_paths [get_timing_paths -quiet -to $kernel_pins -delay_type max -max_paths 1]
+#   if {[llength $kernel_paths]} {
+#     set kernel_path [lindex $kernel_paths 0]
+#     puts $kernel_inventory "worst_start=[get_property STARTPOINT_PIN $kernel_path]"
+#     puts $kernel_inventory "worst_end=[get_property ENDPOINT_PIN $kernel_path]"
+#     puts $kernel_inventory "worst_slack=[get_property SLACK $kernel_path]"
+#     report_timing -to $kernel_pins -delay_type max -max_paths 20 \
+#       -file [file join $output_dir kernel_ce_group_${kernel_group_index}_max.rpt]
+#   } else {
+#     puts $kernel_inventory "worst_path=none"
+#   }
+#   incr kernel_group_index
+# }
+INFO: [Timing 38-78] ReportTimingParams: -to_pins  -max_paths 20 -nworst 1 -delay_type max -sort_by slack.
+# close $kernel_inventory
+# close_design
+# if {[lindex [exec sha256sum $source_dcp] 0] ne $expected} {
+#   error "checkpoint changed during kernel-control observation"
+# }
+# puts "FORWARD_RETIREMENT_KERNEL_CE_INVENTORY_RECORDED_NO_PHYSICAL_MUTATION"
+FORWARD_RETIREMENT_KERNEL_CE_INVENTORY_RECORDED_NO_PHYSICAL_MUTATION
+INFO: [Common 17-206] Exiting Vivado at Thu Sep 10 05:12:33 2026...
