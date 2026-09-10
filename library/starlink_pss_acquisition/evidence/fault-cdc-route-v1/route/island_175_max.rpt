@@ -1,0 +1,1295 @@
+Copyright 1986-2022 Xilinx, Inc. All Rights Reserved.
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+| Tool Version : Vivado v.2022.2 (lin64) Build 3671981 Fri Oct 14 04:59:54 MDT 2022
+| Date         : Thu Sep 10 11:29:11 2026
+| Host         : gauss running 64-bit Ubuntu 26.04 LTS
+| Command      : report_timing -from [get_clocks island_175] -to [get_clocks island_175] -delay_type max -max_paths 20 -file /tmp/starlink-completed-input.5EaJuD/fault-cdc-route-v1/island_175_max.rpt
+| Design       : starlink_pss_fft_bank_owned_slice
+| Device       : 7z010-clg400
+| Speed File   : -1  PRODUCTION 1.12 2019-11-22
+--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+Timing Report
+
+Slack (VIOLATED) :        -1.830ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[11]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.291ns  (logic 2.083ns (28.569%)  route 5.208ns (71.431%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.978     8.264    input_guard/job_started
+    SLICE_X16Y13         FDCE                                         r  input_guard/descriptor_reg[11]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X16Y13         FDCE                                         r  input_guard/descriptor_reg[11]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X16Y13         FDCE (Setup_fdce_C_CE)      -0.169     6.434    input_guard/descriptor_reg[11]
+  -------------------------------------------------------------------
+                         required time                          6.434    
+                         arrival time                          -8.264    
+  -------------------------------------------------------------------
+                         slack                                 -1.830    
+
+Slack (VIOLATED) :        -1.830ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[16]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.291ns  (logic 2.083ns (28.569%)  route 5.208ns (71.431%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.978     8.264    input_guard/job_started
+    SLICE_X16Y13         FDCE                                         r  input_guard/descriptor_reg[16]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X16Y13         FDCE                                         r  input_guard/descriptor_reg[16]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X16Y13         FDCE (Setup_fdce_C_CE)      -0.169     6.434    input_guard/descriptor_reg[16]
+  -------------------------------------------------------------------
+                         required time                          6.434    
+                         arrival time                          -8.264    
+  -------------------------------------------------------------------
+                         slack                                 -1.830    
+
+Slack (VIOLATED) :        -1.830ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[17]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.291ns  (logic 2.083ns (28.569%)  route 5.208ns (71.431%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.978     8.264    input_guard/job_started
+    SLICE_X16Y13         FDCE                                         r  input_guard/descriptor_reg[17]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X16Y13         FDCE                                         r  input_guard/descriptor_reg[17]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X16Y13         FDCE (Setup_fdce_C_CE)      -0.169     6.434    input_guard/descriptor_reg[17]
+  -------------------------------------------------------------------
+                         required time                          6.434    
+                         arrival time                          -8.264    
+  -------------------------------------------------------------------
+                         slack                                 -1.830    
+
+Slack (VIOLATED) :        -1.830ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[6]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.291ns  (logic 2.083ns (28.569%)  route 5.208ns (71.431%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.978     8.264    input_guard/job_started
+    SLICE_X16Y13         FDCE                                         r  input_guard/descriptor_reg[6]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X16Y13         FDCE                                         r  input_guard/descriptor_reg[6]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X16Y13         FDCE (Setup_fdce_C_CE)      -0.169     6.434    input_guard/descriptor_reg[6]
+  -------------------------------------------------------------------
+                         required time                          6.434    
+                         arrival time                          -8.264    
+  -------------------------------------------------------------------
+                         slack                                 -1.830    
+
+Slack (VIOLATED) :        -1.830ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[8]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.291ns  (logic 2.083ns (28.569%)  route 5.208ns (71.431%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.978     8.264    input_guard/job_started
+    SLICE_X16Y13         FDCE                                         r  input_guard/descriptor_reg[8]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X16Y13         FDCE                                         r  input_guard/descriptor_reg[8]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X16Y13         FDCE (Setup_fdce_C_CE)      -0.169     6.434    input_guard/descriptor_reg[8]
+  -------------------------------------------------------------------
+                         required time                          6.434    
+                         arrival time                          -8.264    
+  -------------------------------------------------------------------
+                         slack                                 -1.830    
+
+Slack (VIOLATED) :        -1.830ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[9]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.291ns  (logic 2.083ns (28.569%)  route 5.208ns (71.431%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.978     8.264    input_guard/job_started
+    SLICE_X16Y13         FDCE                                         r  input_guard/descriptor_reg[9]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X16Y13         FDCE                                         r  input_guard/descriptor_reg[9]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X16Y13         FDCE (Setup_fdce_C_CE)      -0.169     6.434    input_guard/descriptor_reg[9]
+  -------------------------------------------------------------------
+                         required time                          6.434    
+                         arrival time                          -8.264    
+  -------------------------------------------------------------------
+                         slack                                 -1.830    
+
+Slack (VIOLATED) :        -1.825ns  (required time - arrival time)
+  Source:                 product_bank/write_position_reg[4]/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            joiner/kernel_rom/block_start_index_reg[57]/CE
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.286ns  (logic 1.586ns (21.769%)  route 5.700ns (78.231%))
+  Logic Levels:           8  (LUT4=3 LUT5=1 LUT6=4)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    product_bank/fft_clk
+    SLICE_X11Y11         FDRE                                         r  product_bank/write_position_reg[4]/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X11Y11         FDRE (Prop_fdre_C_Q)         0.419     1.392 f  product_bank/write_position_reg[4]/Q
+                         net (fo=6, routed)           0.853     2.245    product_bank/Q[4]
+    SLICE_X8Y12          LUT6 (Prop_lut6_I4_O)        0.299     2.544 f  product_bank/metadata_in_hold[68]_i_6/O
+                         net (fo=1, routed)           0.828     3.372    product_bank/metadata_in_hold[68]_i_6_n_0
+    SLICE_X13Y12         LUT4 (Prop_lut4_I3_O)        0.124     3.496 f  product_bank/metadata_in_hold[68]_i_4__0/O
+                         net (fo=2, routed)           0.802     4.298    product_bank/write_position_reg[2]_0
+    SLICE_X11Y12         LUT6 (Prop_lut6_I1_O)        0.124     4.422 f  product_bank/request_toggle_i_2/O
+                         net (fo=2, routed)           0.413     4.835    product_bank/request_toggle_i_2_n_0
+    SLICE_X11Y13         LUT4 (Prop_lut4_I1_O)        0.124     4.959 f  product_bank/input_fault_i_2/O
+                         net (fo=3, routed)           0.435     5.394    input_guard/input_fault1_out
+    SLICE_X10Y14         LUT4 (Prop_lut4_I3_O)        0.124     5.518 f  input_guard/fault_reasons[0]_i_5/O
+                         net (fo=2, routed)           0.174     5.692    input_guard/fault_reasons_reg[2]_0
+    SLICE_X10Y14         LUT6 (Prop_lut6_I0_O)        0.124     5.816 f  input_guard/commit_pulse_i_5/O
+                         net (fo=2, routed)           0.454     6.270    result_guard/output_kernel_word_reg_i_2_0
+    SLICE_X9Y14          LUT5 (Prop_lut5_I0_O)        0.124     6.394 r  result_guard/commit_pulse_i_4/O
+                         net (fo=4, routed)           1.043     7.437    joiner/kernel_rom/commit_pulse_i_4_n_0_alias
+    SLICE_X3Y9           LUT6 (Prop_lut6_I3_O)        0.124     7.561 r  joiner/kernel_rom/block_start_index[63]_i_1_comp/O
+                         net (fo=69, routed)          0.697     8.259    joiner/kernel_rom/block_exponent
+    SLICE_X4Y6           FDRE                                         r  joiner/kernel_rom/block_start_index_reg[57]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    joiner/kernel_rom/fft_clk
+    SLICE_X4Y6           FDRE                                         r  joiner/kernel_rom/block_start_index_reg[57]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X4Y6           FDRE (Setup_fdre_C_CE)      -0.169     6.434    joiner/kernel_rom/block_start_index_reg[57]
+  -------------------------------------------------------------------
+                         required time                          6.434    
+                         arrival time                          -8.259    
+  -------------------------------------------------------------------
+                         slack                                 -1.825    
+
+Slack (VIOLATED) :        -1.797ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[0]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.222ns  (logic 2.083ns (28.843%)  route 5.139ns (71.157%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.908     8.195    input_guard/job_started
+    SLICE_X18Y10         FDCE                                         r  input_guard/descriptor_reg[0]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X18Y10         FDCE                                         r  input_guard/descriptor_reg[0]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X18Y10         FDCE (Setup_fdce_C_CE)      -0.205     6.398    input_guard/descriptor_reg[0]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -8.195    
+  -------------------------------------------------------------------
+                         slack                                 -1.797    
+
+Slack (VIOLATED) :        -1.797ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[1]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.222ns  (logic 2.083ns (28.843%)  route 5.139ns (71.157%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.908     8.195    input_guard/job_started
+    SLICE_X18Y10         FDCE                                         r  input_guard/descriptor_reg[1]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X18Y10         FDCE                                         r  input_guard/descriptor_reg[1]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X18Y10         FDCE (Setup_fdce_C_CE)      -0.205     6.398    input_guard/descriptor_reg[1]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -8.195    
+  -------------------------------------------------------------------
+                         slack                                 -1.797    
+
+Slack (VIOLATED) :        -1.797ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[2]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.222ns  (logic 2.083ns (28.843%)  route 5.139ns (71.157%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.908     8.195    input_guard/job_started
+    SLICE_X18Y10         FDCE                                         r  input_guard/descriptor_reg[2]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X18Y10         FDCE                                         r  input_guard/descriptor_reg[2]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X18Y10         FDCE (Setup_fdce_C_CE)      -0.205     6.398    input_guard/descriptor_reg[2]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -8.195    
+  -------------------------------------------------------------------
+                         slack                                 -1.797    
+
+Slack (VIOLATED) :        -1.794ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[24]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.219ns  (logic 2.083ns (28.855%)  route 5.136ns (71.145%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.906     8.192    input_guard/job_started
+    SLICE_X19Y15         FDCE                                         r  input_guard/descriptor_reg[24]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X19Y15         FDCE                                         r  input_guard/descriptor_reg[24]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X19Y15         FDCE (Setup_fdce_C_CE)      -0.205     6.398    input_guard/descriptor_reg[24]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -8.192    
+  -------------------------------------------------------------------
+                         slack                                 -1.794    
+
+Slack (VIOLATED) :        -1.794ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[26]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.219ns  (logic 2.083ns (28.855%)  route 5.136ns (71.145%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.906     8.192    input_guard/job_started
+    SLICE_X19Y15         FDCE                                         r  input_guard/descriptor_reg[26]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X19Y15         FDCE                                         r  input_guard/descriptor_reg[26]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X19Y15         FDCE (Setup_fdce_C_CE)      -0.205     6.398    input_guard/descriptor_reg[26]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -8.192    
+  -------------------------------------------------------------------
+                         slack                                 -1.794    
+
+Slack (VIOLATED) :        -1.794ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[27]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.219ns  (logic 2.083ns (28.855%)  route 5.136ns (71.145%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.906     8.192    input_guard/job_started
+    SLICE_X19Y15         FDCE                                         r  input_guard/descriptor_reg[27]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X19Y15         FDCE                                         r  input_guard/descriptor_reg[27]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X19Y15         FDCE (Setup_fdce_C_CE)      -0.205     6.398    input_guard/descriptor_reg[27]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -8.192    
+  -------------------------------------------------------------------
+                         slack                                 -1.794    
+
+Slack (VIOLATED) :        -1.794ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[29]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.219ns  (logic 2.083ns (28.855%)  route 5.136ns (71.145%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.906     8.192    input_guard/job_started
+    SLICE_X19Y15         FDCE                                         r  input_guard/descriptor_reg[29]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X19Y15         FDCE                                         r  input_guard/descriptor_reg[29]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X19Y15         FDCE (Setup_fdce_C_CE)      -0.205     6.398    input_guard/descriptor_reg[29]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -8.192    
+  -------------------------------------------------------------------
+                         slack                                 -1.794    
+
+Slack (VIOLATED) :        -1.794ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[38]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.219ns  (logic 2.083ns (28.855%)  route 5.136ns (71.145%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.906     8.192    input_guard/job_started
+    SLICE_X19Y15         FDCE                                         r  input_guard/descriptor_reg[38]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X19Y15         FDCE                                         r  input_guard/descriptor_reg[38]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X19Y15         FDCE (Setup_fdce_C_CE)      -0.205     6.398    input_guard/descriptor_reg[38]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -8.192    
+  -------------------------------------------------------------------
+                         slack                                 -1.794    
+
+Slack (VIOLATED) :        -1.786ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[10]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.211ns  (logic 2.083ns (28.885%)  route 5.128ns (71.115%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.898     8.184    input_guard/job_started
+    SLICE_X19Y13         FDCE                                         r  input_guard/descriptor_reg[10]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X19Y13         FDCE                                         r  input_guard/descriptor_reg[10]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X19Y13         FDCE (Setup_fdce_C_CE)      -0.205     6.398    input_guard/descriptor_reg[10]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -8.184    
+  -------------------------------------------------------------------
+                         slack                                 -1.786    
+
+Slack (VIOLATED) :        -1.786ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[18]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.211ns  (logic 2.083ns (28.885%)  route 5.128ns (71.115%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.898     8.184    input_guard/job_started
+    SLICE_X19Y13         FDCE                                         r  input_guard/descriptor_reg[18]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X19Y13         FDCE                                         r  input_guard/descriptor_reg[18]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X19Y13         FDCE (Setup_fdce_C_CE)      -0.205     6.398    input_guard/descriptor_reg[18]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -8.184    
+  -------------------------------------------------------------------
+                         slack                                 -1.786    
+
+Slack (VIOLATED) :        -1.786ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[19]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.211ns  (logic 2.083ns (28.885%)  route 5.128ns (71.115%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.898     8.184    input_guard/job_started
+    SLICE_X19Y13         FDCE                                         r  input_guard/descriptor_reg[19]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X19Y13         FDCE                                         r  input_guard/descriptor_reg[19]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X19Y13         FDCE (Setup_fdce_C_CE)      -0.205     6.398    input_guard/descriptor_reg[19]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -8.184    
+  -------------------------------------------------------------------
+                         slack                                 -1.786    
+
+Slack (VIOLATED) :        -1.786ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[20]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.211ns  (logic 2.083ns (28.885%)  route 5.128ns (71.115%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.898     8.184    input_guard/job_started
+    SLICE_X19Y13         FDCE                                         r  input_guard/descriptor_reg[20]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X19Y13         FDCE                                         r  input_guard/descriptor_reg[20]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X19Y13         FDCE (Setup_fdce_C_CE)      -0.205     6.398    input_guard/descriptor_reg[20]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -8.184    
+  -------------------------------------------------------------------
+                         slack                                 -1.786    
+
+Slack (VIOLATED) :        -1.760ns  (required time - arrival time)
+  Source:                 registered_scheduling.held_phase_reg_replica_1/C
+                            (rising edge-triggered cell FDRE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Destination:            input_guard/descriptor_reg[45]/CE
+                            (rising edge-triggered cell FDCE clocked by island_175  {rise@0.000ns fall@2.857ns period=5.714ns})
+  Path Group:             island_175
+  Path Type:              Setup (Max at Slow Process Corner)
+  Requirement:            5.714ns  (island_175 rise@5.714ns - island_175 rise@0.000ns)
+  Data Path Delay:        7.185ns  (logic 2.083ns (28.993%)  route 5.102ns (71.007%))
+  Logic Levels:           8  (CARRY4=1 LUT3=1 LUT4=1 LUT5=3 LUT6=2)
+  Clock Path Skew:        -0.049ns (DCD - SCD + CPR)
+    Destination Clock Delay (DCD):    0.924ns = ( 6.638 - 5.714 ) 
+    Source Clock Delay      (SCD):    0.973ns
+    Clock Pessimism Removal (CPR):    0.000ns
+  Clock Uncertainty:      0.035ns  ((TSJ^2 + TIJ^2)^1/2 + DJ) / 2 + PE
+    Total System Jitter     (TSJ):    0.071ns
+    Total Input Jitter      (TIJ):    0.000ns
+    Discrete Jitter          (DJ):    0.000ns
+    Phase Error              (PE):    0.000ns
+
+    Location             Delay type                Incr(ns)  Path(ns)    Netlist Resource(s)
+  -------------------------------------------------------------------    -------------------
+                         (clock island_175 rise edge)
+                                                      0.000     0.000 r  
+                                                      0.000     0.000 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.973     0.973    fft_clk
+    SLICE_X19Y12         FDRE                                         r  registered_scheduling.held_phase_reg_replica_1/C
+  -------------------------------------------------------------------    -------------------
+    SLICE_X19Y12         FDRE (Prop_fdre_C_Q)         0.456     1.429 r  registered_scheduling.held_phase_reg_replica_1/Q
+                         net (fo=32, routed)          0.731     2.160    product_bank/held_phase_repN_1_alias
+    SLICE_X15Y15         LUT3 (Prop_lut3_I1_O)        0.124     2.284 r  product_bank/i__carry_i_8/O
+                         net (fo=2, routed)           1.122     3.406    product_bank/i__carry_i_8_n_0
+    SLICE_X17Y15         LUT6 (Prop_lut6_I3_O)        0.124     3.530 r  product_bank/i__carry_i_2__0/O
+                         net (fo=1, routed)           0.000     3.530    input_guard/S[0]
+    SLICE_X17Y15         CARRY4 (Prop_carry4_S[1]_CO[2])
+                                                      0.570     4.100 r  input_guard/metadata_valid1_inferred__0/i__carry/CO[2]
+                         net (fo=1, routed)           0.852     4.952    input_guard/metadata_valid118_in
+    SLICE_X16Y16         LUT5 (Prop_lut5_I1_O)        0.313     5.265 f  input_guard/fault_reasons[1]_i_6/O
+                         net (fo=1, routed)           0.162     5.427    input_guard/fault_reasons[1]_i_6_n_0
+    SLICE_X16Y16         LUT5 (Prop_lut5_I3_O)        0.124     5.551 f  input_guard/fault_reasons[1]_i_4/O
+                         net (fo=6, routed)           0.628     6.178    input_guard/fault_reasons[1]_i_4_n_0
+    SLICE_X12Y15         LUT6 (Prop_lut6_I2_O)        0.124     6.302 f  input_guard/fault_reasons[0]_i_2__0/O
+                         net (fo=3, routed)           0.306     6.608    input_guard/fault_reasons[0]_i_2__0_n_0
+    SLICE_X13Y16         LUT5 (Prop_lut5_I4_O)        0.124     6.732 f  input_guard/descriptor[69]_i_4__0/O
+                         net (fo=3, routed)           0.430     7.162    input_guard/input_fault_now
+    SLICE_X13Y17         LUT4 (Prop_lut4_I3_O)        0.124     7.286 r  input_guard/descriptor[69]_i_1/O
+                         net (fo=71, routed)          0.871     8.158    input_guard/job_started
+    SLICE_X19Y17         FDCE                                         r  input_guard/descriptor_reg[45]/CE
+  -------------------------------------------------------------------    -------------------
+
+                         (clock island_175 rise edge)
+                                                      5.714     5.714 r  
+                                                      0.000     5.714 r  fft_clk (IN)
+                         net (fo=4728, unset)         0.924     6.638    input_guard/fft_clk
+    SLICE_X19Y17         FDCE                                         r  input_guard/descriptor_reg[45]/C
+                         clock pessimism              0.000     6.638    
+                         clock uncertainty           -0.035     6.603    
+    SLICE_X19Y17         FDCE (Setup_fdce_C_CE)      -0.205     6.398    input_guard/descriptor_reg[45]
+  -------------------------------------------------------------------
+                         required time                          6.398    
+                         arrival time                          -8.158    
+  -------------------------------------------------------------------
+                         slack                                 -1.760    
+
+
+
+
