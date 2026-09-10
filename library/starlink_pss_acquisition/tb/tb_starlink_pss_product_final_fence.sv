@@ -62,7 +62,7 @@ module tb_starlink_pss_product_final_fence;
 `define VIEW(m) {m.input_ready,m.input_fault,m.input_framing_fault_now,m.output_valid,m.output_data,m.output_position,m.output_last,m.output_metadata,m.request_toggle,m.acknowledge_toggle,m.request_sync,m.acknowledge_sync,m.metadata_in_hold,m.metadata_out_hold,m.write_position,m.reading,m.read_all_loaded,m.read_address,m.read_output_position,m.read_payload,m.read_valid}
   wire [1023:0] old_view=`VIEW(reference), new_view=`VIEW(candidate);
   integer checks=0,samples=0,private_differences=0,phase_rows=0,stalls=0;
-  integer input_bad_bits=0,last_bad_bits=0,current_rows=0,unknown_rows=0,reset_rows=0,words=0;
+  integer input_bad_bits=0,last_bad_bits=0,current_rows=0,sticky_rows=0,unknown_rows=0,reset_rows=0,words=0;
   integer i,j,k; reg [2:0] epoch_input_reasons=0; reg epoch_external=0;
   // Match the RTL's procedural else branch: X framing is NOT the known-bad
   // branch and still evaluates authorization (which must remain X, not true).
@@ -186,6 +186,20 @@ module tb_starlink_pss_product_final_fence;
       #0.001;if(!final_sample || product_commit_authorized!==0) $fatal(1,"CURRENT_VETO_NOT_APPLIED");
       tick;if(candidate.request_toggle!==0) $fatal(1,"FAULTED_PRODUCT_PUBLISHED");
       current_rows=current_rows+1;
+      if(j==0) begin
+        // Isolate the REAL checker's retained reason after the duplicate pulse
+        // ends. This is a local-veto witness, not a claim that the full wrapper
+        // would leave its additional fast_fault latch clear on this next edge.
+        low;job_start=0;#0.001;
+        if(!final_sample || !checked_input_complete || duplicate_start_fault_now ||
+           input_fault_now || !input_guard_fault || !epoch_input_reasons[2] ||
+           (|source_fault_fast) || vendor_fault_now || fast_fault || kernel_fault ||
+           product_overflow || product_bank_fault || product_bank_framing_fault_now ||
+           result_fault || handoff_fault_now)
+          $fatal(1,"STICKY_ONLY_INPUT_VETO_NOT_REACHED");
+        tick;if(candidate.request_toggle!==0) $fatal(1,"STICKY_INPUT_FAULT_PUBLISHED");
+        sticky_rows=sticky_rows+1;
+      end
     end
     // Every current final metadata bit and malformed TLAST is still checked
     // inside the mailbox, independently of the local authorization predicate.
@@ -219,7 +233,7 @@ module tb_starlink_pss_product_final_fence;
     reset_epoch;complete_forward;product_prefix;tick;low;product_valid=0;repeat(5) tick;
     low;running=0;core_aresetn=0;tick;reset_rows=reset_rows+1;
     if(samples==0 || private_differences==0 || words!=(ADDRESS_WIDTH==9 ? N : N-1)) $fatal(1,"FENCE_COVERAGE_MISSING");
-    $display("PRODUCT_FINAL_FENCE_PASS enabled=%0d depth=%0d checks=%0d sampled=%0d nonsampled_private=%0d input_bits=%0d final_rows=%0d current_rows=%0d inverse_epochs=%0d stalls=%0d epoch_resets=%0d words=%0d short_inverse_poison=%0d unknown_final_rows=%0d scope=real_guard_mailbox_NOT_FFT_controller",ENABLED,N,checks,samples,private_differences,input_bad_bits,last_bad_bits,current_rows,phase_rows,stalls,reset_rows,words,ADDRESS_WIDTH!=9,unknown_rows);
+    $display("PRODUCT_FINAL_FENCE_PASS enabled=%0d depth=%0d checks=%0d sampled=%0d nonsampled_private=%0d input_bits=%0d final_rows=%0d current_rows=%0d inverse_epochs=%0d stalls=%0d epoch_resets=%0d words=%0d short_inverse_poison=%0d unknown_final_rows=%0d sticky_input_rows=%0d scope=real_guard_mailbox_NOT_FFT_controller",ENABLED,N,checks,samples,private_differences,input_bad_bits,last_bad_bits,current_rows,phase_rows,stalls,reset_rows,words,ADDRESS_WIDTH!=9,unknown_rows,sticky_rows);
     $finish;
   end
   initial begin #20000000;$fatal(1,"FENCE_TEST_TIMEOUT");end
