@@ -1,0 +1,101 @@
+#-----------------------------------------------------------
+# Vivado v2022.2 (64-bit)
+# SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+# IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+# Start of session at: Thu Sep 10 06:42:10 2026
+# Process ID: 3460150
+# Current directory: /home/mouse9911
+# Command line: vivado -mode tcl -log /tmp/starlink-completed-input.5EaJuD/exact-control-first-pair-diagnosis-v1/wdb-inspection.log -journal /tmp/starlink-completed-input.5EaJuD/exact-control-first-pair-diagnosis-v1/wdb-inspection.jou
+# Log file: /tmp/starlink-completed-input.5EaJuD/exact-control-first-pair-diagnosis-v1/wdb-inspection.log
+# Journal file: /tmp/starlink-completed-input.5EaJuD/exact-control-first-pair-diagnosis-v1/wdb-inspection.jou
+# Running On: gauss, OS: Linux, CPU Frequency: 5400.000 MHz, CPU Physical cores: 24, Host memory: 132067 MB
+#-----------------------------------------------------------
+set_param general.maxThreads 2
+help open_wave_database
+help get_value
+help write_vcd
+open_wave_database /tmp/starlink-completed-input.5EaJuD/exact-control-actual-matrix-v3/r0-d0-s0/project/exact_control_actual.sim/sim_1/behav/xsim/tb_starlink_pss_fft_bank_owned_slice_behav.wdb
+puts [llength [get_objects -r /*]]
+help get_value
+help get_objects
+help open_vcd
+help log_vcd
+puts [get_objects /tb_starlink_pss_fft_bank_owned_slice/dut/core_status_data]
+puts [get_objects /tb_starlink_pss_fft_bank_owned_slice/exact_reference/dut/core_status_data]
+puts [get_value -radix hex /tb_starlink_pss_fft_bank_owned_slice/dut/core_status_data]
+puts [get_value -radix hex /tb_starlink_pss_fft_bank_owned_slice/exact_reference/dut/core_status_data]
+puts [get_scopes]
+puts [get_objects -r -filter {NAME =~ *core_status_data*} /*]
+puts [get_objects -r -filter {NAME =~ *exact_checks*} /*]
+puts [get_objects -r -filter {NAME =~ *exact_public_equal*} /*]
+puts [get_objects -r -filter {NAME =~ *core_status_valid*} /*]
+foreach obj [get_objects -r -filter {NAME =~ *core_status_data* || NAME =~ *core_status_valid* || NAME =~ *exact_checks* || NAME =~ *exact_public_equal*} /*] { puts "$obj -> [get_value -radix hex $obj]" }
+puts [current_time]
+help *wave* -syntax
+set obj [lindex [get_objects -r -filter {NAME =~ *exact_checks*} /*] 0]
+report_property $obj
+create_wave_config read_only_failure
+add_wave $obj
+report_property [lindex [get_waves] 0]
+puts [info commands ::rdi::*wave*]
+puts [info commands ::xsim::*]
+help *cursor* -syntax
+help *vcd* -syntax
+add_wave /
+puts [llength [get_waves *]]
+report_property [current_wave_config]
+set escaped [string map {\\ \\\\} $obj]
+puts $escaped
+add_wave $escaped
+set exact_wave [get_waves -filter {NAME =~ *exact_checks*} *]
+puts $exact_wave
+report_property $exact_wave
+puts [info commands ::*::*wave*]
+puts [info commands ::*::*value*]
+report_property [lindex [get_waves *] 0]
+puts [info commands *value*]
+puts [namespace children ::]
+help get_value_database
+help find_next_wave_value
+foreach obj [get_objects -r -filter {NAME =~ *core_status_data* || NAME =~ *core_status_valid* || NAME =~ *exact_checks* || NAME =~ *exact_public_equal* || NAME =~ *injected_status*} /*] { puts "$obj -> [get_value_database -time 1198594347644fs -radix hex $obj]" }
+set all_objects [get_objects -r /*]
+set byname [dict create]
+foreach obj $all_objects {dict set byname [get_property NAME $obj] $obj}
+set counter_obj [lindex [get_objects -r -filter {NAME =~ *exact_checks*} /*] 0]
+set top [string range $counter_obj 0 [expr {[string last "/" $counter_obj]-1}]]
+set observed 0; set reference_observed 0; set both_observed 0
+foreach field {resetn fft_resetn input_valid input_last input_data input_position input_block_start input_ready output_valid output_ready output_last output_data output_position output_metadata fault epoch profile expected_fault expected_results injecting_readiness reader_enable allow_inverse_commit_before_late_fault allow_provisional_prefix_after_fault dut.fast_running dut.slow_running dut.fast_fault dut.state dut.core_release dut.input_job_start_private dut.input_job_start dut.next_inverse dut.engine_metadata dut.engine_input_reserved dut.engine_output_reserved dut.forward_committed dut.held_phase dut.held_lease dut.source_consume_generation dut.product_consume_generation dut.descriptor_certified dut.admission_receipt dut.completion_receipt dut.expected_product_metadata dut.preparation_age dut.epoch_input_reasons dut.epoch_preflight_reasons dut.core_aresetn dut.config_valid dut.config_ready dut.engine_input_enable dut.job_ready dut.job_accept dut.result_busy dut.result_commit dut.result_fault dut.source_valid dut.source_read_ready dut.source_data dut.source_position dut.source_last dut.source_metadata dut.product_bank_valid dut.product_bank_read_ready dut.product_bank_data dut.product_bank_position dut.product_bank_last dut.product_bank_metadata dut.checked_input_complete dut.certified_input_beat dut.certified_input_complete dut.input_fault_now dut.input_guard_fault dut.input_fault_events_now dut.duplicate_start_fault_now dut.core_input_data dut.core_input_valid dut.core_input_ready dut.core_input_last dut.core_output_data dut.core_output_user dut.core_output_valid dut.core_output_last dut.core_status_data dut.core_status_valid dut.event_frame dut.event_last_unexpected dut.event_last_missing dut.event_input_halt dut.return_valid dut.return_private_valid dut.return_commit_valid dut.return_data dut.return_position dut.return_last dut.return_metadata dut.forward_retirement_valid dut.external_fault_now dut.any_fast_fault dut.preflight_events_now dut.preparation_fault_now dut.final_fence dut.completed_input_fault_now dut.forward_handoff_ack dut.forward_handoff_identity dut.handoff_fault_now dut.result_destination_ready dut.product_commit_authorized dut.product_bank_ready dut.product_bank_fault dut.product_bank_framing_fault_now dut.output_bank_ready dut.output_bank_fault dut.output_bank_framing_fault_now dut.product_overflow dut.result_guard.active_private dut.result_guard.awaiting_ack dut.result_guard.descriptor dut.result_guard.input_count dut.result_guard.output_count dut.result_guard.input_complete_seen dut.result_guard.frame_seen dut.result_guard.status_seen dut.result_guard.exponent_seen dut.result_guard.status_exponent dut.result_guard.output_exponent dut.result_guard.age dut.result_guard.return_occupied dut.result_guard.return_last dut.result_guard.return_data dut.result_guard.return_position dut.result_guard.return_exponent dut.result_guard.fault_reasons dut.result_guard.faults_now dut.input_guard.job_started dut.input_guard.input_started dut.input_guard.descriptor dut.input_guard.expected_position dut.input_guard.input_complete dut.input_guard.fault_reasons dut.input_guard.slot_open dut.input_guard.fault_events_now dut.input_guard.core_input_tvalid dut.input_guard.certified_input_beat dut.input_guard.certified_input_complete dut.joiner.kernel_rom.expected_bin_index dut.joiner.kernel_rom.block_exponent dut.joiner.kernel_rom.block_start_index dut.joiner.kernel_rom.have_previous_block dut.joiner.kernel_rom.output_kernel_word dut.joiner.kernel_rom.output_valid dut.joiner.kernel_rom.output_bin_index dut.joiner.kernel_rom.output_block_exponent dut.joiner.kernel_rom.output_last dut.joiner.kernel_rom.output_block_start_index dut.joiner.kernel_rom.accepted_pulse dut.joiner.kernel_rom.emitted_pulse dut.joiner.kernel_rom.input_block_complete_pulse dut.joiner.kernel_rom.sequence_error_pulse dut.joiner.kernel_rom.metadata_error_pulse dut.joiner.kernel_rom.protocol_fault dut.joiner.kernel_rom.input_ready dut.joiner.kernel_rom.input_accept dut.joiner.kernel_rom.protocol_error_now dut.source_bank.request_toggle dut.source_bank.acknowledge_toggle dut.source_bank.request_sync dut.source_bank.acknowledge_sync dut.source_bank.metadata_in_hold dut.source_bank.metadata_out_hold dut.source_bank.write_position dut.source_bank.reading dut.source_bank.read_all_loaded dut.source_bank.read_address dut.source_bank.read_output_position dut.source_bank.read_payload dut.source_bank.read_valid dut.source_bank.input_ready dut.source_bank.input_fault dut.source_bank.input_framing_fault_now dut.source_bank.output_valid dut.source_bank.output_ready dut.product_bank.request_toggle dut.product_bank.acknowledge_toggle dut.product_bank.request_sync dut.product_bank.acknowledge_sync dut.product_bank.metadata_in_hold dut.product_bank.metadata_out_hold dut.product_bank.write_position dut.product_bank.reading dut.product_bank.read_all_loaded dut.product_bank.read_address dut.product_bank.read_output_position dut.product_bank.read_payload dut.product_bank.read_valid dut.product_bank.input_ready dut.product_bank.input_fault dut.product_bank.input_framing_fault_now dut.product_bank.output_valid dut.product_bank.output_ready dut.output_bank.request_toggle dut.output_bank.acknowledge_toggle dut.output_bank.request_sync dut.output_bank.acknowledge_sync dut.output_bank.metadata_in_hold dut.output_bank.metadata_out_hold dut.output_bank.write_position dut.output_bank.reading dut.output_bank.read_all_loaded dut.output_bank.read_address dut.output_bank.read_output_position dut.output_bank.read_payload dut.output_bank.read_valid dut.output_bank.input_ready dut.output_bank.input_fault dut.output_bank.input_framing_fault_now dut.output_bank.output_valid dut.output_bank.output_ready} {
+ set suffix [string map {. /} $field]
+ set a [get_value_database -time 1198594347644fs -radix hex [dict get $byname $top/$suffix]]
+ set b [get_value_database -time 1198594347644fs -radix hex [dict get $byname $top/exact_reference/$suffix]]
+ if {$a ne "<Blank>"} {incr observed}
+ if {$b ne "<Blank>"} {incr reference_observed}
+ if {$a ne "<Blank>" && $b ne "<Blank>"} {incr both_observed}
+ puts "WDB_FIELD $field candidate=$a reference=$b"
+}
+puts "WDB_AVAILABILITY fields=217 candidate=$observed reference=$reference_observed both=$both_observed"
+foreach name {exact_checks exact_active_checks exact_consumed exact_private_differences exact_final_faults exact_owned_stalls exact_reset_owned epoch fast_cycle injected_status held_final_ready_witnesses forward_shadow_checks forward_inverse_current forward_sticky_faults} {
+ if {[dict exists $byname $top/$name]} {puts "WDB_COUNTER $name=[get_value_database -time 1198594347644fs -radix unsigned [dict get $byname $top/$name]]"}
+}
+close_sim
+open_wave_database /tmp/starlink-completed-input.5EaJuD/exact-control-actual-matrix-v3/r1-d1-s1/project/exact_control_actual.sim/sim_1/behav/xsim/tb_starlink_pss_fft_bank_owned_slice_behav.wdb
+set all_objects [get_objects -r /*]
+set byname [dict create]
+foreach obj $all_objects {dict set byname [get_property NAME $obj] $obj}
+set counter_obj [lindex [get_objects -r -filter {NAME =~ *exact_checks*} /*] 0]
+set top [string range $counter_obj 0 [expr {[string last "/" $counter_obj]-1}]]
+set observed 0; set reference_observed 0; set both_observed 0
+foreach field {resetn fft_resetn input_valid input_last input_data input_position input_block_start input_ready output_valid output_ready output_last output_data output_position output_metadata fault epoch profile expected_fault expected_results injecting_readiness reader_enable allow_inverse_commit_before_late_fault allow_provisional_prefix_after_fault dut.fast_running dut.slow_running dut.fast_fault dut.state dut.core_release dut.input_job_start_private dut.input_job_start dut.next_inverse dut.engine_metadata dut.engine_input_reserved dut.engine_output_reserved dut.forward_committed dut.held_phase dut.held_lease dut.source_consume_generation dut.product_consume_generation dut.descriptor_certified dut.admission_receipt dut.completion_receipt dut.expected_product_metadata dut.preparation_age dut.epoch_input_reasons dut.epoch_preflight_reasons dut.core_aresetn dut.config_valid dut.config_ready dut.engine_input_enable dut.job_ready dut.job_accept dut.result_busy dut.result_commit dut.result_fault dut.source_valid dut.source_read_ready dut.source_data dut.source_position dut.source_last dut.source_metadata dut.product_bank_valid dut.product_bank_read_ready dut.product_bank_data dut.product_bank_position dut.product_bank_last dut.product_bank_metadata dut.checked_input_complete dut.certified_input_beat dut.certified_input_complete dut.input_fault_now dut.input_guard_fault dut.input_fault_events_now dut.duplicate_start_fault_now dut.core_input_data dut.core_input_valid dut.core_input_ready dut.core_input_last dut.core_output_data dut.core_output_user dut.core_output_valid dut.core_output_last dut.core_status_data dut.core_status_valid dut.event_frame dut.event_last_unexpected dut.event_last_missing dut.event_input_halt dut.return_valid dut.return_private_valid dut.return_commit_valid dut.return_data dut.return_position dut.return_last dut.return_metadata dut.forward_retirement_valid dut.external_fault_now dut.any_fast_fault dut.preflight_events_now dut.preparation_fault_now dut.final_fence dut.completed_input_fault_now dut.forward_handoff_ack dut.forward_handoff_identity dut.handoff_fault_now dut.result_destination_ready dut.product_commit_authorized dut.product_bank_ready dut.product_bank_fault dut.product_bank_framing_fault_now dut.output_bank_ready dut.output_bank_fault dut.output_bank_framing_fault_now dut.product_overflow dut.result_guard.active_private dut.result_guard.awaiting_ack dut.result_guard.descriptor dut.result_guard.input_count dut.result_guard.output_count dut.result_guard.input_complete_seen dut.result_guard.frame_seen dut.result_guard.status_seen dut.result_guard.exponent_seen dut.result_guard.status_exponent dut.result_guard.output_exponent dut.result_guard.age dut.result_guard.return_occupied dut.result_guard.return_last dut.result_guard.return_data dut.result_guard.return_position dut.result_guard.return_exponent dut.result_guard.fault_reasons dut.result_guard.faults_now dut.input_guard.job_started dut.input_guard.input_started dut.input_guard.descriptor dut.input_guard.expected_position dut.input_guard.input_complete dut.input_guard.fault_reasons dut.input_guard.slot_open dut.input_guard.fault_events_now dut.input_guard.core_input_tvalid dut.input_guard.certified_input_beat dut.input_guard.certified_input_complete dut.joiner.kernel_rom.expected_bin_index dut.joiner.kernel_rom.block_exponent dut.joiner.kernel_rom.block_start_index dut.joiner.kernel_rom.have_previous_block dut.joiner.kernel_rom.output_kernel_word dut.joiner.kernel_rom.output_valid dut.joiner.kernel_rom.output_bin_index dut.joiner.kernel_rom.output_block_exponent dut.joiner.kernel_rom.output_last dut.joiner.kernel_rom.output_block_start_index dut.joiner.kernel_rom.accepted_pulse dut.joiner.kernel_rom.emitted_pulse dut.joiner.kernel_rom.input_block_complete_pulse dut.joiner.kernel_rom.sequence_error_pulse dut.joiner.kernel_rom.metadata_error_pulse dut.joiner.kernel_rom.protocol_fault dut.joiner.kernel_rom.input_ready dut.joiner.kernel_rom.input_accept dut.joiner.kernel_rom.protocol_error_now dut.source_bank.request_toggle dut.source_bank.acknowledge_toggle dut.source_bank.request_sync dut.source_bank.acknowledge_sync dut.source_bank.metadata_in_hold dut.source_bank.metadata_out_hold dut.source_bank.write_position dut.source_bank.reading dut.source_bank.read_all_loaded dut.source_bank.read_address dut.source_bank.read_output_position dut.source_bank.read_payload dut.source_bank.read_valid dut.source_bank.input_ready dut.source_bank.input_fault dut.source_bank.input_framing_fault_now dut.source_bank.output_valid dut.source_bank.output_ready dut.product_bank.request_toggle dut.product_bank.acknowledge_toggle dut.product_bank.request_sync dut.product_bank.acknowledge_sync dut.product_bank.metadata_in_hold dut.product_bank.metadata_out_hold dut.product_bank.write_position dut.product_bank.reading dut.product_bank.read_all_loaded dut.product_bank.read_address dut.product_bank.read_output_position dut.product_bank.read_payload dut.product_bank.read_valid dut.product_bank.input_ready dut.product_bank.input_fault dut.product_bank.input_framing_fault_now dut.product_bank.output_valid dut.product_bank.output_ready dut.output_bank.request_toggle dut.output_bank.acknowledge_toggle dut.output_bank.request_sync dut.output_bank.acknowledge_sync dut.output_bank.metadata_in_hold dut.output_bank.metadata_out_hold dut.output_bank.write_position dut.output_bank.reading dut.output_bank.read_all_loaded dut.output_bank.read_address dut.output_bank.read_output_position dut.output_bank.read_payload dut.output_bank.read_valid dut.output_bank.input_ready dut.output_bank.input_fault dut.output_bank.input_framing_fault_now dut.output_bank.output_valid dut.output_bank.output_ready} {
+ set suffix [string map {. /} $field]
+ set a [get_value_database -time 1200640062032fs -radix hex [dict get $byname $top/$suffix]]
+ set b [get_value_database -time 1200640062032fs -radix hex [dict get $byname $top/exact_reference/$suffix]]
+ if {$a ne "<Blank>"} {incr observed}
+ if {$b ne "<Blank>"} {incr reference_observed}
+ if {$a ne "<Blank>" && $b ne "<Blank>"} {incr both_observed}
+ puts "WDB_FIELD $field candidate=$a reference=$b"
+}
+puts "WDB_AVAILABILITY fields=217 candidate=$observed reference=$reference_observed both=$both_observed"
+foreach name {exact_checks exact_active_checks exact_consumed exact_private_differences exact_final_faults exact_owned_stalls exact_reset_owned epoch fast_cycle injected_status held_final_ready_witnesses forward_shadow_checks forward_inverse_current forward_sticky_faults} {
+ if {[dict exists $byname $top/$name]} {puts "WDB_COUNTER $name=[get_value_database -time 1200640062032fs -radix unsigned [dict get $byname $top/$name]]"}
+}
+close_sim -force
