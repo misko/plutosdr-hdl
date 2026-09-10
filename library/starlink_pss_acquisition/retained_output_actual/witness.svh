@@ -55,7 +55,8 @@ always @(posedge fft_clk)begin
         $fatal(1,"actual48 input context=%0d job=%0d ordinal=%0d actual=%h expected=%h",context_id,actual_jobs,actual_inputs,`D.core_input_data,{6'b0,actual_expected[35:18],6'b0,actual_expected[17:0]});
       if(actual_inputs==0)actual_first_input=fast_cycles;
       actual_last_input=fast_cycles;
-      actual_word(actual_inverse?"inputI":"inputF",actual_fixture,actual_inputs,`D.core_input_data,actual_start,0);
+      if(actual_inverse)actual_word("inputI",actual_fixture,actual_inputs,`D.core_input_data,actual_start,0);
+      else actual_word("inputF",actual_fixture,actual_inputs,`D.core_input_data,actual_start,0);
       actual_inputs=actual_inputs+1;actual_input_total=actual_input_total+1;
       if(`D.certified_input_complete!==(actual_inputs==512))$fatal(1,"actual physical final certification");
     end else if(`D.certified_input_complete)$fatal(1,"completion without physical final input");
@@ -83,7 +84,8 @@ always @(posedge fft_clk)begin
         if(fast_cycles-actual_last_input!=781)$fatal(1,"actual raw first absolute service");
       end
       if(actual_raw==511&&fast_cycles-actual_admit!=1809)$fatal(1,"actual raw last absolute service");
-      actual_word(actual_inverse?"rawI":"rawF",actual_fixture,actual_raw,`D.core_output_data,actual_start,{5'b0,actual_exponent});
+      if(actual_inverse)actual_word("rawI",actual_fixture,actual_raw,`D.core_output_data,actual_start,{5'b0,actual_exponent});
+      else actual_word("rawF",actual_fixture,actual_raw,`D.core_output_data,actual_start,{5'b0,actual_exponent});
       actual_raw=actual_raw+1;actual_raw_total=actual_raw_total+1;
     end
     if(`D.return_commit_valid&&`D.result_destination_ready)begin
