@@ -137,7 +137,8 @@ module starlink_pss_fft_bank_owned_slice #(
   wire core_status_valid, event_frame, event_last_unexpected, event_last_missing, event_input_halt;
   assign source_read_ready = !selected_phase && transport_ready && engine_input_enable;
   assign product_bank_read_ready = selected_phase && transport_ready && engine_input_enable;
-  starlink_pss_realtime_input_guard #(.CHECK_INPUT_BLOCK_IDENTITY(1)) input_guard (
+  starlink_pss_realtime_input_guard #(.CHECK_INPUT_BLOCK_IDENTITY(1),
+    .BALANCED_IDENTITY_EQ(REGISTERED_SCHEDULING)) input_guard (
     .clk(fft_clk), .resetn(core_aresetn), .job_start(input_job_start),
     .job_descriptor(engine_metadata), .input_enable(engine_input_enable),
     .input_valid(guard_valid), .input_ready(), .input_transport_ready(transport_ready),

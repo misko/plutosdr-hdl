@@ -766,6 +766,9 @@ module tb_starlink_pss_fft_bank_owned_slice;
       $fatal(1, "missing held-phase input tuple/active fault evidence");
     $display("HELD_PHASE_INPUT_PASS registered=%0d active_fault_cases=12 vendor_open_quarantine_cases=2 reset_recoveries=2 input_shadow_checks=%0d full_open_tuple_checks=%0d quarantine_open_checks=%0d exact_certified_and_bank_reads=1", REGISTERED_SCHEDULING,
       input_shadow_checks, input_open_checks, input_quarantine_open_checks);
+    if (dut.input_guard.BALANCED_IDENTITY_EQ != REGISTERED_SCHEDULING || old_input_guard.BALANCED_IDENTITY_EQ != 0)
+      $fatal(1, "balanced identity actual/reference parameter mismatch");
+    $display("BALANCED_IDENTITY_ACTUAL_PASS enabled=%0d legacy_input_shadow_checks=%0d exact_per_beat_fault_reasons=1", REGISTERED_SCHEDULING, input_shadow_checks);
     $fclose(trace); $finish;
   end
 endmodule

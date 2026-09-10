@@ -12,9 +12,8 @@
 // waitstates are legal. Detect a violated demand immediately, even if the
 // caller accidentally withdraws input_enable. Do not wait for vendor halt.
 `timescale 1ns/1ps
-module starlink_pss_realtime_input_guard #(
-  parameter integer CHECK_INPUT_BLOCK_IDENTITY = 1,
-  parameter integer BALANCED_IDENTITY_EQ = 0
+module starlink_pss_input_guard_d99c251e_golden #(
+  parameter integer CHECK_INPUT_BLOCK_IDENTITY = 1
 ) (
   input wire clk,
   input wire resetn,
@@ -47,8 +46,6 @@ module starlink_pss_realtime_input_guard #(
   initial begin
     if (CHECK_INPUT_BLOCK_IDENTITY != 0 && CHECK_INPUT_BLOCK_IDENTITY != 1)
       $fatal(1, "CHECK_INPUT_BLOCK_IDENTITY must be zero or one");
-    if (BALANCED_IDENTITY_EQ != 0 && BALANCED_IDENTITY_EQ != 1)
-      $fatal(1, "BALANCED_IDENTITY_EQ must be zero or one");
   end
   reg job_started, input_started;
   reg [69:0] descriptor;
@@ -56,26 +53,9 @@ module starlink_pss_realtime_input_guard #(
   assign protocol_fault = |fault_reasons;
   wire slot_open = resetn && job_started && !input_complete && !protocol_fault;
   wire eligible = slot_open && input_enable;
-  wire identity_matches;
-  generate if (BALANCED_IDENTITY_EQ) begin : balanced_identity
-    // All 70 bits remain live on this edge. Preserve LUT-sized equalities and
-    // balanced reductions; no state, hash, delayed veto or phase exemption.
-    (* keep = "true" *) wire [23:0] leaf_equal;
-    (* keep = "true" *) wire [3:0] group_equal;
-    for (genvar leaf = 0; leaf < 24; leaf = leaf + 1) begin : leaves
-      localparam integer BITS = leaf == 23 ? 1 : 3;
-      assign leaf_equal[leaf] = input_metadata[3*leaf +: BITS] == descriptor[3*leaf +: BITS];
-    end
-    for (genvar group_index = 0; group_index < 4; group_index = group_index + 1) begin : groups
-      assign group_equal[group_index] = &leaf_equal[6*group_index +: 6];
-    end
-    assign identity_matches = &group_equal;
-  end else begin : legacy_identity
-    assign identity_matches = input_metadata == descriptor;
-  end endgenerate
   wire metadata_valid = input_position == expected_position &&
     input_last == (expected_position == 511) &&
-    (!CHECK_INPUT_BLOCK_IDENTITY || identity_matches);
+    (!CHECK_INPUT_BLOCK_IDENTITY || input_metadata == descriptor);
   // Checker consumes malformed presented input even while the core stalls.
   // Mailbox retirement uses the explicitly metadata-independent transport cone.
   assign input_ready = eligible && (metadata_valid ? core_input_tready : 1'b1);

@@ -87,5 +87,8 @@ if {$registered && [string first "PREFLIGHT_REASON_SPLIT_PASS" $log] < 0} {
 if {[string first "HELD_PHASE_INPUT_PASS" $log] < 0} {
   error "held-phase input tuple/active fault matrix did not complete"
 }
+if {[string first "BALANCED_IDENTITY_ACTUAL_PASS enabled=$registered " $log] < 0} {
+  error "balanced/default identity actual-core comparison did not complete"
+}
 close_project
 puts "FFT_BANK_OWNED_ACTUAL_CORE_VERIFIED_NO_PHYSICAL_OR_RF_CLAIM"
