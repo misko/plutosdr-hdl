@@ -4,12 +4,17 @@
 `define BN_RAW native.i_core.i_raw_tracking_core
 `define BN_SCHED native.i_core.i_raw_tracking_core.i_candidate_scheduler
   parameter integer NATIVE_OFFSET = 447;
+  parameter integer NATIVE_TRUE_PSS = 0;
   initial if (NATIVE_OFFSET != 447 && NATIVE_OFFSET != 520)
     fail("native static anchor must be literal447 or520");
+  initial if ((NATIVE_TRUE_PSS != 0 && NATIVE_TRUE_PSS != 1) ||
+      (NATIVE_TRUE_PSS && NATIVE_OFFSET != 520))
+    fail("true-PSS profile requires explicit520 anchor");
   localparam [63:0] NATIVE_CENTER = FIRST + NATIVE_OFFSET;
   localparam [63:0] NATIVE_DEADLINE = FIRST + 128;
-  localparam [31:0] NATIVE_REQUEST = (NATIVE_OFFSET == 520) ? 32'h15005200 : 32'h15004470;
-  localparam [31:0] NATIVE_GENERATION = 32'h15000001;
+  localparam [31:0] NATIVE_REQUEST = NATIVE_TRUE_PSS ? 32'h15005201 :
+    (NATIVE_OFFSET == 520) ? 32'h15005200 : 32'h15004470;
+  localparam [31:0] NATIVE_GENERATION = NATIVE_TRUE_PSS ? 32'h15000002 : 32'h15000001;
   reg source_enable = 0;
   wire native_irq, native_injected;
   reg [31:0] native_coefficients [0:65], native_packet [0:25];
@@ -114,7 +119,7 @@
         native_packet[2] != NATIVE_REQUEST || native_packet[10] != NATIVE_GENERATION ||
         {native_packet[4], native_packet[3]} != NATIVE_CENTER ||
         {native_packet[6], native_packet[5]} != NATIVE_CENTER ||
-        native_packet[7] != ((NATIVE_OFFSET == 520) ? -32'sd17 : 32'd0))
+        native_packet[7] != ((NATIVE_OFFSET == 520 && !NATIVE_TRUE_PSS) ? -32'sd17 : 32'd0))
       fail("native independent packet identity mismatch");
     expect_reg(2, 8'h04, 32'h00010002); expect_reg(2, 8'h08, 15);
     expect_reg(2, 8'h0c, {8'd0,8'd61,8'd130,8'd66}); expect_reg(2, 8'h10, 32'h1d);
@@ -193,6 +198,8 @@
     $display("BANK_NATIVE_OVERLAP capture_fft_fast_cycles=%0d compute_coarse_pilot_accepts=%0d",
       native_capture_fft_overlap, native_compute_overlap);
     $display("BANK_NATIVE_EXACT_PASS packets=1 public_reads=52 capture_words=130 taps=66 qualified_lags=61 retained_across_stop=1 injection=0 timestamp_equals_index=1");
+    if (NATIVE_TRUE_PSS)
+      $display("BANK_NATIVE_TRUE_PSS_PASS profile=520-pss request=15005201 generation=15000002 winner_lag=0 source_overlay=520:586 SYNTHETIC_STATIC_NOT_CAUSAL");
     $display("BANK_NATIVE_PAIRED_PASS source_msps=15 fast_mhz=%0d anchor=%0d source_words=4096 scores=894 map_words=447 pilot_bytes=2048 STATIC_ANCHOR_NOT_CAUSAL_NO_RF_PHYSICAL", FAST_MHZ, NATIVE_OFFSET);
   endtask
 `undef BN_BANK

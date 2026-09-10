@@ -1,12 +1,14 @@
 # Actual-core, additive public-native-AXI + bank PSMA/PIL1 static-anchor smoke.
-# Args: NEW_OUTPUT ORIGINAL_SCORE_VECTORS ORIGINAL_PILOT_ORACLE NATIVE_ORACLE 175|200 ?447|520?
+# Args: NEW_OUTPUT SCORE_VECTORS PILOT_ORACLE NATIVE_ORACLE 175|200 ?447|520|520-pss?
 # STARLINK_NATIVE_PYTHON must name an absolute Python with repo dependencies.
-if {$argc ni {5 6}} { error "expected NEW_OUTPUT SCORE_VECTORS PILOT_ORACLE NATIVE_ORACLE FAST_MHZ ?447|520?" }
+if {$argc ni {5 6}} { error "expected NEW_OUTPUT SCORE_VECTORS PILOT_ORACLE NATIVE_ORACLE FAST_MHZ ?447|520|520-pss?" }
 if {[lindex $argv 4] ni {175 200}} { error "native paired clock must be literal175 or200" }
 set native_profile 447
 if {$argc == 6} { set native_profile [lindex $argv 5] }
-if {$native_profile ni {447 520}} { error "native anchor must be literal447 or520" }
-set native_expected_lag [expr {$native_profile == 520 ? -17 : 0}]
+if {$native_profile ni {447 520 520-pss}} { error "native anchor must be literal447,520 or520-pss" }
+set native_pss [expr {$native_profile eq "520-pss"}]
+set native_offset [expr {$native_pss ? 520 : $native_profile}]
+set native_expected_lag [expr {$native_profile eq "520" ? -17 : 0}]
 # Resolve every caller-relative path before the independent Python subprocess
 # changes cwd. Output and all three input roots keep the caller's coordinates.
 for {set native_arg 0} {$native_arg < 4} {incr native_arg} {
@@ -26,6 +28,9 @@ set native_python_relatives {
   tests/starlink_oracle/numerology.py tests/starlink_oracle/search.py
   tests/starlink_oracle/waveforms.py tests/starlink_oracle/xfft_bitacc.py
 }
+if {$native_pss} {
+  lappend native_python_relatives tests/starlink_oracle/bank_native_true_pss.py tests/starlink_oracle/pilot_ddc.py
+}
 foreach relative $native_python_relatives {
   if {![file isfile [file join $native_fw $relative]]} {
     error "missing native Python runtime dependency: $relative"
@@ -42,12 +47,21 @@ set native_python $::env(STARLINK_NATIVE_PYTHON)
 set native_cwd [pwd]
 cd $native_fw
 set native_failed [catch {
-  exec env -u PYTHONHOME -u PYTHONPATH -u LD_LIBRARY_PATH $native_python \
-    -m tests.starlink_oracle.bank_native_paired [lindex $argv 2] $native_dir --verify --anchor $native_profile
+  if {$native_pss} {
+    exec env -u PYTHONHOME -u PYTHONPATH -u LD_LIBRARY_PATH $native_python \
+      -m tests.starlink_oracle.bank_native_true_pss verify [lindex $argv 1] [lindex $argv 2] $native_dir
+  } else {
+    exec env -u PYTHONHOME -u PYTHONPATH -u LD_LIBRARY_PATH $native_python \
+      -m tests.starlink_oracle.bank_native_paired [lindex $argv 2] $native_dir --verify --anchor $native_profile
+  }
 } native_receipt]
 cd $native_cwd
 if {$native_failed} { error "independent native oracle rejected: $native_receipt" }
-if {$native_receipt ne "BANK_NATIVE_ORACLE_VERIFIED source=4096 taps=66 packet_words=26 anchor=$native_profile winner_lag=$native_expected_lag"} {
+set native_required_receipt "BANK_NATIVE_ORACLE_VERIFIED source=4096 taps=66 packet_words=26 anchor=$native_profile winner_lag=$native_expected_lag"
+if {$native_pss} {
+  set native_required_receipt {BANK_NATIVE_TRUE_PSS_ORACLE_VERIFIED source=4096 blocks=3 scores=1341 map_words=447 pilot_bytes=2048 packet_words=26 profile=520-pss winner_lag=0}
+}
+if {$native_receipt ne $native_required_receipt} {
   error "native oracle verification lacks exact receipt"
 }
 set argv [list [lindex $argv 0] [lindex $argv 1] [lindex $argv 2] 447x2 1 [lindex $argv 4]]
@@ -80,6 +94,14 @@ set native_runner [native_replace_once $native_runner {foreach path $input_paths
   if {![file isfile $path]} { error "missing paired simulation source $path" }
 }} {
 foreach path $native_rtl_paths { lappend input_paths $path }
+if {$native_pss} {
+  lappend input_paths [file join $native_fw tests test_starlink_bank_native_true_pss.py] \
+    [file join $native_fw tests starlink_oracle bank_native_true_pss.py] \
+    [file join [file dirname $native_dir] fixture.json]
+  foreach name {pipeline_vectors.json paired_map_u32.mem energies_u38.mem numerators_u69.mem denominators_u69.mem saturated_u1.mem} {
+    lappend input_paths [file join $vector_dir $name]
+  }
+}
 foreach name {native_coefficients_q15.mem native_expected_packet.mem native_oracle.json} {
   lappend input_paths [file join $native_dir $name]
 }
@@ -110,7 +132,10 @@ set native_runner [native_replace_once $native_runner {sample_clock_ns=10 sample
 set native_runner [native_replace_once $native_runner {scope=actual_digital_shell_cdc_canonical_real_fft_psma_and_pilot} {scope=actual_original15_source_public_native_AXI_bank_PSMA_PIL1_static_anchor}]
 set native_runner [native_replace_once $native_runner {ADC_format_DMA_IIO_fine_production_geometry_duration_physical_RF_qualified=false} {ADC_format_DMA_IIO_causal_fine_production_geometry_duration_physical_RF_qualified=false}]
 set native_runner [native_replace_once $native_runner {test_only_geometry=$selected_geometry outer_index_bits=15 score_fixture_unchanged=true} {test_only_geometry=$selected_geometry outer_index_bits=15 score_fixture_unchanged=true native_anchor=$native_profile native_expected_lag=$native_expected_lag}]
-set native_runner [native_replace_once $native_runner {FAST_MHZ=$fast_mhz" [get_filesets sim_1]} {FAST_MHZ=$fast_mhz NATIVE_OFFSET=$native_profile" [get_filesets sim_1]}]
+if {$native_pss} {
+  set native_runner [native_replace_once $native_runner {score_fixture_unchanged=true native_anchor=$native_profile} {score_fixture_unchanged=false fixture=bank-native-original-overlay-520-pss-v1 native_anchor=$native_profile}]
+}
+set native_runner [native_replace_once $native_runner {FAST_MHZ=$fast_mhz" [get_filesets sim_1]} {FAST_MHZ=$fast_mhz NATIVE_OFFSET=$native_offset NATIVE_TRUE_PSS=$native_pss" [get_filesets sim_1]}]
 set native_runner [native_replace_once $native_runner {set project_name paired_realtime_psma_stop} {
 set native_frozen_names [lsort [glob [file join $source_dir *]]]
 set native_frozen_hashes [exec sha256sum {*}$native_frozen_names]
@@ -130,7 +155,9 @@ close_project
 puts "PAIRED_REALTIME_PSMA_STOP_SIMULATION_VERIFIED}]
 
 proc native_verify_outputs {simulation_dir source_dir fast_mhz {anchor 447}} {
-  if {$anchor ni {447 520} || $fast_mhz ni {175 200}} { error "invalid native receipt profile" }
+  if {$anchor ni {447 520 520-pss} || $fast_mhz ni {175 200}} { error "invalid native receipt profile" }
+  set true_pss [expr {$anchor eq "520-pss"}]
+  set offset [expr {$true_pss ? 520 : $anchor}]
   set log_path [file join $simulation_dir simulate.log]
   set channel [open $log_path r]; set log [read $channel]; close $channel
   # This exact historical successful fault test remains mandatory in the
@@ -143,7 +170,13 @@ proc native_verify_outputs {simulation_dir source_dir fast_mhz {anchor 447}} {
   }
   require_realtime_probe_pass $log_path [list \
     {BANK_NATIVE_EXACT_PASS packets=1 public_reads=52 capture_words=130 taps=66 qualified_lags=61 retained_across_stop=1 injection=0 timestamp_equals_index=1} \
-    "BANK_NATIVE_PAIRED_PASS source_msps=15 fast_mhz=$fast_mhz anchor=$anchor source_words=4096 scores=894 map_words=447 pilot_bytes=2048 STATIC_ANCHOR_NOT_CAUSAL_NO_RF_PHYSICAL"] BANK_NATIVE_PACKET_WORD 52
+    "BANK_NATIVE_PAIRED_PASS source_msps=15 fast_mhz=$fast_mhz anchor=$offset source_words=4096 scores=894 map_words=447 pilot_bytes=2048 STATIC_ANCHOR_NOT_CAUSAL_NO_RF_PHYSICAL"] BANK_NATIVE_PACKET_WORD 52
+  if {$true_pss} {
+    require_realtime_probe_pass $log_path [list \
+      {BANK_NATIVE_TRUE_PSS_PASS profile=520-pss request=15005201 generation=15000002 winner_lag=0 source_overlay=520:586 SYNTHETIC_STATIC_NOT_CAUSAL}] BANK_NATIVE_TRUE_PSS_PASS 1
+  } elseif {[regexp -line {^BANK_NATIVE_TRUE_PSS_PASS} $log]} {
+    error "true-PSS receipt cannot qualify a legacy source profile"
+  }
   set channel [open [file join $source_dir native_expected_packet.mem] r]
   set packet [split [string trim [read $channel]] "\n"]; close $channel
   set rows [regexp -all -inline -line {^BANK_NATIVE_PACKET_WORD pass=([01]) word=([0-9]+) data=([0-9a-f]{8})$} $log]
@@ -155,7 +188,7 @@ proc native_verify_outputs {simulation_dir source_dir fast_mhz {anchor 447}} {
   }
   if {[regexp -all -line {^BANK_NATIVE_ADMISSION } $log] != 1 ||
       ![regexp -line {^BANK_NATIVE_ADMISSION index=([0-9]+) capture_start=([0-9]+) lead=([0-9]+) deadline=([0-9]+)$} $log all index start lead deadline] ||
-      $start != 8589934576 + $anchor - 32 || $deadline != 8589934704 || $index < 8589934592 ||
+      $start != 8589934576 + $offset - 32 || $deadline != 8589934704 || $index < 8589934592 ||
       $index > $deadline || $lead < 64 || $lead != $start - $index - 1} {
     error "native admission receipt does not attest exact safe source lead"
   }
