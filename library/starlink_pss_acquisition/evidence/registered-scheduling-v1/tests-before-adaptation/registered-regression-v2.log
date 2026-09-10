@@ -1,0 +1,99 @@
+.................ss............................................ssss....F [ 28%]
+.....ss................................................................. [ 57%]
+...............................F..F..................................... [ 86%]
+..................................                                       [100%]
+=================================== FAILURES ===================================
+_____ test_entire_guard_delta_preserves_full_faults_and_publication_checks _____
+
+    def test_entire_guard_delta_preserves_full_faults_and_publication_checks():
+        name = "starlink_pss_realtime_result_guard"
+        baseline = frozen(name)
+        candidate = tokens((ACQ / f"{name}.v").read_text())
+        if "outputwiremailbox_commit_valid," in candidate:
+            # Later additive final-only export is checked independently against
+            # ccdf6436. Normalize only its exact algebraic expansion here.
+            candidate = replace_once(candidate, "outputwiremailbox_commit_valid,", "")
+>           candidate = replace_once(candidate,
+                ("assignmailbox_commit_valid=resetn&&active&&!protocol_fault&&return_valid&&"
+                 "return_last&&final_qualified&&!final_fault_now;"
+                 "wirefinal_commit=mailbox_commit_valid&&mailbox_input_ready;"),
+                ("wirefinal_commit=resetn&&active&&!protocol_fault&&return_valid&&return_last&&"
+                 "final_qualified&&!final_fault_now&&mailbox_input_ready;"))
+
+tests/starlink_oracle/test_phase_input_contract.py:42: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+source = '`timescale1ns/1psmodulestarlink_pss_realtime_result_guard#(parameterintegerWATCHDOG_CYCLES=8192,parameterintegerUSE_P...&mailbox_input_ready&&!protocol_fault&&!idle_fault_now)awaiting_ack<=0;if(final_commit)awaiting_ack<=1;endendendmodule'
+old = 'assignmailbox_commit_valid=resetn&&active&&!protocol_fault&&return_valid&&return_last&&final_qualified&&!final_fault_now;wirefinal_commit=mailbox_commit_valid&&mailbox_input_ready;'
+new = 'wirefinal_commit=resetn&&active&&!protocol_fault&&return_valid&&return_last&&final_qualified&&!final_fault_now&&mailbox_input_ready;'
+
+    def replace_once(source, old, new):
+>       assert source.count(old) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <built-in method count of str object at 0x5b7609ea3840>('assignmailbox_commit_valid=resetn&&active&&!protocol_fault&&return_valid&&return_last&&final_qualified&&!final_fault_now;wirefinal_commit=mailbox_commit_valid&&mailbox_input_ready;')
+E        +    where <built-in method count of str object at 0x5b7609ea3840> = '`timescale1ns/1psmodulestarlink_pss_realtime_result_guard#(parameterintegerWATCHDOG_CYCLES=8192,parameterintegerUSE_P...&mailbox_input_ready&&!protocol_fault&&!idle_fault_now)awaiting_ack<=0;if(final_commit)awaiting_ack<=1;endendendmodule'.count
+
+tests/starlink_oracle/test_phase_input_contract.py:30: AssertionError
+___ test_guard_delta_is_only_final_qualification_export_and_exact_handshake ____
+
+    def test_guard_delta_is_only_final_qualification_export_and_exact_handshake():
+        name = "starlink_pss_realtime_result_guard"
+        source = tokens((ACQ / f"{name}.v").read_text())
+        source = replace_once(source, "outputwiremailbox_commit_valid,", "")
+>       source = replace_once(source,
+            ("assignmailbox_commit_valid=resetn&&active&&!protocol_fault&&return_valid&&"
+             "return_last&&final_qualified&&!final_fault_now;"
+             "wirefinal_commit=mailbox_commit_valid&&mailbox_input_ready;"),
+            ("wirefinal_commit=resetn&&active&&!protocol_fault&&return_valid&&return_last&&"
+             "final_qualified&&!final_fault_now&&mailbox_input_ready;"))
+
+tests/starlink_oracle/test_final_authorization.py:43: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+source = '`timescale1ns/1psmodulestarlink_pss_realtime_result_guard#(parameterintegerWATCHDOG_CYCLES=8192,parameterintegerUSE_P...&mailbox_input_ready&&!protocol_fault&&!idle_fault_now)awaiting_ack<=0;if(final_commit)awaiting_ack<=1;endendendmodule'
+old = 'assignmailbox_commit_valid=resetn&&active&&!protocol_fault&&return_valid&&return_last&&final_qualified&&!final_fault_now;wirefinal_commit=mailbox_commit_valid&&mailbox_input_ready;'
+new = 'wirefinal_commit=resetn&&active&&!protocol_fault&&return_valid&&return_last&&final_qualified&&!final_fault_now&&mailbox_input_ready;'
+
+    def replace_once(source, old, new):
+>       assert source.count(old) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <built-in method count of str object at 0x5b7609ea3840>('assignmailbox_commit_valid=resetn&&active&&!protocol_fault&&return_valid&&return_last&&final_qualified&&!final_fault_now;wirefinal_commit=mailbox_commit_valid&&mailbox_input_ready;')
+E        +    where <built-in method count of str object at 0x5b7609ea3840> = '`timescale1ns/1psmodulestarlink_pss_realtime_result_guard#(parameterintegerWATCHDOG_CYCLES=8192,parameterintegerUSE_P...&mailbox_input_ready&&!protocol_fault&&!idle_fault_now)awaiting_ack<=0;if(final_commit)awaiting_ack<=1;endendendmodule'.count
+
+tests/starlink_oracle/test_final_authorization.py:35: AssertionError
+_______ test_new_output_is_subject_to_all_existing_final_veto_rows[True] _______
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/registered-regression-v2/test_new_output_is_subject_to_1')
+mutation = True
+
+    @pytest.mark.parametrize("mutation", [False, True])
+    def test_new_output_is_subject_to_all_existing_final_veto_rows(tmp_path, mutation):
+        top = "tb_starlink_pss_realtime_final_veto_equivalence"
+        source = (ACQ / "starlink_pss_realtime_result_guard.v").read_text()
+        if mutation:
+>           source = replace_once(source,
+                "return_last && final_qualified && !final_fault_now;",
+                "return_last && final_qualified;")
+
+tests/starlink_oracle/test_final_authorization.py:71: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+source = '// SPDX-License-Identifier: GPL-2.0\n// Used by the explicitly opted-in realtime shared-XFFT service; the default\n//... !idle_fault_now)\n        awaiting_ack <= 0;\n      if (final_commit) awaiting_ack <= 1;\n    end\n  end\nendmodule\n'
+old = 'return_last && final_qualified && !final_fault_now;'
+new = 'return_last && final_qualified;'
+
+    def replace_once(source, old, new):
+>       assert source.count(old) == 1
+E       AssertionError: assert 0 == 1
+E        +  where 0 = <built-in method count of str object at 0x5b7609ee2630>('return_last && final_qualified && !final_fault_now;')
+E        +    where <built-in method count of str object at 0x5b7609ee2630> = '// SPDX-License-Identifier: GPL-2.0\n// Used by the explicitly opted-in realtime shared-XFFT service; the default\n//... !idle_fault_now)\n        awaiting_ack <= 0;\n      if (final_commit) awaiting_ack <= 1;\n    end\n  end\nendmodule\n'.count
+
+tests/starlink_oracle/test_final_authorization.py:35: AssertionError
+=========================== short test summary info ============================
+SKIPPED [2] tests/starlink_oracle/test_realtime_occupancy.py:79: explicit actual Vivado guard measurement required
+SKIPPED [4] tests/starlink_oracle/test_input_cursor_equivalence.py:77: explicit actual Vivado input-cursor measurement required
+SKIPPED [2] tests/starlink_oracle/test_phase_input_contract.py:124: explicit actual Vivado phase-mode measurement required
+FAILED tests/starlink_oracle/test_phase_input_contract.py::test_entire_guard_delta_preserves_full_faults_and_publication_checks
+FAILED tests/starlink_oracle/test_final_authorization.py::test_guard_delta_is_only_final_qualification_export_and_exact_handshake
+FAILED tests/starlink_oracle/test_final_authorization.py::test_new_output_is_subject_to_all_existing_final_veto_rows[True]
+3 failed, 239 passed, 8 skipped in 37.57s
