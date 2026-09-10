@@ -4,6 +4,9 @@ integer actual_jobs=0,actual_commits=0,actual_aborts=0,actual_input_total=0;
 integer actual_raw_total=0,actual_status_total=0,actual_fixture=0;
 integer actual_admit=0,actual_first_input=0,actual_last_input=0,actual_first_raw=0;
 integer actual_reset_low=0,actual_frame_cycle=0;
+integer actual_epoch_release=0,actual_config_cycle=0;
+integer actual_inputs_before=0,actual_input_on=0,actual_frame_before=0,actual_frame_on=0,actual_frame_after=0;
+reg actual_frame_pending=0,actual_frame_closed=0;
 reg actual_inverse=0,actual_active=0,actual_previous_resetn=0;
 reg[63:0]actual_start=0;
 reg[35:0]actual_expected;
@@ -24,10 +27,23 @@ always @(posedge fft_clk)begin
     if(!`D.core_aresetn)actual_reset_low=actual_reset_low+1;
     if(`D.core_aresetn&&!actual_previous_resetn)begin
       if(actual_reset_low<2)$fatal(1,"actual sampled reset shorter than two cycles");
+      if(!actual_active||actual_epoch_release!=0||fast_cycles!=actual_admit+2)
+        $fatal(1,"actual fresh reset release owner/timing");
+      actual_epoch_release=fast_cycles;
       $display("RACT_RESET_RELEASE context=%0d cycle=%0d sampled_low=%0d",context_id,fast_cycles,actual_reset_low);
       actual_reset_low=0;
     end
     actual_previous_resetn=`D.core_aresetn;
+    if(actual_frame_pending)begin
+      if(`D.core_aresetn!==1'b1||`D.event_frame!==1'b0||!actual_active||
+         fast_cycles!=actual_frame_cycle+1)
+        $fatal(1,"actual frame pulse closure/owner");
+      $display("RACT_FRAME context=%0d job=%0d inverse=%0d fixture=%0d start=%0d admit=%0d release=%0d config=%0d cycle=%0d end_cycle=%0d before=%0d on=%0d after=%0d",
+        context_id,actual_jobs,actual_inverse,actual_fixture,actual_start,actual_admit,
+        actual_epoch_release,actual_config_cycle,actual_frame_cycle,fast_cycles,
+        actual_frame_before,actual_frame_on,actual_frame_after);
+      actual_frame_pending=0;actual_frame_closed=1;
+    end
     if(`D.job_accept)begin
       if(actual_active)$fatal(1,"actual overlapping core owners");
       actual_start=`D.engine_metadata[68:5];
@@ -35,17 +51,22 @@ always @(posedge fft_clk)begin
         $fatal(1,"actual independent source identity");
       actual_fixture=(actual_start-1000)/447;actual_inverse=`D.next_inverse;
       actual_inputs=0;actual_raw=0;actual_status=0;actual_frames=0;actual_config=0;
+      actual_epoch_release=0;actual_config_cycle=0;actual_frame_closed=0;
       actual_admit=fast_cycles;actual_active=1;actual_jobs=actual_jobs+1;
       $display("RACT_ADMIT context=%0d job=%0d inverse=%0d start=%0d cycle=%0d source_valid=%b source_start=%0d retained=%b",
         context_id,actual_jobs,actual_inverse,actual_start,fast_cycles,`D.source_valid,`D.source_metadata[68:5],`D.retained_published);
     end
     if(`D.config_valid&&`D.config_ready)begin
       if(!actual_active||actual_config!=0||fast_cycles-actual_admit!=3||
+        `D.core_aresetn!==1'b1||actual_epoch_release!=actual_admit+2||
         `D.shared_xfft.s_axis_config_tdata!==(actual_inverse?8'h00:8'h01))$fatal(1,"actual config handshake/timing");
       actual_config=actual_config+1;
+      actual_config_cycle=fast_cycles;
     end
     if(`D.certified_input_beat!==(`D.core_input_valid&&`D.core_input_ready))
       $fatal(1,"physical/certified core input mismatch");
+    actual_inputs_before=actual_inputs;
+    actual_input_on=`D.core_input_valid&&`D.core_input_ready;
     if(`D.core_input_valid&&`D.core_input_ready)begin
       if(!actual_active||actual_config!=1||actual_inputs>=512)$fatal(1,"unowned actual core input");
       actual_expected=actual_inverse?products[actual_fixture*512+actual_inputs]:
@@ -61,8 +82,13 @@ always @(posedge fft_clk)begin
       if(`D.certified_input_complete!==(actual_inputs==512))$fatal(1,"actual physical final certification");
     end else if(`D.certified_input_complete)$fatal(1,"completion without physical final input");
     if(`D.event_frame)begin
-      if(!actual_active||actual_frames!=0||actual_inputs!=1)$fatal(1,"actual fresh frame ordinal");
+      if(!actual_active||`D.core_aresetn!==1'b1||actual_config!=1||
+         actual_epoch_release!=actual_admit+2||actual_config_cycle!=actual_admit+3||
+         fast_cycles<=actual_config_cycle||actual_frames!=0||actual_inputs<1||actual_raw!=0)
+        $fatal(1,"actual causal frame owner/epoch/input");
       actual_frames=actual_frames+1;actual_frame_cycle=fast_cycles;
+      actual_frame_before=actual_inputs_before;actual_frame_on=actual_input_on;
+      actual_frame_after=actual_inputs;actual_frame_pending=1;
     end
     actual_exponent=actual_inverse?ie[actual_fixture]:fe[actual_fixture];
     if(`D.core_status_valid)begin
@@ -72,6 +98,8 @@ always @(posedge fft_clk)begin
       $display("RACT_STATUS context=%0d job=%0d ordinal=%0d cycle=%0d",context_id,actual_jobs,actual_raw,fast_cycles);
     end
     if(`D.core_output_valid)begin
+      if(!actual_frame_closed||actual_frame_cycle>=fast_cycles)
+        $fatal(1,"actual frame must strictly precede raw output");
       if(!actual_active||actual_inputs!=512||actual_frames!=1||actual_raw>=512)
         $fatal(1,"unowned actual raw output");
       actual_expected=actual_inverse?inverses[actual_fixture*512+actual_raw]:forwards[actual_fixture*512+actual_raw];
@@ -107,7 +135,7 @@ end
 always @(negedge resetn or negedge fft_resetn)begin
   if(actual_active)begin
     if(context_id<5||actual_inverse||actual_fixture!=1||actual_inputs<64||actual_inputs>=512||
-       actual_raw!=0||actual_status!=0||actual_config!=1||actual_frames!=1)
+       actual_raw!=0||actual_status!=0||actual_config!=1||actual_frames!=1||!actual_frame_closed)
       $fatal(1,"unexpected reset of actual core owner");
     $display("RACT_ABORT context=%0d job=%0d fixture=%0d inputs=%0d first=%0d last=%0d raw=0 status=0 cycle=%0d",
       context_id,actual_jobs,actual_fixture,actual_inputs,actual_first_input,actual_last_input,fast_cycles);
