@@ -9,7 +9,9 @@
 `timescale 1ns/1ps
 module starlink_pss_fft_bank_owned_slice #(
   parameter KERNEL_ROM_FILE = "upper_edge_pss_kernel_q17.mem",
-  parameter integer REGISTERED_SCHEDULING = 0
+  parameter integer REGISTERED_SCHEDULING = 0,
+  parameter integer DISTRIBUTED_FAST_FAULT = 0,
+  parameter integer PRIVATE_NEXT_START_SCRATCH = 0
 ) (
   input wire clk, resetn, fft_clk, fft_resetn,
   input wire input_valid,
@@ -26,6 +28,12 @@ module starlink_pss_fft_bank_owned_slice #(
   output wire [74:0] output_metadata,
   output wire fault
 );
+  initial begin
+    if (DISTRIBUTED_FAST_FAULT !== 0 && DISTRIBUTED_FAST_FAULT !== 1)
+      $fatal(1, "DISTRIBUTED_FAST_FAULT must be zero or one");
+    if (PRIVATE_NEXT_START_SCRATCH !== 0 && PRIVATE_NEXT_START_SCRATCH !== 1)
+      $fatal(1, "PRIVATE_NEXT_START_SCRATCH must be zero or one");
+  end
   (* ASYNC_REG = "TRUE" *) reg [1:0] slow_reset_fast, fast_reset_fast;
   (* ASYNC_REG = "TRUE" *) reg [1:0] slow_reset_slow, fast_reset_slow;
   always @(posedge fft_clk or negedge resetn)
@@ -257,7 +265,8 @@ module starlink_pss_fft_bank_owned_slice #(
   // The final result is admitted ONLY on the original guard's qualified commit.
   starlink_pss_forward_kernel_join #(.KERNEL_ROM_FILE(KERNEL_ROM_FILE), .DATA_WIDTH(18),
     .PRIVATE_PAYLOAD_BUBBLES(REGISTERED_SCHEDULING),
-    .BALANCED_BLOCK_IDENTITY_EQ(REGISTERED_SCHEDULING)) joiner (
+    .BALANCED_BLOCK_IDENTITY_EQ(REGISTERED_SCHEDULING),
+    .PRIVATE_NEXT_START_SCRATCH(PRIVATE_NEXT_START_SCRATCH)) joiner (
     .clk(fft_clk), .resetn(fast_running), .flush(1'b0),
     // Match the guard's exact retirement event, including a held final word.
     // An owned bank should remain ready, but a readiness fault/stall must never
@@ -338,9 +347,29 @@ module starlink_pss_fft_bank_owned_slice #(
         product_consume_generation <= !product_consume_generation;
     end
   end
-  always @(posedge fft_clk)
-    if (!fast_running) fast_fault <= 0;
-    else if (any_fast_fault) fast_fault <= 1;
+  // BEGIN DISTRIBUTED_FAST_FAULT: the exact scalar recurrence, factored at Q.
+  // Every non-self term of any_fast_fault is present. Raw publication fences
+  // and detailed reasons remain untouched; this does NOT register their OR
+  // one cycle later. Per-bit if semantics also retain the scalar's X behavior:
+  // only a definitely asserted cause sets a sticky bit.
+  generate if (DISTRIBUTED_FAST_FAULT) begin : distributed_fast_fault
+    wire [11:0] causes_now = {preparation_fault_now, output_bank_fault,
+      result_fault, handoff_fault_now, product_bank_framing_fault_now,
+      product_bank_fault, product_overflow, kernel_fault, vendor_fault_now,
+      source_fault_fast[1], input_guard_fault, input_fault_now};
+    (* keep = "true" *) reg [11:0] cause_sticky;
+    for (genvar cause_index = 0; cause_index < 12; cause_index = cause_index + 1) begin : causes
+      always @(posedge fft_clk)
+        if (!fast_running) cause_sticky[cause_index] <= 0;
+        else if (causes_now[cause_index]) cause_sticky[cause_index] <= 1;
+    end
+    always @* fast_fault = |cause_sticky;
+  end else begin : scalar_fast_fault
+    always @(posedge fft_clk)
+      if (!fast_running) fast_fault <= 0;
+      else if (any_fast_fault) fast_fault <= 1;
+  end endgenerate
+  // END DISTRIBUTED_FAST_FAULT
   generate if (!REGISTERED_SCHEDULING) begin : original_scheduling
   always @(posedge fft_clk) begin
     if (!fast_running) begin

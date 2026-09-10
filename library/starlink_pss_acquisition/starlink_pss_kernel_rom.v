@@ -12,7 +12,8 @@
 module starlink_pss_kernel_rom #(
   parameter ROM_FILE = "upper_edge_pss_kernel_q23.mem",
   parameter integer DATA_WIDTH = 24,
-  parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0
+  parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0,
+  parameter integer PRIVATE_NEXT_START_SCRATCH = 0
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -82,6 +83,8 @@ module starlink_pss_kernel_rom #(
   end endgenerate
 
   initial begin
+    if (PRIVATE_NEXT_START_SCRATCH !== 0 && PRIVATE_NEXT_START_SCRATCH !== 1)
+      $fatal(1, "PRIVATE_NEXT_START_SCRATCH must be zero or one");
     if (BALANCED_BLOCK_IDENTITY_EQ != 0 && BALANCED_BLOCK_IDENTITY_EQ != 1)
       $fatal(1, "BALANCED_BLOCK_IDENTITY_EQ must be zero or one");
     if (DATA_WIDTH < 2 || DATA_WIDTH > 24)
@@ -132,6 +135,14 @@ module starlink_pss_kernel_rom #(
       sequence_error_pulse <= 1'b0;
       metadata_error_pulse <= 1'b0;
 
+      // BEGIN PRIVATE_NEXT_START_SCRATCH: only this unused-at-bin511 value
+      // may speculate. A healthy accepted final rewrites it on the same edge
+      // before index0 can consult it; a malformed final quarantines instead.
+      // No input acceptance, checker, history flag or public payload changes.
+      if (PRIVATE_NEXT_START_SCRATCH && input_ready && expected_bin_index == 9'd511)
+        expected_next_block_start <= input_block_start_index + VALID_RESULTS_PER_BLOCK;
+      // END PRIVATE_NEXT_START_SCRATCH
+
       if (output_stage_ready)
         output_valid <= 1'b0;
 
@@ -156,8 +167,9 @@ module starlink_pss_kernel_rom #(
 
           if (expected_bin_index == 9'd511) begin
             expected_bin_index <= 0;
-            expected_next_block_start <= input_block_start_index +
-                                         VALID_RESULTS_PER_BLOCK;
+            if (!PRIVATE_NEXT_START_SCRATCH)
+              expected_next_block_start <= input_block_start_index +
+                                           VALID_RESULTS_PER_BLOCK;
             have_previous_block <= 1'b1;
             input_block_complete_pulse <= 1'b1;
           end else begin

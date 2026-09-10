@@ -12,7 +12,8 @@ module starlink_pss_forward_kernel_join #(
   parameter KERNEL_ROM_FILE = "upper_edge_pss_kernel_q23.mem",
   parameter integer DATA_WIDTH = 24,
   parameter integer PRIVATE_PAYLOAD_BUBBLES = 0,
-  parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0
+  parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0,
+  parameter integer PRIVATE_NEXT_START_SCRATCH = 0
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -52,6 +53,8 @@ module starlink_pss_forward_kernel_join #(
   wire input_accept;
 
   initial begin
+    if (PRIVATE_NEXT_START_SCRATCH !== 0 && PRIVATE_NEXT_START_SCRATCH !== 1)
+      $fatal(1, "PRIVATE_NEXT_START_SCRATCH must be zero or one");
     if (PRIVATE_PAYLOAD_BUBBLES != 0 && PRIVATE_PAYLOAD_BUBBLES != 1)
       $fatal(1, "PRIVATE_PAYLOAD_BUBBLES must be zero or one");
   end
@@ -63,7 +66,8 @@ module starlink_pss_forward_kernel_join #(
   starlink_pss_kernel_rom #(
     .ROM_FILE  (KERNEL_ROM_FILE),
     .DATA_WIDTH(DATA_WIDTH),
-    .BALANCED_BLOCK_IDENTITY_EQ(BALANCED_BLOCK_IDENTITY_EQ)
+    .BALANCED_BLOCK_IDENTITY_EQ(BALANCED_BLOCK_IDENTITY_EQ),
+    .PRIVATE_NEXT_START_SCRATCH(PRIVATE_NEXT_START_SCRATCH)
   ) kernel_rom (
     .clk                       (clk),
     .resetn                    (resetn),
