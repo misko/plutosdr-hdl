@@ -1,0 +1,44 @@
+....................................FF..                                 [100%]
+=================================== FAILURES ===================================
+_________________ test_observer_top_option_fails_closed[32'bx] _________________
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/fault-cdc-actual-offline-tests-v1/test_observer_top_option_fails2')
+value = "32'bx"
+
+    @pytest.mark.parametrize("value", ["-1", "2", "32'bx", "32'bz"])
+    def test_observer_top_option_fails_closed(tmp_path, value):
+        shutil.copyfile(ACQ / "tb" / PREPARE.OBSERVER, tmp_path / PREPARE.OBSERVER)
+        code, log = run_cdc(
+            tmp_path, parameters=(f"PER_CAUSE_FAULT_CDC={value}",), bench=observer_bench()
+        )
+>       assert code != 0 and "FAULT_CDC_ACTUAL_OPTION_INVALID" in log, log
+E       AssertionError: FAULT_CDC_ACTUAL_PASS enabled=1 checks=33692 stage0_high=33218 stage1_high=33210 reset_samples=40 current_fault_edges=29417 final_fault_edges=4 private_core_reset_samples=33211 scalar_source=actual_fast_fault reference_reset=slow_running
+E         FAULT_CDC_PASS enabled=1 registered=1 phase_ps=0 masks=4096 x_rows=48 reset_rows=3 private_reset_rows=1 slow_checks=16842 fast_checks=29475 quiescent_stub_not_fft=1
+E         /tmp/starlink-completed-input.5EaJuD/fault-cdc-actual-offline-tests-v1/test_observer_top_option_fails2/tb_starlink_pss_fault_cdc.sv:114: $finish called at 168460148 (1ps)
+E         
+E       assert (0 != 0)
+
+tests/starlink_oracle/test_fault_cdc_actual_preparation.py:360: AssertionError
+_________________ test_observer_top_option_fails_closed[32'bz] _________________
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/fault-cdc-actual-offline-tests-v1/test_observer_top_option_fails3')
+value = "32'bz"
+
+    @pytest.mark.parametrize("value", ["-1", "2", "32'bx", "32'bz"])
+    def test_observer_top_option_fails_closed(tmp_path, value):
+        shutil.copyfile(ACQ / "tb" / PREPARE.OBSERVER, tmp_path / PREPARE.OBSERVER)
+        code, log = run_cdc(
+            tmp_path, parameters=(f"PER_CAUSE_FAULT_CDC={value}",), bench=observer_bench()
+        )
+>       assert code != 0 and "FAULT_CDC_ACTUAL_OPTION_INVALID" in log, log
+E       AssertionError: FAULT_CDC_ACTUAL_PASS enabled=1 checks=33692 stage0_high=33218 stage1_high=33210 reset_samples=40 current_fault_edges=29417 final_fault_edges=4 private_core_reset_samples=33211 scalar_source=actual_fast_fault reference_reset=slow_running
+E         FAULT_CDC_PASS enabled=1 registered=1 phase_ps=0 masks=4096 x_rows=48 reset_rows=3 private_reset_rows=1 slow_checks=16842 fast_checks=29475 quiescent_stub_not_fft=1
+E         /tmp/starlink-completed-input.5EaJuD/fault-cdc-actual-offline-tests-v1/test_observer_top_option_fails3/tb_starlink_pss_fault_cdc.sv:114: $finish called at 168460148 (1ps)
+E         
+E       assert (0 != 0)
+
+tests/starlink_oracle/test_fault_cdc_actual_preparation.py:360: AssertionError
+=========================== short test summary info ============================
+FAILED tests/starlink_oracle/test_fault_cdc_actual_preparation.py::test_observer_top_option_fails_closed[32'bx]
+FAILED tests/starlink_oracle/test_fault_cdc_actual_preparation.py::test_observer_top_option_fails_closed[32'bz]
+2 failed, 38 passed in 11.36s
