@@ -130,14 +130,14 @@ proc operand_timing {stage} {
 proc operand_measure {frozen option} {
   set_param general.maxThreads 2
   # Actual elaborated parameter values, not an assertion about requested argv.
-  set compile_status [catch {exec iverilog -g2012 -s tb_starlink_spectrum_operand_parameters \
+  set compile_status [catch {exec env -u LD_LIBRARY_PATH iverilog -g2012 -s tb_starlink_spectrum_operand_parameters \
     -Ptb_starlink_spectrum_operand_parameters.REGISTER=$option -o parameter_probe.vvp \
     [file join $frozen starlink_pss_spectrum_product.v] \
     [file join $frozen starlink_pss_spectrum_product_operand_register.v] \
     [file join $frozen tb_starlink_spectrum_operand_parameters.sv] 2>@1} compile compile_options]
   set file [open parameter_compile.log w]; puts $file $compile; close $file
   if {$compile_status} { return -options $compile_options $compile }
-  set probe_status [catch {exec vvp parameter_probe.vvp 2>@1} probe probe_options]
+  set probe_status [catch {exec env -u LD_LIBRARY_PATH vvp parameter_probe.vvp 2>@1} probe probe_options]
   set file [open parameter_probe.log w]; puts $file $probe; close $file
   if {$probe_status} { return -options $probe_options $probe }
   if {$probe ne "OPERAND_PARAMETERS_VERIFIED width=18 round=1 registered=$option child_width=18 child_round=1 clocks=0"} {
