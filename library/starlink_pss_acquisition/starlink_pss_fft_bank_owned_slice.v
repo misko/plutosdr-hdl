@@ -11,6 +11,7 @@ module starlink_pss_fft_bank_owned_slice #(
   parameter KERNEL_ROM_FILE = "upper_edge_pss_kernel_q17.mem",
   parameter integer REGISTERED_SCHEDULING = 0,
   parameter integer DISTRIBUTED_FAST_FAULT = 0,
+  parameter integer PER_CAUSE_FAULT_CDC = 0,
   parameter integer PRIVATE_NEXT_START_SCRATCH = 0
 ) (
   input wire clk, resetn, fft_clk, fft_resetn,
@@ -33,6 +34,10 @@ module starlink_pss_fft_bank_owned_slice #(
       $fatal(1, "DISTRIBUTED_FAST_FAULT must be zero or one");
     if (PRIVATE_NEXT_START_SCRATCH !== 0 && PRIVATE_NEXT_START_SCRATCH !== 1)
       $fatal(1, "PRIVATE_NEXT_START_SCRATCH must be zero or one");
+    if (PER_CAUSE_FAULT_CDC !== 0 && PER_CAUSE_FAULT_CDC !== 1)
+      $fatal(1, "PER_CAUSE_FAULT_CDC must be zero or one");
+    if (PER_CAUSE_FAULT_CDC && !DISTRIBUTED_FAST_FAULT)
+      $fatal(1, "PER_CAUSE_FAULT_CDC requires DISTRIBUTED_FAST_FAULT");
   end
   (* ASYNC_REG = "TRUE" *) reg [1:0] slow_reset_fast, fast_reset_fast;
   (* ASYNC_REG = "TRUE" *) reg [1:0] slow_reset_slow, fast_reset_slow;
@@ -66,9 +71,27 @@ module starlink_pss_fft_bank_owned_slice #(
   always @(posedge fft_clk)
     if (!fast_running) source_fault_fast <= 0;
     else source_fault_fast <= {source_fault_fast[0], source_fault};
+  // BEGIN PER_CAUSE_FAULT_CDC: independent sticky event levels, not a data bus.
+  // Fast-domain quarantine/publication fences still consume fast_fault exactly
+  // as before. Only its slow-domain observation is factored across the two
+  // synchronization stages; both aggregate stage names remain observable.
+  generate if (PER_CAUSE_FAULT_CDC && DISTRIBUTED_FAST_FAULT) begin : per_cause_fault_cdc
+    wire [11:0] first_stage, second_stage;
+    for (genvar cause_index = 0; cause_index < 12; cause_index = cause_index + 1) begin : causes
+      (* ASYNC_REG = "TRUE" *) reg [1:0] cause_sync;
+      always @(posedge clk)
+        if (!slow_running) cause_sync <= 0;
+        else cause_sync <= {cause_sync[0], distributed_fast_fault.cause_sticky[cause_index]};
+      assign first_stage[cause_index] = cause_sync[0];
+      assign second_stage[cause_index] = cause_sync[1];
+    end
+    always @* fast_fault_slow = {|second_stage, |first_stage};
+  end else begin : aggregate_fault_cdc
   always @(posedge clk)
     if (!slow_running) fast_fault_slow <= 0;
     else fast_fault_slow <= {fast_fault_slow[0], fast_fault};
+  end endgenerate
+  // END PER_CAUSE_FAULT_CDC
   assign fault = source_fault || fast_fault_slow[1];
   assign input_ready = slow_running && source_ready && !fault;
 
