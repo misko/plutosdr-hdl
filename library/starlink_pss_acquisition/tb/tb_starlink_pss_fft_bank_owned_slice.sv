@@ -32,6 +32,24 @@ module tb_starlink_pss_fft_bank_owned_slice;
   wire [8:0] old_input_position = old_input_phase ? dut.product_bank_position : dut.source_position;
   wire old_input_last = old_input_phase ? dut.product_bank_last : dut.source_last;
   wire [69:0] old_input_metadata = old_input_phase ? dut.product_bank_metadata : dut.source_metadata;
+  wire old_preflight_lease = old_input_phase ? dut.product_consume_generation : dut.source_consume_generation;
+  // Frozen preflight expressions from447183b8: neither equality nor current
+  // cause shares the DUT's new balanced comparator/predicate implementation.
+  wire old_descriptor_header_valid = dut.engine_metadata[69] == dut.held_phase &&
+    (dut.held_phase ? dut.engine_metadata == dut.expected_product_metadata : dut.engine_metadata[4:0] == 0);
+  wire old_preparation_valid = old_input_valid && old_input_position == 0 && !old_input_last &&
+    old_preflight_lease == dut.held_lease && old_input_metadata == dut.engine_metadata &&
+    old_descriptor_header_valid && dut.destination_reserved;
+  wire [5:0] old_preflight_events_now = REGISTERED_SCHEDULING && dut.fast_running &&
+    (dut.state == dut.VERIFY_LEASE || dut.state == dut.ARM_JOB) ?
+    {dut.preparation_age == 63, !dut.destination_reserved,
+     (old_input_metadata != dut.engine_metadata || !old_descriptor_header_valid),
+     (old_preflight_lease != dut.held_lease), (old_input_position != 0 || old_input_last),
+     !old_input_valid} : 6'b0;
+  wire old_preflight_fault_now = |old_preflight_events_now;
+  integer preflight_tuple_checks = 0, preflight_cause_checks = 0, cache_phase_cases = 0;
+  reg injected_preflight_lease;
+  reg [69:0] injected_expected_product;
   wire old_transport_ready, old_input_complete, old_certified_beat, old_certified_complete;
   wire old_input_fault_now, old_input_fault, old_duplicate, old_core_valid, old_core_last;
   wire [2:0] old_input_events, old_input_reasons;
@@ -52,6 +70,18 @@ module tb_starlink_pss_fft_bank_owned_slice;
   );
   always @(posedge fft_clk or negedge fft_clk) begin
     #0.001;
+    preflight_cause_checks = preflight_cause_checks + 1;
+    if ({dut.preflight_events_now, dut.preparation_fault_now} !==
+        {old_preflight_events_now, old_preflight_fault_now})
+      $fatal(1, "held-preflight full current-cause mismatch");
+    if (dut.preparing) begin
+      preflight_tuple_checks = preflight_tuple_checks + 1;
+      if ({dut.preflight_phase, dut.preflight_valid, dut.preflight_data, dut.preflight_position,
+           dut.preflight_last, dut.preflight_metadata, dut.preflight_lease, dut.preparation_valid} !==
+          {old_input_phase, old_input_valid, old_input_data, old_input_position,
+           old_input_last, old_input_metadata, old_preflight_lease, old_preparation_valid})
+        $fatal(1, "held-preflight full preparing tuple/lease/predicate mismatch");
+    end
     if (dut.fast_running) begin
       input_shadow_checks = input_shadow_checks + 1;
       if ({dut.transport_ready, dut.checked_input_complete, dut.certified_input_beat,
@@ -103,7 +133,7 @@ module tb_starlink_pss_fft_bank_owned_slice;
     .final_fence_certified(dut.checked_input_complete && !dut.input_guard_fault && !dut.input_fault_now),
     // Shadow retains the prior RAW preflight veto. Only private ready/admit
     // may differ; reason accumulation and every public result stay exact.
-    .external_fault_now(dut.external_fault_now || dut.preparation_fault_now), .phase_input_fault_now(1'bz),
+    .external_fault_now(dut.external_fault_now || old_preflight_fault_now), .phase_input_fault_now(1'bz),
     .preflight_fault_evidence_now(1'bz),
     .completed_input_certified(1'bz), .completed_input_fault_now(1'bz),
     .core_event_frame_started(dut.event_frame), .core_output_tdata(dut.core_output_data),
@@ -135,7 +165,7 @@ module tb_starlink_pss_fft_bank_owned_slice;
           dut.result_destination_ready !== (dut.next_inverse ? dut.output_bank_ready : dut.forward_handoff_ack))
         $fatal(1, "raw readiness changed healthy controller drain edge");
       if (dut.job_ready !== shadow_ready) begin
-        if (!REGISTERED_SCHEDULING || !dut.preparing || !dut.preparation_fault_now ||
+        if (!REGISTERED_SCHEDULING || !dut.preparing || !old_preflight_fault_now ||
             !dut.job_ready || shadow_ready || dut.input_job_start || dut.source_read_ready ||
             dut.product_bank_read_ready || dut.config_valid || dut.return_private_valid ||
             dut.return_valid || dut.return_commit_valid)
@@ -208,7 +238,7 @@ module tb_starlink_pss_fft_bank_owned_slice;
       expected_epoch_input_reasons = expected_epoch_input_reasons | dut.input_fault_events_now;
       if (dut.epoch_preflight_reasons !== expected_epoch_preflight_reasons)
         $fatal(1, "private reset lost exact preflight reasons");
-      expected_epoch_preflight_reasons = expected_epoch_preflight_reasons | dut.preflight_events_now;
+      expected_epoch_preflight_reasons = expected_epoch_preflight_reasons | old_preflight_events_now;
       if (dut.state == dut.WAIT_BANK && dut.selected_valid && dut.destination_reserved)
         snapshot_cycle = fast_cycle;
       if (dut.job_accept) begin
@@ -609,10 +639,11 @@ module tb_starlink_pss_fft_bank_owned_slice;
       for (test_kind = 0; test_kind < 8; test_kind = test_kind + 1) begin
         reset_epoch(0); expected_fault = 1; expected_results = 0; send_words(0, 512);
         case (test_kind)
-          0: begin wait(dut.state == dut.VERIFY_LEASE); force dut.selected_metadata = 70'h123; end
-          1: begin wait(dut.state == dut.VERIFY_LEASE); force dut.selected_lease = !dut.held_lease; end
+          0: begin wait(dut.state == dut.VERIFY_LEASE); force dut.source_metadata = 70'h123; end
+          1: begin wait(dut.state == dut.VERIFY_LEASE); injected_preflight_lease = !dut.held_lease;
+            force dut.held_lease = injected_preflight_lease; end
           2: begin wait(dut.state == dut.ARM_JOB && !dut.admission_receipt); force dut.product_bank_ready = 0; end
-          3: begin wait(dut.admission_receipt); force dut.selected_metadata = 70'h456; end
+          3: begin wait(dut.admission_receipt); force dut.source_metadata = 70'h456; end
           // First matching status is legal after guard admission, even before
           // the input frame. Reserved bits make this an actual current fault.
           4: begin wait(dut.admission_receipt); force dut.core_status_data = 8'h80;
@@ -622,7 +653,7 @@ module tb_starlink_pss_fft_bank_owned_slice;
           7: begin wait(dut.completion_receipt); force dut.input_job_start = 1; end
         endcase
         tick(); @(negedge fft_clk);
-        release dut.selected_metadata; release dut.selected_lease; release dut.product_bank_ready;
+        release dut.source_metadata; release dut.held_lease; release dut.product_bank_ready;
         release dut.core_status_valid; release dut.core_status_data;
         release dut.event_last_missing; release dut.event_frame;
         release dut.input_job_start;
@@ -662,12 +693,25 @@ module tb_starlink_pss_fft_bank_owned_slice;
         endcase
         preflight_generations = {dut.product_consume_generation, dut.source_consume_generation};
         expected_preflight_mask = preflight_kind == 6 ? 6'h3f : 6'b1 << preflight_kind;
-        if (preflight_kind == 0 || preflight_kind == 6) force dut.selected_valid = 0;
-        if (preflight_kind == 1 || preflight_kind == 6) force dut.selected_position = 7;
-        if (preflight_kind == 2 || preflight_kind == 6) force dut.selected_lease = !dut.held_lease;
-        if (preflight_kind == 3 || preflight_kind == 6) force dut.selected_metadata = 70'h123;
-        if (preflight_kind == 4 || preflight_kind == 6) force dut.destination_reserved = 0;
+        // Corrupt the real bank tuple. Do not mutate ownership counters merely
+        // to inject a bad lease: their no-consumption invariant must stay real.
+        if (preflight_inverse) begin
+          if (preflight_kind == 0 || preflight_kind == 6) force dut.product_bank_valid = 0;
+          if (preflight_kind == 1 || preflight_kind == 6) force dut.product_bank_position = 7;
+          if (preflight_kind == 3 || preflight_kind == 6) force dut.product_bank_metadata = 70'h123;
+          if (preflight_kind == 4 || preflight_kind == 6) force dut.output_bank_ready = 0;
+        end else begin
+          if (preflight_kind == 0 || preflight_kind == 6) force dut.source_valid = 0;
+          if (preflight_kind == 1 || preflight_kind == 6) force dut.source_position = 7;
+          if (preflight_kind == 3 || preflight_kind == 6) force dut.source_metadata = 70'h123;
+          if (preflight_kind == 4 || preflight_kind == 6) force dut.product_bank_ready = 0;
+        end
+        if (preflight_kind == 2 || preflight_kind == 6) begin
+          injected_preflight_lease = !dut.held_lease; force dut.held_lease = injected_preflight_lease;
+        end
         if (preflight_kind == 5 || preflight_kind == 6) force dut.preparation_age = 63;
+        if (preflight_when == 0) force dut.core_input_ready = 0;
+        else force dut.core_input_ready = 1;
         expected_preflight_guard_reasons = preflight_when == 0 && preflight_phase != 2 ? 8'h11 : 8'h01;
         if (preflight_when == 0) begin
           force dut.core_status_data = 0; force dut.core_status_valid = 1;
@@ -681,8 +725,10 @@ module tb_starlink_pss_fft_bank_owned_slice;
           $fatal(1, "preflight same-edge exact reason lost phase=%0d kind=%0d when=%0d actual=%h expected=%h",
             preflight_phase, preflight_kind, preflight_when, dut.result_guard.fault_reasons, expected_preflight_guard_reasons);
         @(negedge fft_clk);
-        release dut.selected_valid; release dut.selected_position; release dut.selected_lease;
-        release dut.selected_metadata; release dut.destination_reserved; release dut.preparation_age;
+        release dut.source_valid; release dut.source_position; release dut.source_metadata;
+        release dut.product_bank_valid; release dut.product_bank_position; release dut.product_bank_metadata;
+        release dut.held_lease; release dut.product_bank_ready; release dut.output_bank_ready;
+        release dut.preparation_age; release dut.core_input_ready;
         release dut.core_status_valid; release dut.core_status_data;
         if (preflight_when == 1) begin
           force dut.core_status_data = 0; force dut.core_status_valid = 1;
@@ -703,8 +749,8 @@ module tb_starlink_pss_fft_bank_owned_slice;
         if (preflight_when == 2) begin
           reset_epoch(0); expected_fault = 1; expected_results = 0; send_words(0, 512);
           wait(dut.state == dut.ARM_JOB && dut.admission_receipt);
-          force dut.selected_metadata = 70'h123; tick();
-          @(negedge fft_clk); release dut.selected_metadata; await_fault();
+          force dut.source_metadata = 70'h123; tick();
+          @(negedge fft_clk); release dut.source_metadata; await_fault();
         end
         if (!(|dut.epoch_preflight_reasons)) $fatal(1, "missing preflight reason before reset");
         reset_epoch(preflight_when);
@@ -717,6 +763,42 @@ module tb_starlink_pss_fft_bank_owned_slice;
         $fatal(1, "missing preflight private-admit/start-mask matrix witnesses");
       $display("PREFLIGHT_REASON_SPLIT_PASS matrix_cases=%0d transform_phases=2 reason_bits=6 simultaneous_orphan_and_next_status=1 one_sided_fault_recoveries=2 private_ready_differences=%0d private_admits=%0d masked_start_samples=%0d exact_public_and_reason_shadow=1",
         preflight_matrix_cases, preflight_ready_differences, preflight_private_admits, preflight_masked_starts);
+      // The second full identity comparison is required only for inverse.
+      // Exercise its final bit at all three real scheduler boundaries, with
+      // raw core readiness both low and high. Forward cache-only corruption
+      // must remain ignored and recover through the normal forward capture.
+      for (preflight_inverse = 0; preflight_inverse < 2; preflight_inverse = preflight_inverse + 1)
+      for (preflight_phase = 0; preflight_phase < 3; preflight_phase = preflight_phase + 1)
+      for (preflight_when = 0; preflight_when < 2; preflight_when = preflight_when + 1) begin
+        reset_epoch(0); expected_fault = preflight_inverse;
+        expected_results = preflight_inverse ? 0 : 1; send_words(0, 512);
+        case (preflight_phase)
+          0: wait(dut.state == dut.VERIFY_LEASE && dut.next_inverse == preflight_inverse);
+          1: wait(dut.state == dut.ARM_JOB && !dut.admission_receipt && dut.next_inverse == preflight_inverse);
+          2: wait(dut.admission_receipt && dut.next_inverse == preflight_inverse);
+        endcase
+        preflight_generations = {dut.product_consume_generation, dut.source_consume_generation};
+        injected_expected_product = dut.expected_product_metadata ^ (70'b1 << 69);
+        force dut.expected_product_metadata = injected_expected_product;
+        if (preflight_when == 0) force dut.core_input_ready = 0;
+        else force dut.core_input_ready = 1;
+        #0.001;
+        if (dut.preflight_events_now !== (preflight_inverse ? 6'b001000 : 6'b0))
+          $fatal(1, "expected-product comparison lost phase qualification");
+        tick();
+        if (preflight_inverse && (dut.epoch_preflight_reasons !== 6'b001000 ||
+            dut.input_job_start || dut.config_valid || dut.source_read_ready || dut.product_bank_read_ready ||
+            dut.return_valid || dut.return_private_valid || dut.return_commit_valid))
+          $fatal(1, "inverse expected-cache mismatch escaped same-edge epoch quarantine");
+        @(negedge fft_clk); release dut.expected_product_metadata; release dut.core_input_ready;
+        if (preflight_inverse) begin
+          await_fault();
+          if ({dut.product_consume_generation, dut.source_consume_generation} !== preflight_generations ||
+              !dut.product_bank_valid || dut.product_bank_position != 0)
+            $fatal(1, "expected-cache mismatch released inverse bank ownership");
+        end else await_results(1);
+        cache_phase_cases = cache_phase_cases + 1;
+      end
     end
     // Live RUN input faults must still be rejected on the presenting edge,
     // with real source/product bank corruption seen by BOTH checker paths.
@@ -769,6 +851,10 @@ module tb_starlink_pss_fft_bank_owned_slice;
     if (dut.input_guard.BALANCED_IDENTITY_EQ != REGISTERED_SCHEDULING || old_input_guard.BALANCED_IDENTITY_EQ != 0)
       $fatal(1, "balanced identity actual/reference parameter mismatch");
     $display("BALANCED_IDENTITY_ACTUAL_PASS enabled=%0d legacy_input_shadow_checks=%0d exact_per_beat_fault_reasons=1", REGISTERED_SCHEDULING, input_shadow_checks);
+    if (!preflight_cause_checks || (REGISTERED_SCHEDULING && (!preflight_tuple_checks || cache_phase_cases != 12)))
+      $fatal(1, "missing held-preflight current-cause/cache qualification evidence");
+    $display("HELD_PREFLIGHT_ACTUAL_PASS registered=%0d global_current_cause_checks=%0d preparing_tuple_checks=%0d expected_cache_cases=%0d raw_bank_boundary_rows=%0d independent_old_reason_shadow=1", REGISTERED_SCHEDULING,
+      preflight_cause_checks, preflight_tuple_checks, cache_phase_cases, preflight_matrix_cases);
     $fclose(trace); $finish;
   end
 endmodule

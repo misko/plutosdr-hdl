@@ -90,5 +90,8 @@ if {[string first "HELD_PHASE_INPUT_PASS" $log] < 0} {
 if {[string first "BALANCED_IDENTITY_ACTUAL_PASS enabled=$registered " $log] < 0} {
   error "balanced/default identity actual-core comparison did not complete"
 }
+if {[string first "HELD_PREFLIGHT_ACTUAL_PASS registered=$registered " $log] < 0} {
+  error "held-preflight full current-cause/phase qualification comparison did not complete"
+}
 close_project
 puts "FFT_BANK_OWNED_ACTUAL_CORE_VERIFIED_NO_PHYSICAL_OR_RF_CLAIM"
