@@ -27,7 +27,9 @@ module starlink_pss_direct_mac6 (
   reg signed [16:0] xs [0:5], hd [0:5];
   (* use_dsp = "yes" *) reg signed [31:0] m0 [0:5], m1 [0:5];
   (* use_dsp = "yes" *) reg signed [33:0] m2 [0:5];
-  reg signed [34:0] tap_i [0:5], tap_q [0:5];
+  // Keep post-adds in fabric: automatic DSP post-add absorption duplicated
+  // m0 in the first measured implementation (24 DSPs instead of 18).
+  (* use_dsp = "no" *) reg signed [34:0] tap_i [0:5], tap_q [0:5];
   reg signed [39:0] acc_i [0:5], acc_q [0:5];
   reg signed [39:0] r0_i [0:5], r0_q [0:5];
   reg signed [39:0] r1_i [0:2], r1_q [0:2];

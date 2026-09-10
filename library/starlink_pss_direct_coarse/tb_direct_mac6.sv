@@ -26,7 +26,7 @@ module tb_direct_mac6;
   always @(posedge clk) begin
     cycle = cycle + 1;
     if (resetn && !flush) begin
-      if (stalled && {output_i, output_q, output_timestamp, output_epoch} !== held)
+      if (stalled && (!output_valid || {output_i, output_q, output_timestamp, output_epoch} !== held))
         $fatal(1, "stalled output changed");
       if (output_valid && output_ready) begin
         if (received >= sent) $fatal(1, "unexpected output");
@@ -77,6 +77,10 @@ module tb_direct_mac6;
         end
         @(posedge clk);
         while (!input_ready) @(posedge clk);
+        if (number >= 104 && k % 3 == 0) begin
+          @(negedge clk); input_valid = 0;
+          @(posedge clk);
+        end
       end
       if (beats == 11) begin
         expected_i[sent] = sum_i; expected_q[sent] = sum_q;
@@ -120,9 +124,20 @@ module tb_direct_mac6;
     @(negedge clk); resetn=1;
     repeat(12) @(negedge clk);
     send_job(103,11); drain();
-    if (received != 102 || cadence_checks != 49 || stall_checks == 0)
+    for (job=104; job<120; job=job+1) send_job(job, 11);
+    drain();
+    // Flush an already completed but unconsumed tuple as a hop fence must.
+    output_ready=0;
+    send_job(120,11);
+    @(negedge clk); input_valid=0;
+    wait(output_valid);
+    @(negedge clk); flush=1; sent=sent-1;
+    @(negedge clk); flush=0; output_ready=1;
+    repeat(12) @(negedge clk);
+    send_job(121,11); drain();
+    if (received != 119 || cadence_checks != 49 || stall_checks == 0)
       $fatal(1, "coverage failed");
-    $display("DIRECT_MAC6_PASS jobs=%0d cadence_checks=%0d stall_checks=%0d aborts=2", received, cadence_checks, stall_checks);
+    $display("DIRECT_MAC6_PASS jobs=%0d cadence_checks=%0d stall_checks=%0d aborts=3", received, cadence_checks, stall_checks);
     $finish;
   end
   initial begin #200000; $fatal(1, "timeout"); end
