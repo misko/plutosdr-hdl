@@ -36,5 +36,9 @@ log_wave $diagnostic_objects
 set diagnostic_channel [open arithmetic_diagnostic_signals.txt {WRONLY CREAT EXCL}]
 foreach object $diagnostic_objects { puts $diagnostic_channel $object }
 close $diagnostic_channel
-puts "ARITHMETIC_WAVE_DIAGNOSTICS_ENABLED objects=[llength $diagnostic_objects] monitors=4 references=2 wrapper=1 inner=1 transport=1"
+set diagnostic_receipt "ARITHMETIC_WAVE_DIAGNOSTICS_ENABLED objects=[llength $diagnostic_objects] monitors=4 references=2 wrapper=1 inner=1 transport=1"
+set diagnostic_channel [open arithmetic_diagnostic_receipt.txt {WRONLY CREAT EXCL}]
+puts $diagnostic_channel $diagnostic_receipt
+close $diagnostic_channel
+puts $diagnostic_receipt
 run all
