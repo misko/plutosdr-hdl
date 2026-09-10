@@ -16,7 +16,8 @@ module starlink_pss_iq_to_phase_map #(
   parameter integer MAP_WIDTH = 16,
   parameter integer MAP_SEGMENT_ADDRESS_WIDTH = 11,
   parameter integer MAP_SEGMENT_COUNT = 10,
-  parameter integer MAP_SEGMENT_INDEX_WIDTH = 4
+  parameter integer MAP_SEGMENT_INDEX_WIDTH = 4,
+  parameter integer USE_BANK_OWNED_XFFT = 0
 ) (
   input  wire                         clk,
   input  wire                         resetn,

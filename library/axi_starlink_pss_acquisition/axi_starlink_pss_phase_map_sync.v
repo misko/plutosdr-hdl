@@ -26,7 +26,10 @@ module axi_starlink_pss_phase_map_sync #(
   // Opt in only for the same-clock/reset map producer's exact sticky summary.
   // Independent generic counter inputs keep their conservative checks.
   parameter integer MAP_COUNTERS_FROM_FLAG = 0,
-  parameter [30:0] COEFFICIENT_ENERGY = 31'd1073742825
+  parameter [30:0] COEFFICIENT_ENERGY = 31'd1073742825,
+  parameter integer USE_BANK_OWNED_XFFT = 0,
+  parameter integer USE_REALTIME_XFFT = 0,
+  parameter integer ENABLE_PILOT_TAP = 0
 ) (
   input  wire                          map_clk,
   input  wire                          map_reset,
@@ -121,27 +124,39 @@ module axi_starlink_pss_phase_map_sync #(
   localparam [31:0] IDENTIFICATION = 32'h5053_4d41;
   localparam integer DDC_ENABLED = INPUT_RATE_MSPS != 15;
   initial begin
+    if (USE_BANK_OWNED_XFFT !== 0 && USE_BANK_OWNED_XFFT !== 1)
+      $fatal(1, "USE_BANK_OWNED_XFFT must be zero or one");
+    if (USE_BANK_OWNED_XFFT === 1 && (INPUT_RATE_MSPS !== 30 ||
+        ENABLE_PILOT_TAP !== 1 || USE_SHARED_XFFT !== 1 ||
+        USE_REALTIME_XFFT !== 1 || ENABLE_BOUNDARY_STOP !== 1 ||
+        COEFFICIENT_ENERGY !== 31'd1073744004))
+      $fatal(1, "bank-owned PSMA 1.7 requires 30 MS/s upper paired-pilot realtime shared STOP and conditioned energy");
     if (MAP_COUNTERS_FROM_FLAG != 0 && MAP_COUNTERS_FROM_FLAG != 1)
       $fatal(1, "MAP_COUNTERS_FROM_FLAG must be zero or one");
     if (HEALTH_COUNTERS_FROM_FLAGS != 0 && HEALTH_COUNTERS_FROM_FLAGS != 1)
       $fatal(1, "HEALTH_COUNTERS_FROM_FLAGS must be zero or one");
     if (ENABLE_BOUNDARY_STOP != 0 && ENABLE_BOUNDARY_STOP != 1)
       $fatal(1, "ENABLE_BOUNDARY_STOP must be zero or one");
-    if (ENABLE_BOUNDARY_STOP && (USE_SHARED_XFFT != 1 || INPUT_RATE_MSPS != 15))
+    if (ENABLE_BOUNDARY_STOP && !USE_BANK_OWNED_XFFT &&
+        (USE_SHARED_XFFT != 1 || INPUT_RATE_MSPS != 15))
       $fatal(1, "boundary-stop ABI 1.6 requires shared 15 MS/s");
     if (USE_SHARED_XFFT != 0 && USE_SHARED_XFFT != 1)
       $fatal(1, "USE_SHARED_XFFT must be zero or one");
-    if (USE_SHARED_XFFT && INPUT_RATE_MSPS != 15)
+    if (USE_SHARED_XFFT && !USE_BANK_OWNED_XFFT && INPUT_RATE_MSPS != 15)
       $fatal(1, "shared-XFFT ABI 1.5 is currently restricted to 15 MS/s");
   end
   // ABI 1.5 adds shared transform capability bit 8 and service-fault health
   // bit 14. Dedicated forward/inverse health bits retain their old meanings.
   // Old kernel/host readers must reject this version until explicitly updated.
-  localparam [31:0] VERSION = ENABLE_BOUNDARY_STOP ? 32'h0001_0006 :
+  // ABI 1.7 is explicit source-30/upper bank-owned paired STOP only. Bit 10
+  // identifies bank ownership; bit 7 exposes the existing 64-bit counters.
+  localparam [31:0] VERSION = USE_BANK_OWNED_XFFT ? 32'h0001_0007 :
+      ENABLE_BOUNDARY_STOP ? 32'h0001_0006 :
       USE_SHARED_XFFT ? 32'h0001_0005 : (INPUT_RATE_MSPS == 60) ?
       32'h0001_0004 :
       ((INPUT_RATE_MSPS == 30) ? 32'h0001_0002 : 32'h0001_0001);
-  localparam [31:0] CAPABILITIES = ENABLE_BOUNDARY_STOP ? 32'h0000_033f :
+  localparam [31:0] CAPABILITIES = USE_BANK_OWNED_XFFT ? 32'h0000_07ff :
+      ENABLE_BOUNDARY_STOP ? 32'h0000_033f :
       USE_SHARED_XFFT ? 32'h0000_013f : (INPUT_RATE_MSPS == 60) ?
       32'h0000_00ff : (DDC_ENABLED ? 32'h0000_007f : 32'h0000_003f);
   // ABI 1.1/1.2 values remain exact. ABI 1.4 advertises two cascaded stages,
@@ -329,6 +344,15 @@ module axi_starlink_pss_phase_map_sync #(
        |score_phase_index_discontinuity_count);
   wire stop_upstream_fault_now = |(snapshot_health_flags & 32'h0000_57ff) ||
       |ingress_dropped_sample_count || stop_detector_counter_fault;
+  // The legacy 1.6 mask stays exact. In 1.7 DDC saturation (bit 13) and
+  // cumulative source discontinuity are independently fatal, including when
+  // the pilot keeps the conditioner running after coarse STOP. These counts
+  // survive disable/flush; only the upstream s_axi_aresetn clears them. A late
+  // failure changes terminal health, never retroactively unpublishes a map.
+  wire stop_conditioned_upstream_fault_now =
+      |(snapshot_health_flags & 32'h0000_77ff) ||
+      |ddc_discontinuity_count || |ingress_dropped_sample_count ||
+      stop_detector_counter_fault;
   wire stop_map_fault_now = MAP_COUNTERS_FROM_FLAG ? map_counter_fault :
       (|discarded_score_count || |discontinuity_abort_count ||
       |map_overrun_count || |score_protocol_error_count ||
@@ -344,7 +368,8 @@ module axi_starlink_pss_phase_map_sync #(
       (up_rreq && up_raddr == REG_MAP_DATA && !register_read_pending &&
        !read_pending && release_pending);
   wire [5:0] stop_hardware_fault_now =
-      {3'd0, stop_bridge_fault_now, stop_map_fault_now, stop_upstream_fault_now};
+      {3'd0, stop_bridge_fault_now, stop_map_fault_now,
+       (USE_BANK_OWNED_XFFT ? stop_conditioned_upstream_fault_now : stop_upstream_fault_now)};
   wire stop_observing = stop_active || stop_terminal_valid;
   wire [5:0] stop_fault_now = stop_hardware_fault_now |
       ((stop_observing && stop_failed) ? stop_failure_reason : 6'd0) |
@@ -523,10 +548,12 @@ module axi_starlink_pss_phase_map_sync #(
         REG_DDC_SATURATION:
           register_value = DDC_ENABLED ? ddc_saturation_event_count : 32'd0;
         REG_DDC_ACCEPTED_HI:
-          register_value = (INPUT_RATE_MSPS == 60) ?
+          // As in 1.4: live high/low/high retry, not an atomic counter pair
+          // or a PSMA snapshot. Each accepted AXI response remains held.
+          register_value = ((INPUT_RATE_MSPS == 60) || USE_BANK_OWNED_XFFT) ?
               ddc_accepted_sample_count[63:32] : 32'd0;
         REG_DDC_EMITTED_HI:
-          register_value = (INPUT_RATE_MSPS == 60) ?
+          register_value = ((INPUT_RATE_MSPS == 60) || USE_BANK_OWNED_XFFT) ?
               ddc_emitted_sample_count[63:32] : 32'd0;
         default: register_value = 32'd0;
       endcase

@@ -15,7 +15,8 @@ module axi_starlink_pss_acquisition #(
   parameter integer ENABLE_PILOT_TAP = 0,
   parameter integer USE_SHARED_XFFT = 0,
   parameter integer USE_REALTIME_XFFT = 0,
-  parameter integer ENABLE_BOUNDARY_STOP = 0
+  parameter integer ENABLE_BOUNDARY_STOP = 0,
+  parameter integer USE_BANK_OWNED_XFFT = 0
 ) (
   input  wire                 sample_clk,
   input  wire                 fft_clk,
@@ -180,13 +181,22 @@ module axi_starlink_pss_acquisition #(
       ((INPUT_RATE_MSPS == 30) ? 31'd1073744004 : 31'd1073742825);
 
   initial begin
+    if (USE_BANK_OWNED_XFFT !== 0 && USE_BANK_OWNED_XFFT !== 1)
+      $fatal(1, "USE_BANK_OWNED_XFFT must be zero or one");
+    // Public bank admission is deliberately narrower than the internal core.
+    // No source-60/lower-edge or historical-profile promotion is implied.
+    if (USE_BANK_OWNED_XFFT === 1 && (INPUT_RATE_MSPS !== 30 ||
+        ENABLE_PILOT_TAP !== 1 || USE_SHARED_XFFT !== 1 ||
+        USE_REALTIME_XFFT !== 1 || ENABLE_BOUNDARY_STOP !== 1))
+      $fatal(1, "bank-owned PSMA 1.7 requires 30 MS/s upper paired-pilot realtime shared STOP");
     if (ENABLE_BOUNDARY_STOP != 0 && ENABLE_BOUNDARY_STOP != 1)
       $fatal(1, "ENABLE_BOUNDARY_STOP must be zero or one");
-    if (ENABLE_BOUNDARY_STOP && (USE_SHARED_XFFT != 1 || INPUT_RATE_MSPS != 15))
+    if (ENABLE_BOUNDARY_STOP && !USE_BANK_OWNED_XFFT &&
+        (USE_SHARED_XFFT != 1 || INPUT_RATE_MSPS != 15))
       $fatal(1, "boundary stop requires shared 15 MS/s");
     if (USE_REALTIME_XFFT != 0 && USE_REALTIME_XFFT != 1)
       $fatal(1, "USE_REALTIME_XFFT must be zero or one");
-    if (USE_REALTIME_XFFT &&
+    if (USE_REALTIME_XFFT && !USE_BANK_OWNED_XFFT &&
         (USE_SHARED_XFFT != 1 || INPUT_RATE_MSPS != 15 || ENABLE_PILOT_TAP != 1))
       $fatal(1, "realtime XFFT requires shared paired-pilot at 15 MS/s");
   end
@@ -320,6 +330,7 @@ module axi_starlink_pss_acquisition #(
   endgenerate
 
   starlink_pss_iq_to_phase_map #(
+    .USE_BANK_OWNED_XFFT(USE_BANK_OWNED_XFFT),
     .ENABLE_BOUNDARY_STOP(ENABLE_BOUNDARY_STOP),
     .USE_SHARED_XFFT   (USE_SHARED_XFFT),
     .USE_REALTIME_XFFT (USE_REALTIME_XFFT),
@@ -399,6 +410,9 @@ module axi_starlink_pss_acquisition #(
   );
 
   axi_starlink_pss_phase_map_sync #(
+    .USE_BANK_OWNED_XFFT(USE_BANK_OWNED_XFFT),
+    .USE_REALTIME_XFFT(USE_REALTIME_XFFT),
+    .ENABLE_PILOT_TAP(ENABLE_PILOT_TAP),
     .ENABLE_BOUNDARY_STOP(ENABLE_BOUNDARY_STOP),
     // acquisition_health supplies these flags/counters on this same AXI
     // clock/reset. Do not enable this shortcut for independent health inputs.
