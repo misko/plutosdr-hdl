@@ -2,6 +2,7 @@
 module tb_starlink_pss_fft_bank_owned_slice;
   parameter integer FAST_MHZ = 200;
   parameter integer QUICK_MUTATION = 0;
+  parameter integer REGISTERED_SCHEDULING = 0;
   reg clk = 0, fft_clk = 0;
   initial begin #1.3; forever #5 clk = !clk; end
   always #(500.0/FAST_MHZ) fft_clk = !fft_clk;
@@ -21,7 +22,7 @@ module tb_starlink_pss_fft_bank_owned_slice;
   reg allow_inverse_commit_before_late_fault = 0;
   reg allow_provisional_prefix_after_fault = 0;
   wire output_ready = reader_enable && (profile == 0 || slow_cycle % 17 < 13);
-  starlink_pss_fft_bank_owned_slice dut (.*);
+  starlink_pss_fft_bank_owned_slice #(.REGISTERED_SCHEDULING(REGISTERED_SCHEDULING)) dut (.*);
   // Default-mode shadow retains the original full nonfinal predicate and full
   // final fence. Compare before and after every edge, including injected faults.
   wire shadow_ready, shadow_valid, shadow_private, shadow_commit_valid;
@@ -37,9 +38,9 @@ module tb_starlink_pss_fft_bank_owned_slice;
   integer late_orphan_private_advances = 0;
   starlink_pss_realtime_result_guard shadow (
     .clk(fft_clk), .resetn(dut.fast_running), .job_valid(dut.job_valid), .job_ready(shadow_ready),
-    .job_descriptor(dut.selected_metadata),
-    .input_bank_reserved(dut.state == dut.WAIT_BANK ? dut.selected_valid : dut.engine_input_reserved),
-    .output_bank_reserved(dut.state == dut.WAIT_BANK ? dut.destination_reserved : dut.engine_output_reserved),
+    .job_descriptor(REGISTERED_SCHEDULING ? dut.engine_metadata : dut.selected_metadata),
+    .input_bank_reserved(!REGISTERED_SCHEDULING && dut.state == dut.WAIT_BANK ? dut.selected_valid : dut.engine_input_reserved),
+    .output_bank_reserved(!REGISTERED_SCHEDULING && dut.state == dut.WAIT_BANK ? dut.destination_reserved : dut.engine_output_reserved),
     .certified_input_beat(dut.certified_input_beat), .certified_input_complete(dut.certified_input_complete),
     .final_fence_certified(dut.checked_input_complete && !dut.input_guard_fault && !dut.input_fault_now),
     .external_fault_now(dut.external_fault_now), .phase_input_fault_now(1'bz),
@@ -111,12 +112,41 @@ module tb_starlink_pss_fft_bank_owned_slice;
   integer max_forward_interval = 0, admission_cycle = 0, config_cycle = 0, first_core_output = 0;
   integer first_core_input = 0, last_core_input = 0, statuses = 0, frames = 0;
   integer held_core_reset_cycles = 0;
+  integer scheduling_fault_cases = 0, scheduling_reset_cases = 0;
+  integer snapshot_cycle = 0, max_snapshot_to_admission = 0;
+  integer completion_capture_cycle = 0, completion_consumptions = 0;
+  reg previous_completion_receipt = 0;
+  reg [2:0] expected_epoch_input_reasons = 0;
   reg previous_core_resetn = 0;
   reg [7:0] injected_status = 0;
   integer n, test_kind, i, wait_count;
   real epoch_first_admit_ns = 0;
 
   always @(posedge fft_clk) begin
+    if (!dut.fast_running) begin
+      expected_epoch_input_reasons = 0; previous_completion_receipt = 0;
+    end else if (REGISTERED_SCHEDULING) begin
+      if (dut.epoch_input_reasons !== expected_epoch_input_reasons)
+        $fatal(1, "private core reset lost exact epoch input reasons");
+      expected_epoch_input_reasons = expected_epoch_input_reasons | dut.input_fault_events_now;
+      if (dut.state == dut.WAIT_BANK && dut.selected_valid && dut.destination_reserved)
+        snapshot_cycle = fast_cycle;
+      if (dut.job_accept) begin
+        if (!dut.descriptor_certified || !dut.preparation_valid || dut.selected_lease != dut.held_lease)
+          $fatal(1, "registered job admitted without a held checked lease");
+        if (fast_cycle-snapshot_cycle > max_snapshot_to_admission)
+          max_snapshot_to_admission = fast_cycle-snapshot_cycle;
+      end
+      if (dut.preparing && (dut.source_read_ready || dut.product_bank_read_ready))
+        $fatal(1, "snapshot lease was consumed before registered admission");
+      if (dut.completion_accept && !dut.completion_receipt) completion_capture_cycle = fast_cycle;
+      if (dut.state == dut.ACK_DRAIN && dut.completion_receipt && !dut.registered_quarantine) begin
+        if (!previous_completion_receipt || dut.result_busy || fast_cycle-completion_capture_cycle != 1)
+          $fatal(1, "private phase released bank without actual registered completion");
+        completion_consumptions = completion_consumptions + 1;
+      end
+      previous_completion_receipt = dut.completion_accept;
+    end
     if (fast_cycle > 1500000) $fatal(1, "bank-owned bench watchdog");
     $fdisplay(trace, "%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d,%0d",
       fast_cycle, epoch, profile, dut.fast_running, dut.state, dut.core_aresetn,
@@ -476,6 +506,50 @@ module tb_starlink_pss_fft_bank_owned_slice;
     $display("RAW_READY_CERTIFIED_ACK_PASS handoff_fault_cases=%0d raw_ready_differences=%0d late_ack_witnesses=%0d late_orphan_private_advances=%0d handoff_reset_recovery=1 full_shadow_checks=%0d",
       raw_ready_handoff_fault_cases, raw_ready_differences, late_ack_witnesses,
       late_orphan_private_advances, full_shadow_checks);
+    if (REGISTERED_SCHEDULING) begin
+      // Snapshot, certificate capture, admission certificate consume, and
+      // completion capture/consume each have a distinct current-fault witness.
+      for (test_kind = 0; test_kind < 8; test_kind = test_kind + 1) begin
+        reset_epoch(0); expected_fault = 1; expected_results = 0; send_words(0, 512);
+        case (test_kind)
+          0: begin wait(dut.state == dut.VERIFY_LEASE); force dut.selected_metadata = 70'h123; end
+          1: begin wait(dut.state == dut.VERIFY_LEASE); force dut.selected_lease = !dut.held_lease; end
+          2: begin wait(dut.state == dut.ARM_JOB && !dut.admission_receipt); force dut.product_bank_ready = 0; end
+          3: begin wait(dut.admission_receipt); force dut.selected_metadata = 70'h456; end
+          // First matching status is legal after guard admission, even before
+          // the input frame. Reserved bits make this an actual current fault.
+          4: begin wait(dut.admission_receipt); force dut.core_status_data = 8'h80;
+            force dut.core_status_valid = 1; end
+          5: begin wait(dut.completion_accept); force dut.event_last_missing = 1; end
+          6: begin wait(dut.completion_receipt); force dut.event_frame = 1; end
+          7: begin wait(dut.completion_receipt); force dut.input_job_start = 1; end
+        endcase
+        tick(); @(negedge fft_clk);
+        release dut.selected_metadata; release dut.selected_lease; release dut.product_bank_ready;
+        release dut.core_status_valid; release dut.core_status_data;
+        release dut.event_last_missing; release dut.event_frame;
+        release dut.input_job_start;
+        await_fault(); scheduling_fault_cases = scheduling_fault_cases + 1;
+        if (inverse_jobs || output_valid) $fatal(1, "scheduling boundary fault escaped to inverse/output");
+      end
+      for (test_kind = 0; test_kind < 4; test_kind = test_kind + 1) begin
+        reset_epoch(0); expected_results = 0; send_words(0, 512);
+        case (test_kind)
+          0: wait(dut.state == dut.VERIFY_LEASE);
+          1: wait(dut.descriptor_certified);
+          2: wait(dut.admission_receipt);
+          3: wait(dut.completion_receipt);
+        endcase
+        reset_epoch(test_kind % 2 + 1); scheduling_reset_cases = scheduling_reset_cases + 1;
+        send_words(0, 512); await_results(1);
+      end
+      if (scheduling_fault_cases != 8 || scheduling_reset_cases != 4 ||
+          max_snapshot_to_admission != 2 || !completion_consumptions)
+        $fatal(1, "missing registered scheduling boundary/cadence witnesses");
+      $display("REGISTERED_SCHEDULING_PASS boundary_fault_cases=%0d boundary_reset_cases=%0d snapshot_to_admission_cycles=%0d completion_receipt_consumptions=%0d nominal_max_forward_interval_cycles=%0d",
+        scheduling_fault_cases, scheduling_reset_cases, max_snapshot_to_admission,
+        completion_consumptions, max_forward_interval);
+    end
     $fclose(trace); $finish;
   end
 endmodule

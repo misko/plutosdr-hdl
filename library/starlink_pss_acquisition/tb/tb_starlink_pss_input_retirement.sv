@@ -25,6 +25,7 @@ module tb_starlink_pss_input_retirement #(
   reg expected_sticky = 0;
   wire retired_fault = OMIT_DUPLICATE_MUTATION ? 1'b0 : (resetn && job_start);
   wire duplicate_start_fault_now;
+  wire [2:0] fault_events_now;
   starlink_pss_realtime_input_guard #(.CHECK_INPUT_BLOCK_IDENTITY(CHECK_IDENTITY)) dut (.*);
 
   always @(posedge clk) if (resetn) begin

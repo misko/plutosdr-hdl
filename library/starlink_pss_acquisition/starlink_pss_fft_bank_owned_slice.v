@@ -8,7 +8,8 @@
 // ACK still requires all 512 slow output reads before resetting the core.
 `timescale 1ns/1ps
 module starlink_pss_fft_bank_owned_slice #(
-  parameter KERNEL_ROM_FILE = "upper_edge_pss_kernel_q17.mem"
+  parameter KERNEL_ROM_FILE = "upper_edge_pss_kernel_q17.mem",
+  parameter integer REGISTERED_SCHEDULING = 0
 ) (
   input wire clk, resetn, fft_clk, fft_resetn,
   input wire input_valid,
@@ -64,11 +65,18 @@ module starlink_pss_fft_bank_owned_slice #(
   assign input_ready = slow_running && source_ready && !fault;
 
   localparam [3:0] RESET0=0, RESET1=1, WAIT_BANK=2, INPUT_ADMIT=3,
-    CONFIGURE=4, ENABLE_INPUT=5, RUN_JOB=6, ACK_DRAIN=7, QUARANTINE=8;
+    CONFIGURE=4, ENABLE_INPUT=5, RUN_JOB=6, ACK_DRAIN=7, QUARANTINE=8,
+    VERIFY_LEASE=9, ARM_JOB=10;
   reg [3:0] state;
   reg core_release, input_job_start, next_inverse;
   reg [69:0] engine_metadata;
   reg engine_input_reserved, engine_output_reserved, forward_committed;
+  reg held_phase, held_lease;
+  reg source_consume_generation, product_consume_generation;
+  reg descriptor_certified, admission_receipt, completion_receipt;
+  reg [69:0] expected_product_metadata;
+  reg [5:0] preparation_age;
+  (* keep = "true" *) reg [2:0] epoch_input_reasons;
   wire core_aresetn = fast_running && core_release;
   wire config_valid = state == CONFIGURE && core_aresetn && !fast_fault;
   wire config_ready;
@@ -78,23 +86,37 @@ module starlink_pss_fft_bank_owned_slice #(
   wire [35:0] product_bank_data;
   wire [8:0] product_bank_position;
   wire [69:0] product_bank_metadata;
-  wire selected_valid = next_inverse ? product_bank_valid : source_valid;
-  wire [35:0] selected_data = next_inverse ? product_bank_data : source_data;
-  wire [8:0] selected_position = next_inverse ? product_bank_position : source_position;
-  wire selected_last = next_inverse ? product_bank_last : source_last;
-  wire [69:0] selected_metadata = next_inverse ? product_bank_metadata : source_metadata;
-  wire job_valid = state == WAIT_BANK && selected_valid && !fast_fault;
+  wire selected_phase = REGISTERED_SCHEDULING && state != WAIT_BANK &&
+    state != RESET0 && state != RESET1 ? held_phase : next_inverse;
+  wire selected_valid = selected_phase ? product_bank_valid : source_valid;
+  wire [35:0] selected_data = selected_phase ? product_bank_data : source_data;
+  wire [8:0] selected_position = selected_phase ? product_bank_position : source_position;
+  wire selected_last = selected_phase ? product_bank_last : source_last;
+  wire [69:0] selected_metadata = selected_phase ? product_bank_metadata : source_metadata;
+  wire selected_lease = selected_phase ? product_consume_generation : source_consume_generation;
+  wire preparing = state == VERIFY_LEASE || state == ARM_JOB;
+  wire descriptor_header_valid = engine_metadata[69] == held_phase &&
+    (held_phase ? engine_metadata == expected_product_metadata : engine_metadata[4:0] == 0);
+  wire preparation_valid = selected_valid && selected_position == 0 && !selected_last &&
+    selected_lease == held_lease && selected_metadata == engine_metadata &&
+    descriptor_header_valid && destination_reserved;
+  wire preparation_fault_now = REGISTERED_SCHEDULING && fast_running && preparing &&
+    (!preparation_valid || preparation_age == 63);
+  wire job_valid = (REGISTERED_SCHEDULING ?
+    state == ARM_JOB && descriptor_certified && !admission_receipt :
+    state == WAIT_BANK && selected_valid) && !fast_fault;
   wire job_accept = job_valid && job_ready;
   wire transport_ready, checked_input_complete, certified_input_beat, certified_input_complete;
   wire input_fault_now, input_guard_fault, duplicate_start_fault_now;
+  wire [2:0] input_fault_events_now;
   wire [47:0] core_input_data, core_output_data;
   wire core_input_valid, core_input_ready, core_input_last;
   wire core_output_valid, core_output_last;
   wire [23:0] core_output_user;
   wire [7:0] core_status_data;
   wire core_status_valid, event_frame, event_last_unexpected, event_last_missing, event_input_halt;
-  assign source_read_ready = !next_inverse && transport_ready && engine_input_enable;
-  assign product_bank_read_ready = next_inverse && transport_ready && engine_input_enable;
+  assign source_read_ready = !selected_phase && transport_ready && engine_input_enable;
+  assign product_bank_read_ready = selected_phase && transport_ready && engine_input_enable;
   starlink_pss_realtime_input_guard #(.CHECK_INPUT_BLOCK_IDENTITY(1)) input_guard (
     .clk(fft_clk), .resetn(core_aresetn), .job_start(input_job_start),
     .job_descriptor(engine_metadata), .input_enable(engine_input_enable),
@@ -105,6 +127,7 @@ module starlink_pss_fft_bank_owned_slice #(
     .core_input_tlast(core_input_last), .certified_input_beat(certified_input_beat),
     .certified_input_complete(certified_input_complete), .input_complete(checked_input_complete),
     .fault_now(input_fault_now), .duplicate_start_fault_now(duplicate_start_fault_now),
+    .fault_events_now(input_fault_events_now),
     .protocol_fault(input_guard_fault), .fault_reasons()
   );
 
@@ -133,7 +156,7 @@ module starlink_pss_fft_bank_owned_slice #(
     (!forward_handoff_identity || product_bank_position != 0 || product_bank_last);
   wire external_fault_now = input_fault_now || input_guard_fault || source_fault_fast[1] ||
     vendor_fault_now || fast_fault || kernel_fault || product_overflow || product_bank_fault ||
-    product_bank_framing_fault_now || handoff_fault_now;
+    product_bank_framing_fault_now || handoff_fault_now || preparation_fault_now;
   wire forward_handoff_ack = forward_committed && product_bank_valid &&
     forward_handoff_identity && product_bank_position == 0 && !product_bank_last &&
     !external_fault_now && !result_fault;
@@ -156,9 +179,9 @@ module starlink_pss_fft_bank_owned_slice #(
     product_overflow || product_bank_fault || product_bank_framing_fault_now;
   starlink_pss_realtime_result_guard #(.USE_COMPLETED_INPUT_FAULT(1)) result_guard (
     .clk(fft_clk), .resetn(fast_running), .job_valid(job_valid), .job_ready(job_ready),
-    .job_descriptor(selected_metadata),
-    .input_bank_reserved(state == WAIT_BANK ? selected_valid : engine_input_reserved),
-    .output_bank_reserved(state == WAIT_BANK ? destination_reserved : engine_output_reserved),
+    .job_descriptor(REGISTERED_SCHEDULING ? engine_metadata : selected_metadata),
+    .input_bank_reserved(!REGISTERED_SCHEDULING && state == WAIT_BANK ? selected_valid : engine_input_reserved),
+    .output_bank_reserved(!REGISTERED_SCHEDULING && state == WAIT_BANK ? destination_reserved : engine_output_reserved),
     .certified_input_beat(certified_input_beat), .certified_input_complete(certified_input_complete),
     .final_fence_certified(final_fence), .external_fault_now(external_fault_now),
     .phase_input_fault_now(1'b0), .core_event_frame_started(event_frame),
@@ -233,9 +256,29 @@ module starlink_pss_fft_bank_owned_slice #(
     .output_metadata(output_metadata)
   );
   wire any_fast_fault = external_fault_now || result_fault || output_bank_fault;
+  wire registered_quarantine = fast_fault || result_fault || (|epoch_input_reasons);
+  wire completion_accept = state == ACK_DRAIN && !result_busy &&
+    (next_inverse ? output_bank_ready : forward_handoff_ack) && !any_fast_fault &&
+    !certified_input_beat && !certified_input_complete && !event_frame &&
+    !core_status_valid && !core_output_valid;
+  // All detailed input evidence belongs to the common epoch, not the private
+  // core-reset epoch. The original checker and result reason banks still run.
+  always @(posedge fft_clk) begin
+    if (!fast_running) begin
+      epoch_input_reasons <= 0;
+      source_consume_generation <= 0; product_consume_generation <= 0;
+    end else begin
+      epoch_input_reasons <= epoch_input_reasons | input_fault_events_now;
+      if (source_valid && source_read_ready && source_last)
+        source_consume_generation <= !source_consume_generation;
+      if (product_bank_valid && product_bank_read_ready && product_bank_last)
+        product_consume_generation <= !product_consume_generation;
+    end
+  end
   always @(posedge fft_clk)
     if (!fast_running) fast_fault <= 0;
     else if (any_fast_fault) fast_fault <= 1;
+  generate if (!REGISTERED_SCHEDULING) begin : original_scheduling
   always @(posedge fft_clk) begin
     if (!fast_running) begin
       state <= RESET0; core_release <= 0; input_job_start <= 0; next_inverse <= 0;
@@ -273,6 +316,61 @@ module starlink_pss_fft_bank_owned_slice #(
       end
     end
   end
+  end else begin : registered_scheduling
+    // Wide comparisons terminate only at certificates/reasons. The private
+    // scheduler consumes registered receipts and registered epoch quarantine.
+    // A fault-edge private advance is not publication or a bank release.
+    always @(posedge fft_clk) begin
+      if (!fast_running) begin
+        state <= RESET0; core_release <= 0; input_job_start <= 0; next_inverse <= 0;
+        engine_metadata <= 0; engine_input_reserved <= 0; engine_output_reserved <= 0;
+        forward_committed <= 0; held_phase <= 0; held_lease <= 0;
+        descriptor_certified <= 0; admission_receipt <= 0; completion_receipt <= 0;
+        expected_product_metadata <= 0; preparation_age <= 0;
+      end else begin
+        input_job_start <= 0;
+        admission_receipt <= job_accept;
+        completion_receipt <= completion_accept;
+        if (preparing) preparation_age <= preparation_age + 1'b1;
+        else preparation_age <= 0;
+        if (state == VERIFY_LEASE)
+          descriptor_certified <= preparation_valid && !any_fast_fault;
+        // Private expected descriptor capture does not authorize the bank.
+        if (return_private_valid && !next_inverse && return_last)
+          expected_product_metadata <= {1'b1, engine_metadata[68:5], return_metadata[4:0]};
+        if (certified_input_complete) engine_input_reserved <= 0;
+        if (return_commit_valid && result_destination_ready && !next_inverse)
+          forward_committed <= 1;
+        if (registered_quarantine) begin
+          state <= QUARANTINE; descriptor_certified <= 0;
+        end else case (state)
+          RESET0: begin core_release <= 0; state <= RESET1; end
+          RESET1: begin core_release <= 0; state <= WAIT_BANK; end
+          WAIT_BANK: if (selected_valid && destination_reserved) begin
+            engine_metadata <= selected_metadata;
+            held_phase <= next_inverse; held_lease <= selected_lease;
+            engine_input_reserved <= 1; engine_output_reserved <= 1;
+            descriptor_certified <= 0; state <= VERIFY_LEASE;
+          end
+          VERIFY_LEASE: state <= ARM_JOB;
+          ARM_JOB: if (admission_receipt) begin
+            core_release <= 1; input_job_start <= 1; state <= INPUT_ADMIT;
+            forward_committed <= 0; descriptor_certified <= 0;
+          end
+          INPUT_ADMIT: state <= CONFIGURE;
+          CONFIGURE: if (config_ready) state <= ENABLE_INPUT;
+          ENABLE_INPUT: state <= RUN_JOB;
+          RUN_JOB: if (result_commit) state <= ACK_DRAIN;
+          ACK_DRAIN: if (completion_receipt) begin
+            engine_output_reserved <= 0; core_release <= 0;
+            next_inverse <= !next_inverse; state <= RESET0;
+          end
+          QUARANTINE: state <= QUARANTINE;
+          default: state <= QUARANTINE;
+        endcase
+      end
+    end
+  end endgenerate
   starlink_pss_fft512_bfp18_rt_candidate shared_xfft (
     .aclk(fft_clk), .aresetn(core_aresetn),
     .s_axis_config_tdata({7'b0, !engine_metadata[69]}),

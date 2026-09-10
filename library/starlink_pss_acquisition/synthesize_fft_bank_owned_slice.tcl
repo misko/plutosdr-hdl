@@ -13,6 +13,11 @@ set channel [open $simlog r]; set simulation [read $channel]; close $channel
 if {[string first "FFT_BANK_OWNED_SLICE_PASS" $simulation] < 0 ||
     [regexp -nocase {fatal:|error:} $simulation]} { error "requires passing actual-core evidence" }
 set prior_sources [file join $evidence_dir frozen_sources]
+set channel [open [file join $evidence_dir scope.txt] r]; set sim_scope [read $channel]; close $channel
+set registered [expr {[string first "registered_scheduling=1" $sim_scope] >= 0}]
+if {$registered && [string first "REGISTERED_SCHEDULING_PASS" $simulation] < 0} {
+  error "registered scheduling boundary tests did not pass"
+}
 set source_dir [file join $output_dir frozen_sources]
 file mkdir $source_dir
 set rtl_names {starlink_pss_fft_bank_owned_slice starlink_pss_realtime_input_guard
@@ -37,7 +42,8 @@ pss_create_shared_realtime_xfft_ip $wrapper
 foreach name $rtl_names { add_files -norecurse [file join $source_dir ${name}.v] }
 add_files -fileset constrs_1 -norecurse [file join $source_dir fft_bank_owned_resource_probe.xdc]
 set_property top starlink_pss_fft_bank_owned_slice [get_filesets sources_1]
-set_property generic KERNEL_ROM_FILE=[file join $source_dir upper_edge_pss_kernel_q17.mem] [get_filesets sources_1]
+set_property generic [list KERNEL_ROM_FILE=[file join $source_dir upper_edge_pss_kernel_q17.mem] \
+  REGISTERED_SCHEDULING=$registered] [get_filesets sources_1]
 set_property STEPS.SYNTH_DESIGN.ARGS.FLATTEN_HIERARCHY rebuilt [get_runs synth_1]
 set_property STEPS.SYNTH_DESIGN.ARGS.DIRECTIVE AreaOptimized_high [get_runs synth_1]
 set_property -dict [list {STEPS.SYNTH_DESIGN.ARGS.MORE OPTIONS} {-mode out_of_context}] [get_runs synth_1]
@@ -51,6 +57,7 @@ foreach run [list $ip_run [get_runs synth_1]] {
 set channel [open [file join $output_dir scope.txt] w]
 puts $channel "scope=actual_generated_fft_plus_three_bank_island_synthesis_resources"
 puts $channel "source_simulation=$evidence_dir"
+puts $channel "registered_scheduling=$registered"
 puts $channel "source_simulation_hash=[exec sha256sum $simlog]"
 puts $channel "source_hashes_before_synthesis=[exec sha256sum {*}[glob [file join $source_dir *]] $wrapper]"
 puts $channel "top_resource_probe_clocks_MHz=100,175; generated_IP_OOC_clock_unchanged=true"
