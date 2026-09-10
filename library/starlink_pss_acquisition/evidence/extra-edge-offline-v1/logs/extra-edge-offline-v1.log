@@ -1,0 +1,124 @@
+.FF..FF..F..                                                             [100%]
+=================================== FAILURES ===================================
+_ test_literal_fault_body_real_guard_three_held_edges_and_precommit_lead[0-0] __
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/extra-edge-offline-v1/test_literal_fault_body_real_g0')
+kind = 0, mode = 0
+
+    @pytest.mark.parametrize("kind,mode", [(0, 0), (0, 1), (1, 0), (1, 1)])
+    def test_literal_fault_body_real_guard_three_held_edges_and_precommit_lead(
+        tmp_path, kind, mode
+    ):
+        rc, log = run(tmp_path, kind, mode)
+>       assert rc == 0, log
+E       AssertionError: FATAL: /tmp/starlink-completed-input.5EaJuD/extra-edge-offline-v1/test_literal_fault_body_real_g0/fixture.sv:97: EDGE_EARLY_FINAL_PUBLICATION
+E                Time: 5871428865  Scope: tb_starlink_pss_fft_bank_owned_slice
+E         
+E       assert 1 == 0
+
+tests/starlink_oracle/test_exact_control_extra_edge.py:159: AssertionError
+_ test_literal_fault_body_real_guard_three_held_edges_and_precommit_lead[0-1] __
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/extra-edge-offline-v1/test_literal_fault_body_real_g1')
+kind = 0, mode = 1
+
+    @pytest.mark.parametrize("kind,mode", [(0, 0), (0, 1), (1, 0), (1, 1)])
+    def test_literal_fault_body_real_guard_three_held_edges_and_precommit_lead(
+        tmp_path, kind, mode
+    ):
+        rc, log = run(tmp_path, kind, mode)
+>       assert rc == 0, log
+E       AssertionError: FATAL: /tmp/starlink-completed-input.5EaJuD/extra-edge-offline-v1/test_literal_fault_body_real_g1/fixture.sv:97: EDGE_EARLY_FINAL_PUBLICATION
+E                Time: 5871428865  Scope: tb_starlink_pss_fft_bank_owned_slice
+E         
+E       assert 1 == 0
+
+tests/starlink_oracle/test_exact_control_extra_edge.py:159: AssertionError
+_ test_edge_count_late_fault_and_ownership_mutants_rejected[0-remove_negedge-EDGE_FAULT_DRIVE_NOT_NEGEDGE] _
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/extra-edge-offline-v1/test_edge_count_late_fault_and0')
+kind = 0, mutation = 'remove_negedge', marker = 'EDGE_FAULT_DRIVE_NOT_NEGEDGE'
+
+    @pytest.mark.parametrize(
+        "kind,mutation,marker",
+        [
+            (0, "remove_negedge", "EDGE_FAULT_DRIVE_NOT_NEGEDGE"),
+            (1, "remove_negedge", "EDGE_FAULT_DRIVE_NOT_NEGEDGE"),
+            (1, "two_held", "EDGE_HELD_COUNT_WRONG"),
+            (1, "four_held", "EDGE_HELD_COUNT_WRONG"),
+            (0, "late_posedge", "EDGE_FAULT_DRIVE_NOT_NEGEDGE"),
+            (1, "bad_owner", "EXACT_EXTRA_ALIGNED_FINAL_BOUNDARY_MISSING"),
+        ],
+    )
+    def test_edge_count_late_fault_and_ownership_mutants_rejected(
+        tmp_path, kind, mutation, marker
+    ):
+        rc, log = run(tmp_path, kind, 1, mutation)
+>       assert rc != 0 and marker in log, log
+E       AssertionError: EXTRA_EDGE_GUARD_PASS kind=0 mode=1 held_posedges=0 fault_edges=1 lead_ns=2.857143 exact_reasons=01 old_checks=1028 synthetic_core_minimal_banks_not_fft=1
+E         /tmp/starlink-completed-input.5EaJuD/extra-edge-offline-v1/test_edge_count_late_fault_and0/fixture.sv:175: $finish called at 5874286008 (1fs)
+E         
+E       assert (0 != 0)
+
+tests/starlink_oracle/test_exact_control_extra_edge.py:182: AssertionError
+_ test_edge_count_late_fault_and_ownership_mutants_rejected[1-remove_negedge-EDGE_FAULT_DRIVE_NOT_NEGEDGE] _
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/extra-edge-offline-v1/test_edge_count_late_fault_and1')
+kind = 1, mutation = 'remove_negedge', marker = 'EDGE_FAULT_DRIVE_NOT_NEGEDGE'
+
+    @pytest.mark.parametrize(
+        "kind,mutation,marker",
+        [
+            (0, "remove_negedge", "EDGE_FAULT_DRIVE_NOT_NEGEDGE"),
+            (1, "remove_negedge", "EDGE_FAULT_DRIVE_NOT_NEGEDGE"),
+            (1, "two_held", "EDGE_HELD_COUNT_WRONG"),
+            (1, "four_held", "EDGE_HELD_COUNT_WRONG"),
+            (0, "late_posedge", "EDGE_FAULT_DRIVE_NOT_NEGEDGE"),
+            (1, "bad_owner", "EXACT_EXTRA_ALIGNED_FINAL_BOUNDARY_MISSING"),
+        ],
+    )
+    def test_edge_count_late_fault_and_ownership_mutants_rejected(
+        tmp_path, kind, mutation, marker
+    ):
+        rc, log = run(tmp_path, kind, 1, mutation)
+>       assert rc != 0 and marker in log, log
+E       AssertionError: FATAL: /tmp/starlink-completed-input.5EaJuD/extra-edge-offline-v1/test_edge_count_late_fault_and1/fixture.sv:83: FORWARD_ACTUAL_JOIN_INPUT_MISMATCH
+E                Time: 5882858437  Scope: tb_starlink_pss_fft_bank_owned_slice
+E         
+E       assert (1 != 0 and 'EDGE_FAULT_DRIVE_NOT_NEGEDGE' in 'FATAL: /tmp/starlink-completed-input.5EaJuD/extra-edge-offline-v1/test_edge_count_late_fault_and1/fixture.sv:83: FORWARD_ACTUAL_JOIN_INPUT_MISMATCH\n       Time: 5882858437  Scope: tb_starlink_pss_fft_bank_owned_slice\n')
+
+tests/starlink_oracle/test_exact_control_extra_edge.py:182: AssertionError
+_ test_edge_count_late_fault_and_ownership_mutants_rejected[0-late_posedge-EDGE_FAULT_DRIVE_NOT_NEGEDGE] _
+
+tmp_path = PosixPath('/tmp/starlink-completed-input.5EaJuD/extra-edge-offline-v1/test_edge_count_late_fault_and4')
+kind = 0, mutation = 'late_posedge', marker = 'EDGE_FAULT_DRIVE_NOT_NEGEDGE'
+
+    @pytest.mark.parametrize(
+        "kind,mutation,marker",
+        [
+            (0, "remove_negedge", "EDGE_FAULT_DRIVE_NOT_NEGEDGE"),
+            (1, "remove_negedge", "EDGE_FAULT_DRIVE_NOT_NEGEDGE"),
+            (1, "two_held", "EDGE_HELD_COUNT_WRONG"),
+            (1, "four_held", "EDGE_HELD_COUNT_WRONG"),
+            (0, "late_posedge", "EDGE_FAULT_DRIVE_NOT_NEGEDGE"),
+            (1, "bad_owner", "EXACT_EXTRA_ALIGNED_FINAL_BOUNDARY_MISSING"),
+        ],
+    )
+    def test_edge_count_late_fault_and_ownership_mutants_rejected(
+        tmp_path, kind, mutation, marker
+    ):
+        rc, log = run(tmp_path, kind, 1, mutation)
+>       assert rc != 0 and marker in log, log
+E       AssertionError: FATAL: /tmp/starlink-completed-input.5EaJuD/extra-edge-offline-v1/test_edge_count_late_fault_and4/fixture.sv:93: EDGE_PRECOMMIT_CURRENT_FAULT_NOT_STABLE lead_ns=5871.428865
+E                Time: 5871428865  Scope: tb_starlink_pss_fft_bank_owned_slice
+E         
+E       assert (1 != 0 and 'EDGE_FAULT_DRIVE_NOT_NEGEDGE' in 'FATAL: /tmp/starlink-completed-input.5EaJuD/extra-edge-offline-v1/test_edge_count_late_fault_and4/fixture.sv:93: EDGE...T_CURRENT_FAULT_NOT_STABLE lead_ns=5871.428865\n       Time: 5871428865  Scope: tb_starlink_pss_fft_bank_owned_slice\n')
+
+tests/starlink_oracle/test_exact_control_extra_edge.py:182: AssertionError
+=========================== short test summary info ============================
+FAILED tests/starlink_oracle/test_exact_control_extra_edge.py::test_literal_fault_body_real_guard_three_held_edges_and_precommit_lead[0-0]
+FAILED tests/starlink_oracle/test_exact_control_extra_edge.py::test_literal_fault_body_real_guard_three_held_edges_and_precommit_lead[0-1]
+FAILED tests/starlink_oracle/test_exact_control_extra_edge.py::test_edge_count_late_fault_and_ownership_mutants_rejected[0-remove_negedge-EDGE_FAULT_DRIVE_NOT_NEGEDGE]
+FAILED tests/starlink_oracle/test_exact_control_extra_edge.py::test_edge_count_late_fault_and_ownership_mutants_rejected[1-remove_negedge-EDGE_FAULT_DRIVE_NOT_NEGEDGE]
+FAILED tests/starlink_oracle/test_exact_control_extra_edge.py::test_edge_count_late_fault_and_ownership_mutants_rejected[0-late_posedge-EDGE_FAULT_DRIVE_NOT_NEGEDGE]
+5 failed, 7 passed in 0.38s

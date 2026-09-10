@@ -1,0 +1,6 @@
+  // status, duplicate status, frame event, raw extra word, timeout or external
+  // fault still participates in faults_now and directly vetoes that same edge.
+  wire final_qualified = input_count == 512 && input_complete_seen &&
+    output_count == 512 && frame_seen && exponent_seen && status_seen &&
+    output_exponent == status_exponent && final_fence_certified;
+  // With a held final word AND final_qualified, every new raw input/frame/

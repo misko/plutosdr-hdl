@@ -1,0 +1,13 @@
+  starlink_pss_fft512_bfp18_rt_candidate shared_xfft (
+    .aclk(fft_clk), .aresetn(core_aresetn),
+    .s_axis_config_tdata({7'b0, !engine_metadata[69]}),
+    .s_axis_config_tvalid(config_valid), .s_axis_config_tready(config_ready),
+    .s_axis_data_tdata(core_input_data), .s_axis_data_tvalid(core_input_valid),
+    .s_axis_data_tready(core_input_ready), .s_axis_data_tlast(core_input_last),
+    .m_axis_data_tdata(core_output_data), .m_axis_data_tuser(core_output_user),
+    .m_axis_data_tvalid(core_output_valid), .m_axis_data_tlast(core_output_last),
+    .m_axis_status_tdata(core_status_data), .m_axis_status_tvalid(core_status_valid),
+    .event_frame_started(event_frame), .event_tlast_unexpected(event_last_unexpected),
+    .event_tlast_missing(event_last_missing), .event_data_in_channel_halt(event_input_halt)
+  );
+endmodule
