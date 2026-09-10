@@ -91,6 +91,40 @@ proc audit_paths {label sources destinations {required_period {}}} {
   }
   report_timing {*}$arguments -file "${label}.rpt"
 }
+# AUDIT_DEPENDENCY_BEGIN
+# Absence of timed paths alone is never a pass: exceptions and disabled arcs
+# can hide a real connection. For this explicitly optional dependency, inspect
+# all combinational arcs to exact data/control pins, including disabled arcs.
+# The destination's full saved timing remains a separate required audit.
+proc audit_dependency {label sources destinations required_period} {
+  if {![llength $sources] || ![llength $destinations]} {
+    error "empty dependency endpoint inventory for $label"
+  }
+  set paths [get_timing_paths -quiet -delay_type max -from $sources \
+    -to $destinations -max_paths 1]
+  if {[llength $paths]} {
+    audit_paths $label $sources $destinations $required_period
+    return
+  }
+  set starts [all_fanin -flat -startpoints_only -only_cells -trace_arcs all \
+    -to $destinations]
+  if {![llength $starts]} { error "empty structural fanin for $label" }
+  set names [get_property NAME $starts]
+  foreach name [get_property NAME $sources] {
+    if {[lsearch -exact $names $name] >= 0} {
+      error "untimed structural dependency for $label from $name; do not infer a pass"
+    }
+  }
+  puts $::report "$label\t[llength $sources]\t[llength $destinations]\t0\tNA\tNA"
+  puts $::report "  classification=no_combinational_dependency_not_timing_pass trace_arcs=all"
+  set evidence [open "${label}_structural_fanin.txt" w]
+  puts $evidence "scope=all_arc_combinational_startpoints_not_sequential_independence_or_timing_qualification"
+  puts $evidence "destinations=[get_property NAME $destinations]"
+  puts $evidence "queried_sources=[get_property NAME $sources]"
+  puts $evidence "all_arc_startpoints=$names"
+  close $evidence
+}
+# AUDIT_DEPENDENCY_END
 set core_registers [get_cells -quiet -hier -filter \
   {IS_SEQUENTIAL && NAME =~ *transform_service/shared_xfft/*}]
 audit_paths vendor_internal $core_registers $core_registers 5.0
@@ -115,7 +149,11 @@ if {[llength $output_metadata] != 75} { error "expected all 75 output metadata r
 audit_period $output_metadata 5.0
 set job_start [audit_one {.*transform_service/input_job_start_reg$}]
 audit_period $job_start 5.0
-audit_paths output_metadata_job_start $output_metadata $job_start 5.0
+set job_start_pins [get_pins -quiet -of_objects $job_start \
+  -filter {REF_PIN_NAME == D || REF_PIN_NAME == CE}]
+if {[llength $job_start_pins] != 2} { error "expected job start D and CE pins" }
+audit_dependency output_metadata_job_start $output_metadata $job_start_pins 5.0
+audit_paths job_start_all_sources {} $job_start_pins 5.0
 # Also retain the preceding receiver's next failing control cone separately.
 set result_input_fault [audit_one {.*transform_service/result_guard/fault_reasons_reg\[5\]$}]
 audit_period $result_input_fault 5.0
