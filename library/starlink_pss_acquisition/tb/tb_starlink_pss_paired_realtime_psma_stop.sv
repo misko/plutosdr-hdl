@@ -1,10 +1,12 @@
-`timescale 1ns/1ps
+`timescale 1ns/1fs
 
 // Real digital CI16 shell/CDC/canonical tap, real shared XFFT/PSMA, real PIL1.
 // Test-only447x2 default or explicit343x2 residue239 maps; pre-roll configuration pause is explicit. AXIS capture
 // bytes are not DDR DMA completion, IIO receipt, ADC formatting or RF evidence.
 module tb_starlink_pss_paired_realtime_psma_stop #(
-  parameter integer MAP_BINS = 447
+  parameter integer MAP_BINS = 447,
+  parameter integer USE_BANK_OWNED_XFFT = 0,
+  parameter integer FAST_MHZ = 200
 );
   localparam [63:0] FIRST = 64'h00000001fffffff0;
   localparam [63:0] PRE_FIRST = FIRST - 768;
@@ -14,7 +16,7 @@ module tb_starlink_pss_paired_realtime_psma_stop #(
   reg clk = 0, sample_clk = 0, fft_clk = 0, resetn = 0;
   always #5 clk = !clk;
   initial begin #2.1; forever #5 sample_clk = !sample_clk; end
-  initial begin #1.3; forever #2.5 fft_clk = !fft_clk; end
+  initial begin #1.3; forever #(500.0 / FAST_MHZ) fft_clk = !fft_clk; end
   reg sample_strobe = 0;
   reg [31:0] sample_data = 0;
   reg [63:0] sample_index = 0;
@@ -69,12 +71,53 @@ module tb_starlink_pss_paired_realtime_psma_stop #(
   // Production shell has fixed map geometry. Override BOTH real child modules
   // in this bench only; keep15-bit outer index width so padding is exercised.
   defparam dut.acquisition.PHASE_BINS = MAP_BINS;
+  // Test-only engine selector, like the reduced geometry below. No AXI
+  // receiver parameter, packaged capability or board profile changes.
+  defparam dut.acquisition.USE_BANK_OWNED_XFFT = USE_BANK_OWNED_XFFT;
   defparam dut.acquisition.TILE_FRAMES = 2;
   defparam dut.acquisition.MAP_SEGMENT_ADDRESS_WIDTH = 9;
   defparam dut.acquisition.MAP_SEGMENT_COUNT = 1;
   defparam dut.acquisition.MAP_SEGMENT_INDEX_WIDTH = 1;
   defparam dut.phase_map_control.PHASE_BINS = MAP_BINS;
   defparam dut.phase_map_control.TILE_FRAMES = 2;
+
+  wire observed_third_inverse_final, observed_inverse_busy, observed_pipeline_active;
+  generate if (USE_BANK_OWNED_XFFT) begin : engine_observer
+    // Witness actual core consumption at fft_clk, not slow source-bank capture.
+    always @(posedge fft_clk)
+      if (!resetn) begin second_started = 0; third_started = 0; end
+      else if (dut.acquisition.bank_transform.iq_to_score.island.core_input_valid &&
+          dut.acquisition.bank_transform.iq_to_score.island.core_input_ready &&
+          !dut.acquisition.bank_transform.iq_to_score.island.next_inverse &&
+          dut.acquisition.bank_transform.iq_to_score.island.selected_position == 0) begin
+        if (dut.acquisition.bank_transform.iq_to_score.island.engine_metadata[68:5] == FIRST + 447)
+          second_started = 1;
+        if (dut.acquisition.bank_transform.iq_to_score.island.engine_metadata[68:5] == FIRST + 894)
+          third_started = 1;
+      end
+    assign observed_third_inverse_final = dut.acquisition.bank_transform.iq_to_score.inverse_output_valid &&
+      dut.acquisition.bank_transform.iq_to_score.inverse_output_last &&
+      dut.acquisition.bank_transform.iq_to_score.inverse_output_block_start == FIRST + 894;
+    assign observed_inverse_busy = dut.acquisition.bank_transform.iq_to_score.island.result_busy &&
+      dut.acquisition.bank_transform.iq_to_score.island.next_inverse;
+    assign observed_pipeline_active = dut.acquisition.bank_transform.iq_to_score.pipeline_active;
+  end else begin : engine_observer
+    always @(posedge clk)
+      if (!resetn) begin second_started = 0; third_started = 0; end
+      else if (dut.acquisition.shared_transform.iq_to_score.shared_input_accept &&
+          !dut.acquisition.shared_transform.iq_to_score.choose_inverse &&
+          dut.acquisition.shared_transform.iq_to_score.scheduler_fft_position == 0) begin
+        if (dut.acquisition.shared_transform.iq_to_score.scheduler_fft_block_start == FIRST + 447)
+          second_started = 1;
+        if (dut.acquisition.shared_transform.iq_to_score.scheduler_fft_block_start == FIRST + 894)
+          third_started = 1;
+      end
+    assign observed_third_inverse_final = dut.acquisition.shared_transform.iq_to_score.inverse_output_accept &&
+      dut.acquisition.shared_transform.iq_to_score.inverse_output_last &&
+      dut.acquisition.shared_transform.iq_to_score.inverse_output_block_start == FIRST + 894;
+    assign observed_inverse_busy = dut.acquisition.shared_transform.iq_to_score.inverse_busy;
+    assign observed_pipeline_active = dut.acquisition.shared_transform.iq_to_score.pipeline_active;
+  end endgenerate
 
   axi_starlink_pilot_capture #(.INPUT_RATE_MSPS(15)) pilot (
     .canonical_valid(canonical_valid), .canonical_gap(canonical_gap), .canonical_flush(canonical_flush),
@@ -208,19 +251,7 @@ module tb_starlink_pss_paired_realtime_psma_stop #(
       end
       if (dut.map_read_request && (dut.map_read_index[14:9] !== 0 || dut.map_read_index >= MAP_BINS))
         fail("outer15-bit map index was not correctly zero padded");
-      if (dut.acquisition.shared_transform.iq_to_score.shared_input_accept &&
-          !dut.acquisition.shared_transform.iq_to_score.choose_inverse &&
-          dut.acquisition.shared_transform.iq_to_score.scheduler_fft_position == 0 &&
-          dut.acquisition.shared_transform.iq_to_score.scheduler_fft_block_start == FIRST + 447)
-        second_started = 1;
-      if (dut.acquisition.shared_transform.iq_to_score.shared_input_accept &&
-          !dut.acquisition.shared_transform.iq_to_score.choose_inverse &&
-          dut.acquisition.shared_transform.iq_to_score.scheduler_fft_position == 0 &&
-          dut.acquisition.shared_transform.iq_to_score.scheduler_fft_block_start == FIRST + 894)
-        third_started = 1;
-      if (dut.acquisition.shared_transform.iq_to_score.inverse_output_accept &&
-          dut.acquisition.shared_transform.iq_to_score.inverse_output_last &&
-          dut.acquisition.shared_transform.iq_to_score.inverse_output_block_start == FIRST + 894)
+      if (observed_third_inverse_final)
         third_returned = 1;
       if (dut.stop_ack) begin
         ack_count = ack_count + 1;
@@ -232,7 +263,7 @@ module tb_starlink_pss_paired_realtime_psma_stop #(
             fail("default terminal lacked original third-block work witness");
           produced_at_ack = score_count;
           candidate_fifo_at_ack = dut.candidate_fifo_stored_count;
-          inverse_busy_at_ack = dut.acquisition.shared_transform.iq_to_score.inverse_busy;
+          inverse_busy_at_ack = observed_inverse_busy;
           $display("PAIRED_STOP_TAIL map_bins=%0d selected_scores=%0d produced_scores=%0d residue=%0d second_started=%0d third_started=%0d third_returned=%0d candidate_fifo=%0d inverse_busy=%0d",
             MAP_BINS, TILE_SCORES, score_count, TILE_SCORES % 447, second_started,
             third_started, third_returned, candidate_fifo_at_ack, inverse_busy_at_ack);
@@ -319,7 +350,7 @@ module tb_starlink_pss_paired_realtime_psma_stop #(
         canonical_count <= canonical_at_stop + 512 || score_count < TILE_SCORES || map_count != MAP_BINS ||
         dut.accepted_score_count != TILE_SCORES ||
         pss_irq || dut.map_ready_mask || dut.map_publish_count != 1 ||
-        dut.acquisition.shared_transform.iq_to_score.pipeline_active)
+        observed_pipeline_active)
       fail("source/pilot continuation or healthy coarse local shutdown not proven");
     expect_stop_word(2, 32'h16); expect_stop_word(4, 2); expect_stop_word(5, 1);
     expect_stop_word(6, FIRST[31:0]); expect_stop_word(7, FIRST[63:32]);
@@ -355,6 +386,8 @@ module tb_starlink_pss_paired_realtime_psma_stop #(
     if (MAP_BINS == 343)
       $display("PAIRED_RESIDUE_PASS selected_scores=686 map_words=343 residue=239 post_fence_tail_not_map_admission=1");
     $display("PAIRED_REALTIME_PSMA_STOP_PASS source_words=4096 pilot_words=512 map_words=%0d NO_ADC_DMA_IIO_FINE_PRODUCTION_OR_PHYSICAL_CLAIM", MAP_BINS);
+    if (USE_BANK_OWNED_XFFT)
+      $display("PAIRED_BANK_PASS map_bins=%0d selected_scores=%0d exact_pilot_bytes=2048 fast_mhz=%0d TEST_ONLY_SELECTOR_NOT_RECEIVER", MAP_BINS, TILE_SCORES, FAST_MHZ);
     $finish;
   end
 endmodule

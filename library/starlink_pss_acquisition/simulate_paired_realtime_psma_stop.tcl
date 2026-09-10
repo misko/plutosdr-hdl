@@ -1,5 +1,8 @@
-proc pss_verify_paired_outputs {simulation_dir expected_binary {map_bins 447}} {
+proc pss_verify_paired_outputs {simulation_dir expected_binary {map_bins 447} {bank_owned 0} {fast_mhz 200}} {
   if {$map_bins ni {447 343}} { error "invalid paired verifier geometry" }
+  if {$bank_owned ni {0 1} || $fast_mhz ni {175 200} || (!$bank_owned && $fast_mhz != 200)} {
+    error "invalid paired verifier engine/clock"
+  }
   set tile_scores [expr {$map_bins * 2}]
   set log_path [file join $simulation_dir simulate.log]
   if {![file isfile $log_path]} { error "missing paired simulation log" }
@@ -20,6 +23,10 @@ proc pss_verify_paired_outputs {simulation_dir expected_binary {map_bins 447}} {
       {PAIRED_RESIDUE_PASS selected_scores=686 map_words=343 residue=239 post_fence_tail_not_map_admission=1} \
     ] PAIRED_STOP_TAIL 1
   }
+  if {$bank_owned} {
+    require_realtime_probe_pass $log_path [list \
+      "PAIRED_BANK_PASS map_bins=$map_bins selected_scores=$tile_scores exact_pilot_bytes=2048 fast_mhz=$fast_mhz TEST_ONLY_SELECTOR_NOT_RECEIVER"] PAIRED_BANK_PASS 1
+  }
   set actual_binary [file join $simulation_dir paired_pilot_actual.ci16]
   if {![file isfile $actual_binary] || [file size $actual_binary] != 2048} {
     error "actual pilot AXIS sink byte count mismatch"
@@ -36,9 +43,18 @@ proc pss_verify_paired_outputs {simulation_dir expected_binary {map_bins 447}} {
 # Default447x2 or explicit343x2 residue239 map; explicit configuration pause; no DMA/IIO/ADC/RF claim.
 # Usage: vivado -mode batch -source simulate_paired_realtime_psma_stop.tcl \
 #        -tclargs NEW_OUTPUT EXISTING_SCORE_VECTORS EXISTING_PILOT_ORACLE ?343x2|447x2?
-if {$argc ni {3 4}} { error "expected NEW_OUTPUT EXISTING_SCORE_VECTORS EXISTING_PILOT_ORACLE ?343x2|447x2?" }
+if {$argc ni {3 4 6}} { error "expected NEW_OUTPUT EXISTING_SCORE_VECTORS EXISTING_PILOT_ORACLE ?343x2|447x2? ?BANK_OWNED=1 FAST_MHZ=175|200?" }
 set selected_geometry 447x2
-if {$argc == 4} { set selected_geometry [lindex $argv 3] }
+set use_bank_owned_xfft 0
+set fast_mhz 200
+if {$argc >= 4} { set selected_geometry [lindex $argv 3] }
+if {$argc == 6} {
+  set use_bank_owned_xfft [lindex $argv 4]
+  set fast_mhz [lindex $argv 5]
+  if {$use_bank_owned_xfft ne "1" || $fast_mhz ni {175 200}} {
+    error "paired bank probe requires BANK_OWNED=1 FAST_MHZ=175|200"
+  }
+}
 if {$selected_geometry ni {447x2 343x2}} { error "paired geometry must be literal447x2 or343x2" }
 set map_bins [expr {$selected_geometry eq "343x2" ? 343 : 447}]
 set tile_scores [expr {$map_bins * 2}]
@@ -62,6 +78,9 @@ set rtl_names {
   starlink_pilot_ddc starlink_pilot_halfband2 starlink_pilot_fir3
 }
 set bench_name tb_starlink_pss_paired_realtime_psma_stop
+if {$use_bank_owned_xfft} {
+  lappend rtl_names starlink_pss_iq_to_score_bank_owned starlink_pss_fft_bank_owned_slice
+}
 set input_paths [list [info script] [file join $script_dir create_shared_realtime_xfft_ip.tcl] \
   [file join $script_dir verify_realtime_probe_result.tcl] \
   [file join $script_dir tb ${bench_name}.sv] \
@@ -152,7 +171,8 @@ source [file join $source_dir create_shared_realtime_xfft_ip.tcl]
 source [file join $source_dir verify_realtime_probe_result.tcl]
 set channel [open [file join $output_dir scope.txt] w]
 puts $channel "scope=actual_digital_shell_cdc_canonical_real_fft_psma_and_pilot"
-puts $channel "processing_clock_ns=10 fft_clock_ns=5 fft_phase_ns=1.3 sample_clock_ns=10 sample_phase_ns=2.1 source_msps=15"
+puts $channel "processing_clock_MHz=100 fast_clock_MHz=$fast_mhz fft_phase_ns=1.3 sample_clock_ns=10 sample_phase_ns=2.1 source_msps=15 use_bank_owned_xfft=$use_bank_owned_xfft"
+puts $channel "bank_selector_is_test_only_child_defparam_not_AXI_receiver_profile=true"
 puts $channel "test_only_geometry=$selected_geometry outer_index_bits=15 score_fixture_unchanged=true"
 puts $channel "selected_score_prefix=$tile_scores fft_stride=447 tile_end_residue=[expr {$tile_scores % 447}] production_tile_end_residue=[expr {1280000 % 447}]"
 puts $channel "residue_scope=matching_block_residue_is_not_production_geometry_or_duration_qualification"
@@ -183,7 +203,7 @@ foreach name [concat $vector_names $filter_names {upper_edge_pss_kernel_q17.mem}
 }
 set_property file_type {Memory Initialization Files} [get_files -of_objects [get_filesets sim_1] *.mem]
 set_property top $bench_name [get_filesets sim_1]
-set_property generic MAP_BINS=$map_bins [get_filesets sim_1]
+set_property generic "MAP_BINS=$map_bins USE_BANK_OWNED_XFFT=$use_bank_owned_xfft FAST_MHZ=$fast_mhz" [get_filesets sim_1]
 set_property xsim.simulate.runtime {all} [get_filesets sim_1]
 set channel [open [file join $output_dir generated_ip.txt] w]
 puts $channel "generated_wrapper_sha256=[exec sha256sum $wrapper_path]"
@@ -191,7 +211,7 @@ close $channel
 launch_simulation -simset sim_1 -mode behavioral
 close_sim
 set simulation_dir [file join $project_dir ${project_name}.sim sim_1 behav xsim]
-pss_verify_paired_outputs $simulation_dir [file join $source_dir paired_pilot_expected.ci16] $map_bins
+pss_verify_paired_outputs $simulation_dir [file join $source_dir paired_pilot_expected.ci16] $map_bins $use_bank_owned_xfft $fast_mhz
 close_project
 puts "PAIRED_REALTIME_PSMA_STOP_SIMULATION_VERIFIED exact_axis_bytes=2048 reduced_geometry_only=1"
 puts "PAIRED_GEOMETRY_VERIFIED map_bins=$map_bins map_frames=2 selected_scores=$tile_scores residue=[expr {$tile_scores % 447}]"
