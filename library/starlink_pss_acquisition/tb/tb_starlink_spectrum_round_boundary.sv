@@ -39,10 +39,19 @@ module tb_starlink_spectrum_round_boundary;
     .output_overflow(go),.overflow_pulse(gp));
   integer fd, rc, count=0, cycle, seed=91231, accepted=0, emitted=0;
   integer overflows=0, stalls=0, busy_flushes=0;
+  integer outstanding=0, discarded=0;
   reg [2*D:0] value;
   reg [D:0] expected, old_answer, new_answer;
   reg previous_accept=0;
   reg [1023:0] vector_file;
+  task automatic check_outputs;
+    for(integer n=0;n<2;n=n+1)
+      if({ready[n],valid[n],oi[n],oq[n],bin[n],exponent[n],last[n],start[n],overflow[n],pulse[n]}
+        !== {gr,gv,gi,gq,gb,ge,gl,gs,go,gp})
+        $fatal(1,"ROUND_PIPELINE_MISMATCH cycle=%0d option=%0d",cycle,n);
+    if (outstanding != (integer'(golden.product_valid) + integer'(golden.sum_valid) + integer'(gv)))
+      $fatal(1,"ROUND_PIPELINE_ACCOUNTING outstanding=%0d",outstanding);
+  endtask
   initial begin
     if (!$value$plusargs("VECTORS=%s",vector_file)) $fatal(1,"missing vectors");
     fd=$fopen(vector_file,"r"); if(!fd) $fatal(1,"cannot read vectors");
@@ -84,22 +93,35 @@ module tb_starlink_spectrum_round_boundary;
         busy_flushes=busy_flushes+1;
       @(posedge clk);
       previous_accept=input_valid && gr;
+      if (!resetn || flush) begin
+        discarded=discarded+outstanding;
+        outstanding=0;
+      end else begin
+        outstanding=outstanding+integer'(previous_accept)-integer'(gv && output_ready);
+      end
       if(input_valid && gr) accepted=accepted+1;
       if(resetn && !flush && gv && output_ready) emitted=emitted+1;
       if(resetn && !flush && gv && !output_ready) stalls=stalls+1;
       #0.001;
-      for(integer n=0;n<2;n=n+1)
-        if({ready[n],valid[n],oi[n],oq[n],bin[n],exponent[n],last[n],start[n],overflow[n],pulse[n]}
-          !== {gr,gv,gi,gq,gb,ge,gl,gs,go,gp})
-          $fatal(1,"ROUND_PIPELINE_MISMATCH cycle=%0d option=%0d",cycle,n);
+      check_outputs();
       if(gp) overflows=overflows+1;
       @(negedge clk);
     end
+    input_valid=0; resetn=1; flush=0; output_ready=1;
+    repeat(6) begin
+      @(posedge clk);
+      if(gv) begin emitted=emitted+1; outstanding=outstanding-1; end
+      #0.001; check_outputs();
+      @(negedge clk);
+    end
+    if (outstanding != 0 || accepted != emitted+discarded)
+      $fatal(1,"ROUND_PIPELINE_FINAL_ACCOUNTING a=%0d e=%0d discarded=%0d outstanding=%0d",
+        accepted,emitted,discarded,outstanding);
     if(accepted<1000 || emitted<1000 || overflows<20 || stalls<100 || busy_flushes<10)
       $fatal(1,"insufficient pipeline coverage a=%0d e=%0d o=%0d s=%0d f=%0d",
         accepted,emitted,overflows,stalls,busy_flushes);
-    $display("ROUND_BOUNDARY_PASS width=%0d vectors=%0d cycles=6000 accepted=%0d emitted=%0d overflow=%0d stalls=%0d busy_flushes=%0d",
-      D,count,accepted,emitted,overflows,stalls,busy_flushes);
+    $display("ROUND_BOUNDARY_PASS width=%0d vectors=%0d cycles=6000 accepted=%0d emitted=%0d overflow=%0d stalls=%0d busy_flushes=%0d discarded=%0d outstanding=0 drain_cycles=6",
+      D,count,accepted,emitted,overflows,stalls,busy_flushes,discarded);
     $finish;
   end
 endmodule
