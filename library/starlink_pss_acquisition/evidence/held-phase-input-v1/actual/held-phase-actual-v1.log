@@ -1,0 +1,1343 @@
+#-----------------------------------------------------------
+# Vivado v2022.2 (64-bit)
+# SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+# IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+# Start of session at: Thu Sep 10 02:48:21 2026
+# Process ID: 3035377
+# Current directory: /tmp/starlink-coarse-alternatives.Y3JzOI/completed-input-fence/hdl
+# Command line: vivado -mode batch -nojournal -log /tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1.log -source library/starlink_pss_acquisition/simulate_fft_bank_owned_slice.tcl -tclargs /tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1 /home/mouse9911/gits/plutosdr-fw-starlink-rx-only/hdl/library/starlink_pss_raw_correlator/build/input-cursor-paired-v1/frozen_sources 175 registered-scheduling
+# Log file: /tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1.log
+# Journal file: 
+# Running On: gauss, OS: Linux, CPU Frequency: 5285.637 MHz, CPU Physical cores: 24, Host memory: 132067 MB
+#-----------------------------------------------------------
+source library/starlink_pss_acquisition/simulate_fft_bank_owned_slice.tcl
+# if {$argc ni {3 4}} { error "expected NEW_OUTPUT FROZEN_VECTORS FAST_MHZ ?join-gate-removed|registered-scheduling?" }
+# if {[version -short] ne "2022.2"} { error "requires Vivado 2022.2" }
+# set_param general.maxThreads 2
+# set script_dir [file dirname [file normalize [info script]]]
+# set output_dir [file normalize [lindex $argv 0]]
+# set vector_dir [file normalize [lindex $argv 1]]
+# set fast_mhz [lindex $argv 2]
+# set mode [expr {$argc == 4 ? [lindex $argv 3] : "normal"}]
+# if {$mode ni {normal join-gate-removed registered-scheduling}} { error "unsupported mode" }
+# set mutation [expr {$mode eq "join-gate-removed"}]
+# set registered [expr {$mode eq "registered-scheduling"}]
+# if {$fast_mhz ni {150 175 200}} { error "unsupported probe frequency" }
+# if {[file exists $output_dir]} { error "refusing to overwrite bank-owned evidence" }
+# set source_dir [file join $output_dir frozen_sources]
+# file mkdir $source_dir
+# set rtl_names {starlink_pss_fft_bank_owned_slice starlink_pss_realtime_input_guard
+#   starlink_pss_realtime_result_guard starlink_pss_block_mailbox
+#   starlink_pss_forward_kernel_join starlink_pss_kernel_rom starlink_pss_spectrum_product}
+# foreach name $rtl_names { file copy [file join $script_dir ${name}.v] $source_dir }
+# if {$mutation} {
+#   set mutation_path [file join $source_dir starlink_pss_fft_bank_owned_slice.v]
+#   set channel [open $mutation_path r]; set candidate [read $channel]; close $channel
+#   set old {.input_valid(return_valid && !next_inverse && !fast_fault && product_bank_ready)}
+#   set new {.input_valid(return_valid && !next_inverse && !fast_fault)}
+#   if {[string first $old $candidate] < 0} { error "mutation target missing" }
+#   if {[string first $old $candidate] != [string last $old $candidate]} { error "mutation target not unique" }
+#   set candidate [string map [list $old $new] $candidate]
+#   set channel [open $mutation_path w]; puts -nonewline $channel $candidate; close $channel
+# }
+# file copy [info script] $source_dir
+# file copy [file join $script_dir create_shared_realtime_xfft_ip.tcl] $source_dir
+# file copy [file join $script_dir tb tb_starlink_pss_fft_bank_owned_slice.sv] $source_dir
+# set vector_names {samples_ci16 forward_q17 product_q17 inverse_q17 forward_exponents
+#   inverse_exponents upper_edge_pss_kernel_q17}
+# foreach name $vector_names { file copy [file join $vector_dir ${name}.mem] $source_dir }
+# set project_name fft_bank_owned_slice
+# set project_dir [file join $output_dir project]
+# create_project $project_name $project_dir -part xc7z010clg400-1
+# set_property target_language Verilog [current_project]
+# set_property simulator_language Mixed [current_project]
+# source [file join $source_dir create_shared_realtime_xfft_ip.tcl]
+## proc pss_create_shared_realtime_xfft_ip {wrapper_path} {
+##   if {[version -short] ne "2022.2"} { error "realtime XFFT requires Vivado 2022.2" }
+##   set module_name starlink_pss_fft512_bfp18_rt_candidate
+##   if {[llength [get_ips -quiet $module_name]]} {
+##     error "refusing to reuse an existing realtime XFFT IP"
+##   }
+##   create_ip -name xfft -vendor xilinx.com -library ip -version 9.1 -module_name $module_name
+##   set_property -dict [list \
+##     CONFIG.channels {1} CONFIG.transform_length {512} \
+##     CONFIG.target_clock_frequency {200} CONFIG.implementation_options {automatically_select} \
+##     CONFIG.target_data_throughput {40} CONFIG.run_time_configurable_transform_length {false} \
+##     CONFIG.data_format {fixed_point} CONFIG.input_width {18} CONFIG.phase_factor_width {16} \
+##     CONFIG.scaling_options {block_floating_point} CONFIG.rounding_modes {convergent_rounding} \
+##     CONFIG.aresetn {true} CONFIG.xk_index {true} CONFIG.throttle_scheme {realtime} \
+##     CONFIG.output_ordering {natural_order} CONFIG.cyclic_prefix_insertion {false} \
+##     CONFIG.memory_options_data {block_ram} CONFIG.memory_options_phase_factors {block_ram} \
+##     CONFIG.memory_options_reorder {block_ram} CONFIG.complex_mult_type {use_mults_resources} \
+##     CONFIG.butterfly_type {use_xtremedsp_slices} \
+##   ] [get_ips $module_name]
+##   generate_target all [get_ips $module_name]
+##   if {![file isfile $wrapper_path]} { error "missing generated realtime XFFT wrapper" }
+##   set channel [open $wrapper_path r]
+##   set wrapper [read $channel]
+##   close $channel
+##   set required_generics {
+##     C_S_AXIS_CONFIG_TDATA_WIDTH 8 C_S_AXIS_DATA_TDATA_WIDTH 48
+##     C_M_AXIS_DATA_TDATA_WIDTH 48 C_M_AXIS_DATA_TUSER_WIDTH 24 C_M_AXIS_STATUS_TDATA_WIDTH 8
+##     C_THROTTLE_SCHEME 0 C_CHANNELS 1 C_NFFT_MAX 9 C_ARCH 1 C_HAS_NFFT 0
+##     C_USE_FLT_PT 0 C_INPUT_WIDTH 18 C_TWIDDLE_WIDTH 16 C_OUTPUT_WIDTH 18
+##     C_HAS_SCALING 1 C_HAS_BFP 1 C_HAS_ROUNDING 1 C_HAS_ACLKEN 0 C_HAS_ARESETN 1
+##     C_HAS_OVFLO 0 C_HAS_NATURAL_INPUT 1 C_HAS_NATURAL_OUTPUT 1 C_HAS_CYCLIC_PREFIX 0
+##     C_HAS_XK_INDEX 1 C_DATA_MEM_TYPE 1 C_TWIDDLE_MEM_TYPE 1 C_BRAM_STAGES 0
+##     C_REORDER_MEM_TYPE 1 C_USE_HYBRID_RAM 0 C_OPTIMIZE_GOAL 0 C_CMPY_TYPE 1 C_BFLY_TYPE 1
+##   }
+##   foreach {name value} $required_generics {
+##     if {![regexp "${name} => ${value}(,|\n)" $wrapper]} {
+##       error "unexpected generated realtime XFFT generic $name"
+##     }
+##   }
+##   set entity_start [string first "ENTITY $module_name IS" $wrapper]
+##   set entity_stop [string first "END $module_name;" $wrapper]
+##   if {$entity_start < 0 || $entity_stop <= $entity_start} {
+##     error "missing generated realtime XFFT entity"
+##   }
+##   set entity [string range $wrapper $entity_start $entity_stop]
+##   foreach forbidden {m_axis_data_tready m_axis_status_tready event_status_channel_halt event_data_out_channel_halt} {
+##     if {[string first $forbidden $entity] >= 0} {
+##       error "unexpected realtime XFFT entity port $forbidden"
+##     }
+##   }
+##   return $module_name
+## }
+# set wrapper [file join $project_dir ${project_name}.gen sources_1 ip \
+#   starlink_pss_fft512_bfp18_rt_candidate synth starlink_pss_fft512_bfp18_rt_candidate.vhd]
+# pss_create_shared_realtime_xfft_ip $wrapper
+INFO: [IP_Flow 19-234] Refreshing IP repositories
+INFO: [IP_Flow 19-1704] No user IP repositories specified
+INFO: [IP_Flow 19-2313] Loaded Vivado IP repository '/opt/Xilinx/Vivado/2022.2/data/ip'.
+WARNING: [IP_Flow 19-4832] The IP name 'starlink_pss_fft512_bfp18_rt_candidate' you have specified is long. The Windows operating system has path length limitations. It is recommended you use shorter names to reduce the likelihood of issues.
+INFO: [IP_Flow 19-1686] Generating 'Instantiation Template' target for IP 'starlink_pss_fft512_bfp18_rt_candidate'...
+INFO: [IP_Flow 19-1686] Generating 'Synthesis' target for IP 'starlink_pss_fft512_bfp18_rt_candidate'...
+INFO: [IP_Flow 19-1686] Generating 'Simulation' target for IP 'starlink_pss_fft512_bfp18_rt_candidate'...
+INFO: [IP_Flow 19-1686] Generating 'C Simulation' target for IP 'starlink_pss_fft512_bfp18_rt_candidate'...
+INFO: [IP_Flow 19-1686] Generating 'Test Bench' target for IP 'starlink_pss_fft512_bfp18_rt_candidate'...
+INFO: [IP_Flow 19-1686] Generating 'Change Log' target for IP 'starlink_pss_fft512_bfp18_rt_candidate'...
+# foreach name $rtl_names { add_files -fileset sim_1 -norecurse [file join $source_dir ${name}.v] }
+# add_files -fileset sim_1 -norecurse [file join $source_dir tb_starlink_pss_fft_bank_owned_slice.sv]
+# foreach name $vector_names { add_files -fileset sim_1 -norecurse [file join $source_dir ${name}.mem] }
+# set_property file_type {Memory Initialization Files} [get_files -of_objects [get_filesets sim_1] *.mem]
+# set channel [open [file join $output_dir scope.txt] w]
+# puts $channel "scope=actual_core_three_bank_capture_product_inverse_island"
+# puts $channel "hdl_commit=[exec git -C $script_dir rev-parse HEAD]"
+# puts $channel "fast_clock_mhz=$fast_mhz slow_clock_mhz=100 no_physical_no_receiver_no_RF=true"
+# puts $channel "join_gate_removed_mutation=$mutation"
+# puts $channel "registered_scheduling=$registered"
+# puts $channel "source_CDC_product_local_output_CDC_banks_instantiated=true"
+# puts $channel "forward_ACK=actual_validated_product_bank_ownership; inverse_ACK=actual_slow_last_read"
+# puts $channel "source_hashes=[exec sha256sum {*}[glob [file join $source_dir *]] $wrapper]"
+# close $channel
+# set_property top tb_starlink_pss_fft_bank_owned_slice [get_filesets sim_1]
+# set_property generic [list FAST_MHZ=$fast_mhz QUICK_MUTATION=$mutation REGISTERED_SCHEDULING=$registered] [get_filesets sim_1]
+# set_property xsim.simulate.runtime all [get_filesets sim_1]
+# launch_simulation -simset sim_1 -mode behavioral
+Command: launch_simulation  -simset sim_1 -mode behavioral
+INFO: [Vivado 12-12493] Simulation top is 'tb_starlink_pss_fft_bank_owned_slice'
+WARNING: [Vivado 12-13277] Compiled library path does not exist: ''
+INFO: [Vivado 12-5698] Checking validity of IPs in the design for the 'XSim' simulator...
+INFO: [Vivado 12-5682] Launching behavioral simulation in '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim'
+INFO: [Vivado 12-13660] Precompiled IP simulation library mode is enabled (default). The design IP libraries will be referenced from the compiled library path. Please note that if the precompiled version of the library is not found from the path or the IP is in locked state, then the library source files for these IPs will be compiled locally as part of the compile order.
+INFO: [Vivado 12-4795] Using compiled simulation libraries for IPs
+INFO: [SIM-utils-51] Simulation object is 'sim_1'
+INFO: [SIM-utils-72] Using boost library from '/opt/Xilinx/Vivado/2022.2/tps/boost_1_72_0'
+INFO: [USF-XSim-7] Finding pre-compiled libraries...
+INFO: [USF-XSim-11] File '/opt/Xilinx/Vivado/2022.2/data/xsim/xsim.ini' copied to run dir:'/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim'
+INFO: [SIM-utils-54] Inspecting design source files for 'tb_starlink_pss_fft_bank_owned_slice' in fileset 'sim_1'...
+INFO: [SIM-utils-43] Exported '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim/samples_ci16.mem'
+INFO: [SIM-utils-43] Exported '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim/forward_q17.mem'
+INFO: [SIM-utils-43] Exported '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim/product_q17.mem'
+INFO: [SIM-utils-43] Exported '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim/inverse_q17.mem'
+INFO: [SIM-utils-43] Exported '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim/forward_exponents.mem'
+INFO: [SIM-utils-43] Exported '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim/inverse_exponents.mem'
+INFO: [SIM-utils-43] Exported '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim/upper_edge_pss_kernel_q17.mem'
+INFO: [SIM-utils-43] Exported '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim/samples_ci16.mem'
+INFO: [SIM-utils-43] Exported '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim/forward_q17.mem'
+INFO: [SIM-utils-43] Exported '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim/product_q17.mem'
+INFO: [SIM-utils-43] Exported '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim/inverse_q17.mem'
+INFO: [SIM-utils-43] Exported '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim/forward_exponents.mem'
+INFO: [SIM-utils-43] Exported '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim/inverse_exponents.mem'
+INFO: [SIM-utils-43] Exported '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim/upper_edge_pss_kernel_q17.mem'
+INFO: [USF-XSim-97] Finding global include files...
+INFO: [USF-XSim-98] Fetching design files from 'sim_1'...
+INFO: [USF-XSim-2] XSim::Compile design
+INFO: [USF-XSim-61] Executing 'COMPILE and ANALYZE' step in '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim'
+xvlog --incr --relax -L uvm -prj tb_starlink_pss_fft_bank_owned_slice_vlog.prj
+INFO: [VRFC 10-2263] Analyzing Verilog file "/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/frozen_sources/starlink_pss_block_mailbox.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module starlink_pss_block_mailbox
+INFO: [VRFC 10-2263] Analyzing Verilog file "/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/frozen_sources/starlink_pss_fft_bank_owned_slice.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module starlink_pss_fft_bank_owned_slice
+WARNING: [VRFC 10-3380] identifier 'registered_quarantine' is used before its declaration [/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/frozen_sources/starlink_pss_fft_bank_owned_slice.v:76]
+WARNING: [VRFC 10-3380] identifier 'destination_reserved' is used before its declaration [/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/frozen_sources/starlink_pss_fft_bank_owned_slice.v:117]
+WARNING: [VRFC 10-3380] identifier 'destination_reserved' is used before its declaration [/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/frozen_sources/starlink_pss_fft_bank_owned_slice.v:120]
+INFO: [VRFC 10-2263] Analyzing Verilog file "/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/frozen_sources/starlink_pss_forward_kernel_join.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module starlink_pss_forward_kernel_join
+INFO: [VRFC 10-2263] Analyzing Verilog file "/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/frozen_sources/starlink_pss_kernel_rom.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module starlink_pss_kernel_rom
+INFO: [VRFC 10-2263] Analyzing Verilog file "/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/frozen_sources/starlink_pss_realtime_input_guard.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module starlink_pss_realtime_input_guard
+INFO: [VRFC 10-2263] Analyzing Verilog file "/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/frozen_sources/starlink_pss_realtime_result_guard.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module starlink_pss_realtime_result_guard
+INFO: [VRFC 10-2263] Analyzing Verilog file "/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/frozen_sources/starlink_pss_spectrum_product.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module starlink_pss_spectrum_product
+INFO: [VRFC 10-2263] Analyzing SystemVerilog file "/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/frozen_sources/tb_starlink_pss_fft_bank_owned_slice.sv" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module tb_starlink_pss_fft_bank_owned_slice
+WARNING: [VRFC 10-3380] identifier 'preflight_ready_differences' is used before its declaration [/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/frozen_sources/tb_starlink_pss_fft_bank_owned_slice.sv:143]
+INFO: [VRFC 10-2263] Analyzing Verilog file "/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim/glbl.v" into library xil_defaultlib
+INFO: [VRFC 10-311] analyzing module glbl
+xvhdl --incr --relax -prj tb_starlink_pss_fft_bank_owned_slice_vhdl.prj
+INFO: [VRFC 10-163] Analyzing VHDL file "/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.gen/sources_1/ip/starlink_pss_fft512_bfp18_rt_candidate/sim/starlink_pss_fft512_bfp18_rt_candidate.vhd" into library xil_defaultlib
+INFO: [VRFC 10-3107] analyzing entity 'starlink_pss_fft512_bfp18_rt_candidate'
+Waiting for jobs to finish...
+No pending jobs, compilation finished.
+INFO: [USF-XSim-69] 'compile' step finished in '2' seconds
+INFO: [USF-XSim-3] XSim::Elaborate design
+INFO: [USF-XSim-61] Executing 'ELABORATE' step in '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim'
+xelab --incr --debug typical --relax --mt 2 -generic_top FAST_MHZ=175 -generic_top QUICK_MUTATION=0 -generic_top REGISTERED_SCHEDULING=1 -L xil_defaultlib -L xbip_utils_v3_0_10 -L axi_utils_v2_0_6 -L c_reg_fd_v12_0_6 -L xbip_dsp48_wrapper_v3_0_4 -L xbip_pipe_v3_0_6 -L xbip_dsp48_addsub_v3_0_6 -L xbip_addsub_v3_0_6 -L c_addsub_v12_0_14 -L c_mux_bit_v12_0_6 -L c_shift_ram_v12_0_14 -L xbip_bram18k_v3_0_6 -L mult_gen_v12_0_18 -L cmpy_v6_0_21 -L floating_point_v7_0_20 -L xfft_v9_1_8 -L uvm -L unisims_ver -L unimacro_ver -L secureip -L xpm --snapshot tb_starlink_pss_fft_bank_owned_slice_behav xil_defaultlib.tb_starlink_pss_fft_bank_owned_slice xil_defaultlib.glbl -log elaborate.log
+Vivado Simulator v2022.2
+Copyright 1986-1999, 2001-2022 Xilinx, Inc. All Rights Reserved.
+Running: /opt/Xilinx/Vivado/2022.2/bin/unwrapped/lnx64.o/xelab --incr --debug typical --relax --mt 2 -generic_top FAST_MHZ=175 -generic_top QUICK_MUTATION=0 -generic_top REGISTERED_SCHEDULING=1 -L xil_defaultlib -L xbip_utils_v3_0_10 -L axi_utils_v2_0_6 -L c_reg_fd_v12_0_6 -L xbip_dsp48_wrapper_v3_0_4 -L xbip_pipe_v3_0_6 -L xbip_dsp48_addsub_v3_0_6 -L xbip_addsub_v3_0_6 -L c_addsub_v12_0_14 -L c_mux_bit_v12_0_6 -L c_shift_ram_v12_0_14 -L xbip_bram18k_v3_0_6 -L mult_gen_v12_0_18 -L cmpy_v6_0_21 -L floating_point_v7_0_20 -L xfft_v9_1_8 -L uvm -L unisims_ver -L unimacro_ver -L secureip -L xpm --snapshot tb_starlink_pss_fft_bank_owned_slice_behav xil_defaultlib.tb_starlink_pss_fft_bank_owned_slice xil_defaultlib.glbl -log elaborate.log 
+Using 2 slave threads.
+Starting static elaboration
+Pass Through NonSizing Optimizer
+WARNING: [VRFC 10-3532] module 'glbl' does not have a parameter named 'FAST_MHZ' to override [/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim/glbl.v:6]
+Completed static elaboration
+Starting simulation data flow analysis
+Completed simulation data flow analysis
+Time Resolution for simulation is 1fs
+Compiling package std.standard
+Compiling package std.textio
+Compiling package ieee.std_logic_1164
+Compiling package ieee.numeric_std
+Compiling package xbip_utils_v3_0_10.xbip_utils_v3_0_10_pkg
+Compiling package xfft_v9_1_8.xfft_v9_1_8_viv_comp
+Compiling package ieee.std_logic_arith
+Compiling package ieee.std_logic_unsigned
+Compiling package ieee.math_real
+Compiling package axi_utils_v2_0_6.axi_utils_v2_0_6_pkg
+Compiling package mult_gen_v12_0_18.mult_gen_v12_0_18_pkg
+Compiling package ieee.std_logic_signed
+Compiling package cmpy_v6_0_21.cmpy_v6_0_21_pkg
+Compiling package floating_point_v7_0_20.floating_point_v7_0_20_consts
+Compiling package floating_point_v7_0_20.floating_point_v7_0_20_exp_table...
+Compiling package floating_point_v7_0_20.floating_point_v7_0_20_pkg
+Compiling package xfft_v9_1_8.pkg
+Compiling package xfft_v9_1_8.xfft_v9_1_8_axi_pkg
+Compiling package unisim.vcomponents
+Compiling package ieee.vital_timing
+Compiling package ieee.vital_primitives
+Compiling package unisim.vpkg
+Compiling package xbip_pipe_v3_0_6.xbip_pipe_v3_0_6_viv_comp
+Compiling package xbip_addsub_v3_0_6.xbip_addsub_v3_0_6_viv_comp
+Compiling package c_addsub_v12_0_14.c_addsub_v12_0_14_pkg
+Compiling package c_addsub_v12_0_14.c_addsub_v12_0_14_pkg_legacy
+Compiling package c_reg_fd_v12_0_6.c_reg_fd_v12_0_6_viv_comp
+Compiling package c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_pkg
+Compiling package c_mux_bit_v12_0_6.c_mux_bit_v12_0_6_viv_comp
+Compiling package xfft_v9_1_8.half_sincos_tw_table
+Compiling package xpm.vcomponents
+Compiling package ieee.std_logic_textio
+Compiling package mult_gen_v12_0_18.dsp_pkg
+Compiling module xil_defaultlib.starlink_pss_block_mailbox(RESET...
+Compiling module xil_defaultlib.starlink_pss_realtime_input_guar...
+Compiling module xil_defaultlib.starlink_pss_realtime_result_gua...
+Compiling module xil_defaultlib.starlink_pss_kernel_rom(ROM_FILE...
+Compiling module xil_defaultlib.starlink_pss_forward_kernel_join...
+Compiling module xil_defaultlib.starlink_pss_spectrum_product(DA...
+Compiling module xil_defaultlib.starlink_pss_block_mailbox(RESET...
+Compiling module xil_defaultlib.starlink_pss_block_mailbox(METAD...
+Compiling architecture synth of entity xfft_v9_1_8.axi_wrapper_output_fifo [\axi_wrapper_output_fifo(c_fifo_...]
+Compiling architecture synth of entity xfft_v9_1_8.axi_wrapper_input_fifo [\axi_wrapper_input_fifo(c_fifo_w...]
+Compiling architecture synth of entity xfft_v9_1_8.axi_wrapper_input_fifo [\axi_wrapper_input_fifo(c_fifo_w...]
+Compiling architecture synth of entity xfft_v9_1_8.axi_wrapper_output_fifo [\axi_wrapper_output_fifo(c_fifo_...]
+Compiling architecture synth of entity xfft_v9_1_8.axi_wrapper [\axi_wrapper(c_nfft_max=9,c_arch...]
+Compiling architecture xilinx of entity xfft_v9_1_8.mux_bus2 [\mux_bus2(c_xdevicefamily="zynq"...]
+Compiling architecture rb18_internal_vhdl_v of entity unisim.RB18_INTERNAL_VHDL [\RB18_INTERNAL_VHDL(bram_size=18...]
+Compiling architecture ramb18e1_v of entity unisim.RAMB18E1 [\RAMB18E1(doa_reg=1,dob_reg=1,ra...]
+Compiling architecture xilinx of entity xfft_v9_1_8.dpm [\dpm(c_xdevicefamily="zynq",widt...]
+Compiling architecture xilinx of entity xfft_v9_1_8.max2_2 [max2_2_default]
+Compiling architecture xilinx of entity xfft_v9_1_8.in_ranger [in_ranger_default]
+Compiling architecture xilinx of entity xfft_v9_1_8.range_r4 [range_r4_default]
+Compiling architecture xilinx of entity xfft_v9_1_8.r4_ranger [r4_ranger_default]
+Compiling architecture xilinx of entity xfft_v9_1_8.scale_logic [scale_logic_default]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture xilinx of entity xfft_v9_1_8.mux_bus4 [\mux_bus4(c_xdevicefamily="zynq"...]
+Compiling architecture xilinx of entity xfft_v9_1_8.in_switch4 [\in_switch4(c_xdevicefamily="zyn...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture dsp48e1_v of entity unisim.DSP48E1 [\DSP48E1(adreg=0,carryinreg=0,ca...]
+Compiling architecture dsp48e_v of entity unisim.DSP48E [\DSP48E(carryinreg=0,carryinselr...]
+Compiling architecture xilinx of entity xfft_v9_1_8.butterfly_DSP48E_SIMD_bypass [\butterfly_DSP48E_SIMD_bypass(da...]
+Compiling architecture xilinx of entity xfft_v9_1_8.bf_dsp_bypass [\bf_dsp_bypass(c_xdevicefamily="...]
+Compiling architecture xilinx of entity xfft_v9_1_8.butterfly_DSP48E_SIMD_mul_j_bypass [\butterfly_DSP48E_SIMD_mul_j_byp...]
+Compiling architecture xilinx of entity xfft_v9_1_8.bf_dsp_mul_j_bypass [\bf_dsp_mul_j_bypass(c_xdevicefa...]
+Compiling architecture dsp48e1_v of entity unisim.DSP48E1 [\DSP48E1(adreg=0,carryinreg=0,ca...]
+Compiling architecture dsp48e_v of entity unisim.DSP48E [\DSP48E(carryinreg=0,carryinselr...]
+Compiling architecture xilinx of entity xfft_v9_1_8.butterfly_DSP48E_SIMD [\butterfly_DSP48E_SIMD(data_widt...]
+Compiling architecture xilinx of entity xfft_v9_1_8.bf_dsp [\bf_dsp(c_xdevicefamily="zynq",d...]
+Compiling architecture xilinx of entity xfft_v9_1_8.dragonfly_DSP48_bypass [\dragonfly_DSP48_bypass(c_xdevic...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture xilinx of entity cmpy_v6_0_21.delay_line [\delay_line(c_xdevicefamily="zyn...]
+Compiling architecture xilinx of entity cmpy_v6_0_21.delay_line [\delay_line(c_xdevicefamily="zyn...]
+Compiling architecture xilinx of entity mult_gen_v12_0_18.delay_line [\delay_line(c_xdevicefamily="zyn...]
+Compiling architecture xilinx of entity mult_gen_v12_0_18.delay_line [\delay_line(c_xdevicefamily="zyn...]
+Compiling architecture dsp48e1_v of entity unisim.DSP48E1 [\DSP48E1(acascreg=2,alumodereg=0...]
+Compiling architecture xilinx of entity mult_gen_v12_0_18.delay_line [\delay_line(c_xdevicefamily="zyn...]
+Compiling architecture xilinx of entity mult_gen_v12_0_18.op_resize [\op_resize(ai_width=18,bi_width=...]
+Compiling architecture xilinx of entity mult_gen_v12_0_18.dsp [\dsp(c_xdevicefamily="zynq",c_a_...]
+Compiling architecture xilinx of entity cmpy_v6_0_21.cmpy_3_dsp48_mult [\cmpy_3_dsp48_mult(c_xdevicefami...]
+Compiling architecture xilinx of entity mult_gen_v12_0_18.delay_line [\delay_line(c_xdevicefamily="zyn...]
+Compiling architecture xilinx of entity mult_gen_v12_0_18.delay_line [\delay_line(c_xdevicefamily="zyn...]
+Compiling architecture dsp48e1_v of entity unisim.DSP48E1 [\DSP48E1(alumodereg=0,bcascreg=2...]
+Compiling architecture xilinx of entity mult_gen_v12_0_18.op_resize [\op_resize(ai_width=19,bi_width=...]
+Compiling architecture xilinx of entity mult_gen_v12_0_18.dsp [\dsp(c_xdevicefamily="zynq",c_a_...]
+Compiling architecture xilinx of entity cmpy_v6_0_21.cmpy_3_dsp48_mult [\cmpy_3_dsp48_mult(c_xdevicefami...]
+Compiling architecture xilinx of entity mult_gen_v12_0_18.dsp [\dsp(c_xdevicefamily="zynq",c_a_...]
+Compiling architecture xilinx of entity cmpy_v6_0_21.cmpy_3_dsp48_mult [\cmpy_3_dsp48_mult(c_xdevicefami...]
+Compiling architecture xilinx of entity cmpy_v6_0_21.input_negation [\input_negation(c_xdevicefamily=...]
+Compiling architecture xilinx of entity cmpy_v6_0_21.delay_line [\delay_line(c_xdevicefamily="zyn...]
+Compiling architecture xilinx of entity cmpy_v6_0_21.delay_line [\delay_line(c_xdevicefamily="zyn...]
+Compiling architecture xilinx of entity cmpy_v6_0_21.cmpy_3_dsp48 [\cmpy_3_dsp48(c_xdevicefamily="z...]
+Compiling architecture xilinx of entity cmpy_v6_0_21.cmpy_v6_0_21_synth [\cmpy_v6_0_21_synth(c_xdevicefam...]
+Compiling architecture xilinx of entity xfft_v9_1_8.cmpy [\cmpy(c_xdevicefamily="zynq",a_w...]
+Compiling architecture xilinx of entity xfft_v9_1_8.mux_bus4 [\mux_bus4(c_xdevicefamily="zynq"...]
+Compiling architecture xilinx of entity xfft_v9_1_8.arith_shift3 [\arith_shift3(c_xdevicefamily="z...]
+Compiling architecture xilinx of entity xfft_v9_1_8.logic_gate [\logic_gate(c_xdevicefamily="zyn...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture lut6_v of entity unisim.LUT6 [\LUT6(init="10000000000000000000...]
+Compiling architecture xilinx of entity xfft_v9_1_8.logic_gate [\logic_gate(c_xdevicefamily="zyn...]
+Compiling architecture rtl of entity c_addsub_v12_0_14.c_addsub_v12_0_14_lut6_legacy [\c_addsub_v12_0_14_lut6_legacy(c...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_fabric_legacy [\c_addsub_v12_0_14_fabric_legacy...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_legacy [\c_addsub_v12_0_14_legacy(c_fami...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_viv [\c_addsub_v12_0_14_viv(c_xdevice...]
+Compiling architecture xilinx of entity xfft_v9_1_8.unbiased_round [\unbiased_round(c_xdevicefamily=...]
+Compiling architecture xilinx of entity xfft_v9_1_8.pe4 [\pe4(c_xdevicefamily="zynq",io_w...]
+Compiling architecture xilinx of entity xfft_v9_1_8.out_switch4 [\out_switch4(c_xdevicefamily="zy...]
+Compiling architecture xilinx of entity xfft_v9_1_8.r4_datapath [\r4_datapath(c_xdevicefamily="zy...]
+Compiling architecture struct of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_legacy [\c_shift_ram_v12_0_14_legacy(c_x...]
+Compiling architecture synth of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_viv [\c_shift_ram_v12_0_14_viv(c_xdev...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture struct of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_legacy [\c_shift_ram_v12_0_14_legacy(c_x...]
+Compiling architecture synth of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_viv [\c_shift_ram_v12_0_14_viv(c_xdev...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture struct of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_legacy [\c_shift_ram_v12_0_14_legacy(c_x...]
+Compiling architecture synth of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_viv [\c_shift_ram_v12_0_14_viv(c_xdev...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture struct of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_legacy [\c_shift_ram_v12_0_14_legacy(c_x...]
+Compiling architecture synth of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_viv [\c_shift_ram_v12_0_14_viv(c_xdev...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture struct of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_legacy [\c_shift_ram_v12_0_14_legacy(c_x...]
+Compiling architecture synth of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_viv [\c_shift_ram_v12_0_14_viv(c_xdev...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture fdre_v of entity unisim.FDRE [fdre_default]
+Compiling architecture fde_v of entity unisim.FDE [fde_default]
+Compiling architecture struct of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_legacy [\c_shift_ram_v12_0_14_legacy(c_x...]
+Compiling architecture synth of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_viv [\c_shift_ram_v12_0_14_viv(c_xdev...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture xilinx of entity xfft_v9_1_8.reg_rs_rtl [reg_rs_rtl_default]
+Compiling architecture muxcy_v of entity unisim.MUXCY [muxcy_default]
+Compiling architecture xorcy_v of entity unisim.XORCY [xorcy_default]
+Compiling architecture rtl of entity c_addsub_v12_0_14.c_addsub_v12_0_14_lut6_legacy [\c_addsub_v12_0_14_lut6_legacy(c...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_fabric_legacy [\c_addsub_v12_0_14_fabric_legacy...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_legacy [\c_addsub_v12_0_14_legacy(c_fami...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_viv [\c_addsub_v12_0_14_viv(c_xdevice...]
+Compiling architecture lut6_v of entity unisim.LUT6 [\LUT6(init="10010000000010010000...]
+Compiling architecture xilinx of entity xfft_v9_1_8.equ_rtl [\equ_rtl(c_xdevicefamily="zynq",...]
+Compiling architecture xilinx of entity xfft_v9_1_8.cnt_tc_rtl [\cnt_tc_rtl(c_xdevicefamily="zyn...]
+Compiling architecture rtl of entity c_addsub_v12_0_14.c_addsub_v12_0_14_lut6_legacy [\c_addsub_v12_0_14_lut6_legacy(c...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_fabric_legacy [\c_addsub_v12_0_14_fabric_legacy...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_legacy [\c_addsub_v12_0_14_legacy(c_fami...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_viv [\c_addsub_v12_0_14_viv(c_xdevice...]
+Compiling architecture xilinx of entity xfft_v9_1_8.equ_rtl [\equ_rtl(c_xdevicefamily="zynq",...]
+Compiling architecture xilinx of entity xfft_v9_1_8.cnt_tc_rtl [\cnt_tc_rtl(c_xdevicefamily="zyn...]
+Compiling architecture rtl of entity c_addsub_v12_0_14.c_addsub_v12_0_14_lut6_legacy [\c_addsub_v12_0_14_lut6_legacy(c...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_fabric_legacy [\c_addsub_v12_0_14_fabric_legacy...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_legacy [\c_addsub_v12_0_14_legacy(c_fami...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_viv [\c_addsub_v12_0_14_viv(c_xdevice...]
+Compiling architecture xilinx of entity xfft_v9_1_8.equ_rtl [\equ_rtl(c_xdevicefamily="zynq",...]
+Compiling architecture xilinx of entity xfft_v9_1_8.cnt_tc_rtl [\cnt_tc_rtl(c_xdevicefamily="zyn...]
+Compiling architecture rtl of entity c_addsub_v12_0_14.c_addsub_v12_0_14_lut6_legacy [\c_addsub_v12_0_14_lut6_legacy(c...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_fabric_legacy [\c_addsub_v12_0_14_fabric_legacy...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_legacy [\c_addsub_v12_0_14_legacy(c_fami...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_viv [\c_addsub_v12_0_14_viv(c_xdevice...]
+Compiling architecture xilinx of entity xfft_v9_1_8.equ_rtl [\equ_rtl(c_xdevicefamily="zynq",...]
+Compiling architecture xilinx of entity xfft_v9_1_8.cnt_tc_rtl [\cnt_tc_rtl(c_xdevicefamily="zyn...]
+Compiling architecture xilinx of entity xfft_v9_1_8.flow_control_b [\flow_control_b(c_xdevicefamily=...]
+Compiling architecture struct of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_legacy [\c_shift_ram_v12_0_14_legacy(c_x...]
+Compiling architecture synth of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_viv [\c_shift_ram_v12_0_14_viv(c_xdev...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture struct of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_legacy [\c_shift_ram_v12_0_14_legacy(c_x...]
+Compiling architecture synth of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_viv [\c_shift_ram_v12_0_14_viv(c_xdev...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture struct of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_legacy [\c_shift_ram_v12_0_14_legacy(c_x...]
+Compiling architecture synth of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_viv [\c_shift_ram_v12_0_14_viv(c_xdev...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture struct of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_legacy [\c_shift_ram_v12_0_14_legacy(c_x...]
+Compiling architecture synth of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_viv [\c_shift_ram_v12_0_14_viv(c_xdev...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture srl16e_v of entity unisim.SRL16E [\SRL16E(0,15)\]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture structural of entity c_reg_fd_v12_0_6.c_reg_fd_v12_0_6_viv [\c_reg_fd_v12_0_6_viv(c_sync_pri...]
+Compiling architecture struct of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_legacy [\c_shift_ram_v12_0_14_legacy(c_x...]
+Compiling architecture synth of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_viv [\c_shift_ram_v12_0_14_viv(c_xdev...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture struct of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_legacy [\c_shift_ram_v12_0_14_legacy(c_x...]
+Compiling architecture synth of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_viv [\c_shift_ram_v12_0_14_viv(c_xdev...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture struct of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_legacy [\c_shift_ram_v12_0_14_legacy(c_x...]
+Compiling architecture synth of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_viv [\c_shift_ram_v12_0_14_viv(c_xdev...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture struct of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_legacy [\c_shift_ram_v12_0_14_legacy(c_x...]
+Compiling architecture synth of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_viv [\c_shift_ram_v12_0_14_viv(c_xdev...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture struct of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_legacy [\c_shift_ram_v12_0_14_legacy(c_x...]
+Compiling architecture synth of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_viv [\c_shift_ram_v12_0_14_viv(c_xdev...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture struct of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_legacy [\c_shift_ram_v12_0_14_legacy(c_x...]
+Compiling architecture synth of entity c_shift_ram_v12_0_14.c_shift_ram_v12_0_14_viv [\c_shift_ram_v12_0_14_viv(c_xdev...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture lut4_v of entity unisim.LUT4 [\LUT4(init="0000000011001010")(0...]
+Compiling architecture xilinx of entity xfft_v9_1_8.mux_bus4 [\mux_bus4(c_xdevicefamily="zynq"...]
+Compiling architecture lut6_v of entity unisim.LUT6 [\LUT6(init="11111111000000001111...]
+Compiling architecture xilinx of entity xfft_v9_1_8.mux_bus4 [\mux_bus4(c_xdevicefamily="zynq"...]
+Compiling architecture lut3_v of entity unisim.LUT3 [\LUT3(init="11001010")(0,7)\]
+Compiling architecture xilinx of entity xfft_v9_1_8.mux_bus2 [\mux_bus2(c_xdevicefamily="zynq"...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture xilinx of entity xfft_v9_1_8.xor_bit_gate [\xor_bit_gate(c_inputs=4)\]
+Compiling architecture xilinx of entity xfft_v9_1_8.xor_bit_gate [\xor_bit_gate(c_inputs=13)\]
+Compiling architecture xilinx of entity xfft_v9_1_8.shift_ram [\shift_ram(c_xdevicefamily="zynq...]
+Compiling architecture structural of entity c_reg_fd_v12_0_6.c_reg_fd_v12_0_6_viv [\c_reg_fd_v12_0_6_viv(c_width=8,...]
+Compiling architecture rtl of entity c_addsub_v12_0_14.c_addsub_v12_0_14_lut6_legacy [\c_addsub_v12_0_14_lut6_legacy(c...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_fabric_legacy [\c_addsub_v12_0_14_fabric_legacy...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_legacy [\c_addsub_v12_0_14_legacy(c_fami...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_viv [\c_addsub_v12_0_14_viv(c_xdevice...]
+Compiling architecture xilinx of entity xfft_v9_1_8.subtracter [\subtracter(c_xdevicefamily="zyn...]
+Compiling architecture xilinx of entity xfft_v9_1_8.xor_bit_gate [\xor_bit_gate(c_inputs=14)\]
+Compiling architecture xilinx of entity xfft_v9_1_8.mux_bus2 [\mux_bus2(c_xdevicefamily="zynq"...]
+Compiling architecture xilinx of entity xfft_v9_1_8.mux_bus2 [\mux_bus2(c_xdevicefamily="zynq"...]
+Compiling architecture xilinx of entity xfft_v9_1_8.rw_addr_gen_b [\rw_addr_gen_b(c_xdevicefamily="...]
+Compiling architecture xilinx of entity xfft_v9_1_8.mux_bus2 [\mux_bus2(c_xdevicefamily="zynq"...]
+Compiling architecture xilinx of entity xfft_v9_1_8.out_addr_gen_b [\out_addr_gen_b(c_xdevicefamily=...]
+Compiling architecture muxf7_v of entity unisim.MUXF7 [muxf7_default]
+Compiling architecture xilinx of entity xfft_v9_1_8.mux_bus8 [\mux_bus8(c_xdevicefamily="zynq"...]
+Compiling architecture lut6_v of entity unisim.LUT6 [\LUT6(init="00000000000000000000...]
+Compiling architecture xilinx of entity xfft_v9_1_8.mux_bus4 [\mux_bus4(c_xdevicefamily="zynq"...]
+Compiling architecture xilinx of entity xfft_v9_1_8.mux_bus8 [\mux_bus8(c_xdevicefamily="zynq"...]
+Compiling architecture structural of entity c_reg_fd_v12_0_6.c_reg_fd_v12_0_6_viv [\c_reg_fd_v12_0_6_viv(c_width=9,...]
+Compiling architecture rtl of entity c_addsub_v12_0_14.c_addsub_v12_0_14_lut6_legacy [\c_addsub_v12_0_14_lut6_legacy(c...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_fabric_legacy [\c_addsub_v12_0_14_fabric_legacy...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_legacy [\c_addsub_v12_0_14_legacy(c_fami...]
+Compiling architecture synth of entity c_addsub_v12_0_14.c_addsub_v12_0_14_viv [\c_addsub_v12_0_14_viv(c_xdevice...]
+Compiling architecture xilinx of entity xfft_v9_1_8.tw_gen_p2 [\tw_gen_p2(c_xdevicefamily="zynq...]
+Compiling architecture xilinx of entity xfft_v9_1_8.tw_addr_gen [\tw_addr_gen(c_xdevicefamily="zy...]
+Compiling architecture vcc_v of entity unisim.VCC [vcc_default]
+Compiling architecture xilinx of entity xfft_v9_1_8.twgen_half_sincos [\twgen_half_sincos(c_xdevicefami...]
+Compiling architecture xilinx of entity xfft_v9_1_8.twiddle_gen [\twiddle_gen(c_xdevicefamily="zy...]
+Compiling architecture xilinx of entity xfft_v9_1_8.r4_control [\r4_control(c_xdevicefamily="zyn...]
+Compiling architecture xilinx of entity xfft_v9_1_8.xfft_v9_1_8_b [\xfft_v9_1_8_b(c_xdevicefamily="...]
+Compiling architecture synth of entity xfft_v9_1_8.xfft_v9_1_8_core [\xfft_v9_1_8_core(c_xdevicefamil...]
+Compiling architecture synth of entity xfft_v9_1_8.xfft_v9_1_8_viv [\xfft_v9_1_8_viv(c_xdevicefamily...]
+Compiling architecture xilinx of entity xfft_v9_1_8.xfft_v9_1_8 [\xfft_v9_1_8(c_xdevicefamily="zy...]
+Compiling architecture starlink_pss_fft512_bfp18_rt_candidate_arch of entity xil_defaultlib.starlink_pss_fft512_bfp18_rt_candidate [starlink_pss_fft512_bfp18_rt_can...]
+Compiling module xil_defaultlib.starlink_pss_fft_bank_owned_slic...
+Compiling module xil_defaultlib.starlink_pss_realtime_result_gua...
+Compiling module xil_defaultlib.tb_starlink_pss_fft_bank_owned_s...
+Compiling module xil_defaultlib.glbl
+Built simulation snapshot tb_starlink_pss_fft_bank_owned_slice_behav
+execute_script: Time (s): cpu = 00:00:13 ; elapsed = 00:00:09 . Memory (MB): peak = 1400.598 ; gain = 0.000 ; free physical = 22934 ; free virtual = 153599
+INFO: [USF-XSim-69] 'elaborate' step finished in '9' seconds
+INFO: [USF-XSim-4] XSim::Simulate design
+INFO: [USF-XSim-61] Executing 'SIMULATE' step in '/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/project/fft_bank_owned_slice.sim/sim_1/behav/xsim'
+INFO: [USF-XSim-98] *** Running xsim
+   with args "tb_starlink_pss_fft_bank_owned_slice_behav -key {Behavioral:sim_1:Functional:tb_starlink_pss_fft_bank_owned_slice} -tclbatch {tb_starlink_pss_fft_bank_owned_slice.tcl} -log {simulate.log}"
+INFO: [USF-XSim-8] Loading simulator feature
+Time resolution is 1 fs
+source tb_starlink_pss_fft_bank_owned_slice.tcl
+## current_wave_config
+BANK_CAPTURE_START epoch=1 profile=0 block=0 time_ns=256.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=0 time_ns=5366.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=0 fast_cycle=945 time_ns=5402.857413 interval_cycles=0
+BANK_CAPTURE_START epoch=1 profile=0 block=1 time_ns=8386.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=1 time_ns=13496.300000
+BANK_JOB epoch=1 inverse=0 admit=945 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=2771 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=0 time_ns=26226.300000
+BANK_OUTPUT epoch=1 profile=0 block=0 time_ns=31336.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=1 fast_cycle=5493 time_ns=31391.430141 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=2 time_ns=34366.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=2 time_ns=39476.300000
+BANK_JOB epoch=1 inverse=0 admit=5493 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=7319 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=1 time_ns=52216.300000
+BANK_OUTPUT epoch=1 profile=0 block=1 time_ns=57326.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=2 fast_cycle=10041 time_ns=57380.002869 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=3 time_ns=60356.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=3 time_ns=65466.300000
+BANK_JOB epoch=1 inverse=0 admit=10041 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=11867 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=2 time_ns=78206.300000
+BANK_OUTPUT epoch=1 profile=0 block=2 time_ns=83316.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=3 fast_cycle=14589 time_ns=83368.575597 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=4 time_ns=86346.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=4 time_ns=91456.300000
+BANK_JOB epoch=1 inverse=0 admit=14589 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=16415 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=3 time_ns=104186.300000
+BANK_OUTPUT epoch=1 profile=0 block=3 time_ns=109296.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=4 fast_cycle=19136 time_ns=109351.434039 interval_cycles=4547
+BANK_CAPTURE_START epoch=1 profile=0 block=5 time_ns=112326.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=5 time_ns=117436.300000
+BANK_JOB epoch=1 inverse=0 admit=19136 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=20962 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=4 time_ns=130176.300000
+BANK_OUTPUT epoch=1 profile=0 block=4 time_ns=135286.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=5 fast_cycle=23684 time_ns=135340.006767 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=6 time_ns=138316.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=6 time_ns=143426.300000
+BANK_JOB epoch=1 inverse=0 admit=23684 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=25510 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=5 time_ns=156166.300000
+BANK_OUTPUT epoch=1 profile=0 block=5 time_ns=161276.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=6 fast_cycle=28232 time_ns=161328.579495 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=7 time_ns=164306.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=7 time_ns=169416.300000
+BANK_JOB epoch=1 inverse=0 admit=28232 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=30058 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=6 time_ns=182146.300000
+BANK_OUTPUT epoch=1 profile=0 block=6 time_ns=187256.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=7 fast_cycle=32779 time_ns=187311.437937 interval_cycles=4547
+BANK_CAPTURE_START epoch=1 profile=0 block=8 time_ns=190286.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=8 time_ns=195396.300000
+BANK_JOB epoch=1 inverse=0 admit=32779 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=34605 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=7 time_ns=208136.300000
+BANK_OUTPUT epoch=1 profile=0 block=7 time_ns=213246.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=8 fast_cycle=37327 time_ns=213300.010665 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=9 time_ns=216276.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=9 time_ns=221386.300000
+BANK_JOB epoch=1 inverse=0 admit=37327 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=39153 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=8 time_ns=234126.300000
+BANK_OUTPUT epoch=1 profile=0 block=8 time_ns=239236.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=9 fast_cycle=41875 time_ns=239288.583393 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=10 time_ns=242266.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=10 time_ns=247376.300000
+BANK_JOB epoch=1 inverse=0 admit=41875 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=43701 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=9 time_ns=260106.300000
+BANK_OUTPUT epoch=1 profile=0 block=9 time_ns=265216.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=10 fast_cycle=46422 time_ns=265271.441835 interval_cycles=4547
+BANK_CAPTURE_START epoch=1 profile=0 block=11 time_ns=268246.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=11 time_ns=273356.300000
+BANK_JOB epoch=1 inverse=0 admit=46422 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=48248 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=10 time_ns=286096.300000
+BANK_OUTPUT epoch=1 profile=0 block=10 time_ns=291206.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=11 fast_cycle=50970 time_ns=291260.014563 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=12 time_ns=294236.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=12 time_ns=299346.300000
+BANK_JOB epoch=1 inverse=0 admit=50970 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=52796 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=11 time_ns=312086.300000
+BANK_OUTPUT epoch=1 profile=0 block=11 time_ns=317196.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=12 fast_cycle=55518 time_ns=317248.587291 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=13 time_ns=320226.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=13 time_ns=325336.300000
+BANK_JOB epoch=1 inverse=0 admit=55518 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=57344 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=12 time_ns=338066.300000
+BANK_OUTPUT epoch=1 profile=0 block=12 time_ns=343176.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=13 fast_cycle=60065 time_ns=343231.445733 interval_cycles=4547
+BANK_CAPTURE_START epoch=1 profile=0 block=14 time_ns=346206.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=14 time_ns=351316.300000
+BANK_JOB epoch=1 inverse=0 admit=60065 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=61891 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=13 time_ns=364056.300000
+BANK_OUTPUT epoch=1 profile=0 block=13 time_ns=369166.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=14 fast_cycle=64613 time_ns=369220.018461 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=15 time_ns=372196.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=15 time_ns=377306.300000
+BANK_JOB epoch=1 inverse=0 admit=64613 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=66439 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=14 time_ns=390046.300000
+BANK_OUTPUT epoch=1 profile=0 block=14 time_ns=395156.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=15 fast_cycle=69161 time_ns=395208.591189 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=16 time_ns=398186.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=16 time_ns=403296.300000
+BANK_JOB epoch=1 inverse=0 admit=69161 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=70987 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=15 time_ns=416026.300000
+BANK_OUTPUT epoch=1 profile=0 block=15 time_ns=421136.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=16 fast_cycle=73708 time_ns=421191.449631 interval_cycles=4547
+BANK_CAPTURE_START epoch=1 profile=0 block=17 time_ns=424166.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=17 time_ns=429276.300000
+BANK_JOB epoch=1 inverse=0 admit=73708 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=75534 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=16 time_ns=442016.300000
+BANK_OUTPUT epoch=1 profile=0 block=16 time_ns=447126.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=17 fast_cycle=78256 time_ns=447180.022359 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=18 time_ns=450156.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=18 time_ns=455266.300000
+BANK_JOB epoch=1 inverse=0 admit=78256 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=80082 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=17 time_ns=468006.300000
+BANK_OUTPUT epoch=1 profile=0 block=17 time_ns=473116.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=18 fast_cycle=82804 time_ns=473168.595087 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=19 time_ns=476146.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=19 time_ns=481256.300000
+BANK_JOB epoch=1 inverse=0 admit=82804 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=84630 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=18 time_ns=493986.300000
+BANK_OUTPUT epoch=1 profile=0 block=18 time_ns=499096.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=19 fast_cycle=87351 time_ns=499151.453529 interval_cycles=4547
+BANK_CAPTURE_START epoch=1 profile=0 block=20 time_ns=502126.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=20 time_ns=507236.300000
+BANK_JOB epoch=1 inverse=0 admit=87351 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=89177 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=19 time_ns=519976.300000
+BANK_OUTPUT epoch=1 profile=0 block=19 time_ns=525086.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=20 fast_cycle=91899 time_ns=525140.026257 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=21 time_ns=528116.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=21 time_ns=533226.300000
+BANK_JOB epoch=1 inverse=0 admit=91899 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=93725 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=20 time_ns=545966.300000
+BANK_OUTPUT epoch=1 profile=0 block=20 time_ns=551076.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=21 fast_cycle=96447 time_ns=551128.598985 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=22 time_ns=554106.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=22 time_ns=559216.300000
+BANK_JOB epoch=1 inverse=0 admit=96447 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=98273 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=21 time_ns=571946.300000
+BANK_OUTPUT epoch=1 profile=0 block=21 time_ns=577056.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=22 fast_cycle=100994 time_ns=577111.457427 interval_cycles=4547
+BANK_CAPTURE_START epoch=1 profile=0 block=23 time_ns=580086.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=23 time_ns=585196.300000
+BANK_JOB epoch=1 inverse=0 admit=100994 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=102820 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=22 time_ns=597936.300000
+BANK_OUTPUT epoch=1 profile=0 block=22 time_ns=603046.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=23 fast_cycle=105542 time_ns=603100.030155 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=24 time_ns=606076.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=24 time_ns=611186.300000
+BANK_JOB epoch=1 inverse=0 admit=105542 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=107368 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=23 time_ns=623926.300000
+BANK_OUTPUT epoch=1 profile=0 block=23 time_ns=629036.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=24 fast_cycle=110090 time_ns=629088.602883 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=25 time_ns=632066.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=25 time_ns=637176.300000
+BANK_JOB epoch=1 inverse=0 admit=110090 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=111916 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=24 time_ns=649906.300000
+BANK_OUTPUT epoch=1 profile=0 block=24 time_ns=655016.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=25 fast_cycle=114637 time_ns=655071.461325 interval_cycles=4547
+BANK_CAPTURE_START epoch=1 profile=0 block=26 time_ns=658046.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=26 time_ns=663156.300000
+BANK_JOB epoch=1 inverse=0 admit=114637 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=116463 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=25 time_ns=675896.300000
+BANK_OUTPUT epoch=1 profile=0 block=25 time_ns=681006.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=26 fast_cycle=119185 time_ns=681060.034053 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=27 time_ns=684036.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=27 time_ns=689146.300000
+BANK_JOB epoch=1 inverse=0 admit=119185 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=121011 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=26 time_ns=701886.300000
+BANK_OUTPUT epoch=1 profile=0 block=26 time_ns=706996.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=27 fast_cycle=123733 time_ns=707048.606781 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=28 time_ns=710026.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=28 time_ns=715136.300000
+BANK_JOB epoch=1 inverse=0 admit=123733 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=125559 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=27 time_ns=727866.300000
+BANK_OUTPUT epoch=1 profile=0 block=27 time_ns=732976.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=28 fast_cycle=128280 time_ns=733031.465223 interval_cycles=4547
+BANK_CAPTURE_START epoch=1 profile=0 block=29 time_ns=736006.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=29 time_ns=741116.300000
+BANK_JOB epoch=1 inverse=0 admit=128280 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=130106 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=28 time_ns=753856.300000
+BANK_OUTPUT epoch=1 profile=0 block=28 time_ns=758966.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=29 fast_cycle=132828 time_ns=759020.037951 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=30 time_ns=761996.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=30 time_ns=767106.300000
+BANK_JOB epoch=1 inverse=0 admit=132828 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=134654 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=29 time_ns=779846.300000
+BANK_OUTPUT epoch=1 profile=0 block=29 time_ns=784956.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=30 fast_cycle=137376 time_ns=785008.610679 interval_cycles=4548
+BANK_CAPTURE_START epoch=1 profile=0 block=31 time_ns=787986.300000
+BANK_CAPTURE_COMMIT epoch=1 profile=0 block=31 time_ns=793096.300000
+BANK_JOB epoch=1 inverse=0 admit=137376 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=139202 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=30 time_ns=805826.300000
+BANK_OUTPUT epoch=1 profile=0 block=30 time_ns=810936.300000
+BANK_FORWARD_ADMIT epoch=1 profile=0 index=31 fast_cycle=141923 time_ns=810991.469121 interval_cycles=4547
+BANK_JOB epoch=1 inverse=0 admit=141923 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=1 inverse=1 admit=143749 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=1 profile=0 block=31 time_ns=831816.300000
+BANK_OUTPUT epoch=1 profile=0 block=31 time_ns=836926.300000
+BANK_CAPTURE_START epoch=2 profile=1 block=0 time_ns=837216.300000
+BANK_CAPTURE_COMMIT epoch=2 profile=1 block=0 time_ns=843526.300000
+BANK_FORWARD_ADMIT epoch=2 profile=1 index=0 fast_cycle=147623 time_ns=843562.899321 interval_cycles=0
+BANK_CAPTURE_START epoch=2 profile=1 block=1 time_ns=846546.300000
+BANK_CAPTURE_COMMIT epoch=2 profile=1 block=1 time_ns=852856.300000
+BANK_JOB epoch=2 inverse=0 admit=147623 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=2 inverse=1 admit=149449 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=2 profile=1 block=0 time_ns=864386.300000
+BANK_OUTPUT epoch=2 profile=1 block=0 time_ns=871096.300000
+BANK_FORWARD_ADMIT epoch=2 profile=1 index=1 fast_cycle=152451 time_ns=871151.472129 interval_cycles=4828
+BANK_CAPTURE_START epoch=2 profile=1 block=2 time_ns=874126.300000
+BANK_CAPTURE_COMMIT epoch=2 profile=1 block=2 time_ns=880436.300000
+BANK_JOB epoch=2 inverse=0 admit=152451 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=2 inverse=1 admit=154277 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=2 profile=1 block=1 time_ns=891996.300000
+BANK_OUTPUT epoch=2 profile=1 block=1 time_ns=898666.300000
+BANK_FORWARD_ADMIT epoch=2 profile=1 index=2 fast_cycle=157276 time_ns=898722.902079 interval_cycles=4825
+BANK_CAPTURE_START epoch=2 profile=1 block=3 time_ns=901706.300000
+BANK_CAPTURE_COMMIT epoch=2 profile=1 block=3 time_ns=908016.300000
+BANK_JOB epoch=2 inverse=0 admit=157276 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=2 inverse=1 admit=159102 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=2 profile=1 block=2 time_ns=919546.300000
+BANK_OUTPUT epoch=2 profile=1 block=2 time_ns=926216.300000
+BANK_FORWARD_ADMIT epoch=2 profile=1 index=3 fast_cycle=162097 time_ns=926271.474885 interval_cycles=4821
+BANK_CAPTURE_START epoch=2 profile=1 block=4 time_ns=929246.300000
+BANK_CAPTURE_COMMIT epoch=2 profile=1 block=4 time_ns=935556.300000
+BANK_JOB epoch=2 inverse=0 admit=162097 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=2 inverse=1 admit=163923 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=2 profile=1 block=3 time_ns=947096.300000
+BANK_OUTPUT epoch=2 profile=1 block=3 time_ns=953766.300000
+BANK_FORWARD_ADMIT epoch=2 profile=1 index=4 fast_cycle=166918 time_ns=953820.047691 interval_cycles=4821
+BANK_CAPTURE_START epoch=2 profile=1 block=5 time_ns=956796.300000
+BANK_CAPTURE_COMMIT epoch=2 profile=1 block=5 time_ns=963106.300000
+BANK_JOB epoch=2 inverse=0 admit=166918 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=2 inverse=1 admit=168744 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=2 profile=1 block=4 time_ns=974646.300000
+BANK_OUTPUT epoch=2 profile=1 block=4 time_ns=981316.300000
+BANK_FORWARD_ADMIT epoch=2 profile=1 index=5 fast_cycle=171739 time_ns=981368.620497 interval_cycles=4821
+BANK_JOB epoch=2 inverse=0 admit=171739 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=2 inverse=1 admit=173565 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=2 profile=1 block=5 time_ns=1002186.300000
+BANK_OUTPUT epoch=2 profile=1 block=5 time_ns=1008856.300000
+BANK_CAPTURE_START epoch=3 profile=0 block=0 time_ns=1009146.300000
+BANK_CAPTURE_START epoch=4 profile=0 block=0 time_ns=1010666.300000
+BANK_CAPTURE_COMMIT epoch=4 profile=0 block=0 time_ns=1015776.300000
+BANK_FORWARD_ADMIT epoch=4 profile=0 index=0 fast_cycle=177767 time_ns=1015814.336505 interval_cycles=0
+BANK_JOB epoch=4 inverse=0 admit=177767 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=4 inverse=1 admit=179593 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=4 profile=0 block=0 time_ns=1036636.300000
+BANK_OUTPUT epoch=4 profile=0 block=0 time_ns=1041746.300000
+BANK_CAPTURE_START epoch=5 profile=0 block=0 time_ns=1042026.300000
+BANK_CAPTURE_COMMIT epoch=5 profile=0 block=0 time_ns=1047136.300000
+BANK_FORWARD_ADMIT epoch=5 profile=0 index=0 fast_cycle=183255 time_ns=1047174.338073 interval_cycles=0
+BANK_CAPTURE_START epoch=6 profile=0 block=0 time_ns=1048176.300000
+BANK_CAPTURE_COMMIT epoch=6 profile=0 block=0 time_ns=1053286.300000
+BANK_FORWARD_ADMIT epoch=6 profile=0 index=0 fast_cycle=184331 time_ns=1053322.909809 interval_cycles=0
+BANK_JOB epoch=6 inverse=0 admit=184331 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=6 inverse=1 admit=186157 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=6 profile=0 block=0 time_ns=1074146.300000
+BANK_OUTPUT epoch=6 profile=0 block=0 time_ns=1079256.300000
+BANK_CAPTURE_START epoch=7 profile=0 block=0 time_ns=1079546.300000
+BANK_CAPTURE_COMMIT epoch=7 profile=0 block=0 time_ns=1084656.300000
+BANK_FORWARD_ADMIT epoch=7 profile=0 index=0 fast_cycle=189821 time_ns=1084694.339949 interval_cycles=0
+BANK_JOB epoch=7 inverse=0 admit=189821 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=8 profile=0 block=0 time_ns=1096136.300000
+BANK_CAPTURE_COMMIT epoch=8 profile=0 block=0 time_ns=1101246.300000
+BANK_FORWARD_ADMIT epoch=8 profile=0 index=0 fast_cycle=192724 time_ns=1101282.912207 interval_cycles=0
+BANK_JOB epoch=8 inverse=0 admit=192724 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=8 inverse=1 admit=194550 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=8 profile=0 block=0 time_ns=1122106.300000
+BANK_OUTPUT epoch=8 profile=0 block=0 time_ns=1127216.300000
+BANK_CAPTURE_START epoch=9 profile=0 block=0 time_ns=1127506.300000
+BANK_CAPTURE_COMMIT epoch=9 profile=0 block=0 time_ns=1132616.300000
+BANK_FORWARD_ADMIT epoch=9 profile=0 index=0 fast_cycle=198214 time_ns=1132654.342347 interval_cycles=0
+BANK_JOB epoch=9 inverse=0 admit=198214 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=9 inverse=1 admit=200040 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=10 profile=0 block=0 time_ns=1153686.300000
+BANK_CAPTURE_COMMIT epoch=10 profile=0 block=0 time_ns=1158796.300000
+BANK_FORWARD_ADMIT epoch=10 profile=0 index=0 fast_cycle=202795 time_ns=1158831.486513 interval_cycles=0
+BANK_JOB epoch=10 inverse=0 admit=202795 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=10 inverse=1 admit=204621 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=10 profile=0 block=0 time_ns=1179656.300000
+BANK_OUTPUT epoch=10 profile=0 block=0 time_ns=1184766.300000
+BANK_CAPTURE_START epoch=11 profile=0 block=0 time_ns=1185056.300000
+BANK_CAPTURE_COMMIT epoch=11 profile=0 block=0 time_ns=1190166.300000
+BANK_FORWARD_ADMIT epoch=11 profile=0 index=0 fast_cycle=208285 time_ns=1190202.916653 interval_cycles=0
+BANK_JOB epoch=11 inverse=0 admit=208285 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1830
+BANK_JOB epoch=11 inverse=1 admit=210131 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=11 profile=0 block=0 time_ns=1211136.300000
+BANK_OUTPUT epoch=11 profile=0 block=0 time_ns=1216246.300000
+BANK_CAPTURE_START epoch=12 profile=0 block=0 time_ns=1216536.300000
+BANK_CAPTURE_COMMIT epoch=12 profile=0 block=0 time_ns=1221646.300000
+BANK_FORWARD_ADMIT epoch=12 profile=0 index=0 fast_cycle=213794 time_ns=1221682.918227 interval_cycles=0
+BANK_JOB epoch=12 inverse=0 admit=213794 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=13 profile=0 block=0 time_ns=1232606.300000
+BANK_CAPTURE_COMMIT epoch=13 profile=0 block=0 time_ns=1237716.300000
+BANK_FORWARD_ADMIT epoch=13 profile=0 index=0 fast_cycle=216606 time_ns=1237751.490459 interval_cycles=0
+BANK_JOB epoch=13 inverse=0 admit=216606 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=14 profile=0 block=0 time_ns=1248706.300000
+BANK_CAPTURE_COMMIT epoch=14 profile=0 block=0 time_ns=1253816.300000
+BANK_FORWARD_ADMIT epoch=14 profile=0 index=0 fast_cycle=219424 time_ns=1253854.348407 interval_cycles=0
+BANK_CAPTURE_START epoch=15 profile=0 block=0 time_ns=1262226.300000
+BANK_CAPTURE_COMMIT epoch=15 profile=0 block=0 time_ns=1267336.300000
+BANK_FORWARD_ADMIT epoch=15 profile=0 index=0 fast_cycle=221790 time_ns=1267374.349083 interval_cycles=0
+BANK_CAPTURE_START epoch=16 profile=0 block=0 time_ns=1275746.300000
+BANK_CAPTURE_COMMIT epoch=16 profile=0 block=0 time_ns=1280856.300000
+BANK_FORWARD_ADMIT epoch=16 profile=0 index=0 fast_cycle=224156 time_ns=1280894.349759 interval_cycles=0
+BANK_CAPTURE_START epoch=17 profile=0 block=0 time_ns=1289266.300000
+BANK_CAPTURE_COMMIT epoch=17 profile=0 block=0 time_ns=1294376.300000
+BANK_FORWARD_ADMIT epoch=17 profile=0 index=0 fast_cycle=226522 time_ns=1294414.350435 interval_cycles=0
+BANK_CAPTURE_START epoch=18 profile=0 block=0 time_ns=1295746.300000
+BANK_CAPTURE_COMMIT epoch=18 profile=0 block=0 time_ns=1300856.300000
+BANK_FORWARD_ADMIT epoch=18 profile=0 index=0 fast_cycle=227656 time_ns=1300894.350759 interval_cycles=0
+BANK_CAPTURE_START epoch=19 profile=0 block=0 time_ns=1308886.300000
+BANK_CAPTURE_COMMIT epoch=19 profile=0 block=0 time_ns=1313996.300000
+BANK_FORWARD_ADMIT epoch=19 profile=0 index=0 fast_cycle=229955 time_ns=1314031.494273 interval_cycles=0
+BANK_JOB epoch=19 inverse=0 admit=229955 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=20 profile=0 block=0 time_ns=1335376.300000
+BANK_CAPTURE_COMMIT epoch=20 profile=0 block=0 time_ns=1340486.300000
+BANK_FORWARD_ADMIT epoch=20 profile=0 index=0 fast_cycle=234591 time_ns=1340522.924169 interval_cycles=0
+BANK_JOB epoch=20 inverse=0 admit=234591 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=20 inverse=1 admit=236417 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=21 profile=0 block=0 time_ns=1361866.300000
+BANK_CAPTURE_COMMIT epoch=21 profile=0 block=0 time_ns=1366976.300000
+BANK_FORWARD_ADMIT epoch=21 profile=0 index=0 fast_cycle=239227 time_ns=1367014.354065 interval_cycles=0
+BANK_CAPTURE_START epoch=21 profile=0 block=1 time_ns=1369996.300000
+BANK_CAPTURE_COMMIT epoch=21 profile=0 block=1 time_ns=1375106.300000
+BANK_JOB epoch=21 inverse=0 admit=239227 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=21 inverse=1 admit=241053 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=21 profile=0 block=0 time_ns=1387836.300000
+BANK_PREFIX_FAULT_INJECT fast_cycle=243094 slow_cycle=138910 accepted_words=128 time_ns=1389108.640884
+BANK_PREFIX_FAULT_QUARANTINED accepted_words=130 complete_blocks=0 queued_source_blocks=1
+BANK_CAPTURE_START epoch=22 profile=0 block=0 time_ns=1389686.300000
+BANK_CAPTURE_COMMIT epoch=22 profile=0 block=0 time_ns=1394796.300000
+BANK_FORWARD_ADMIT epoch=22 profile=0 index=0 fast_cycle=244095 time_ns=1394831.498313 interval_cycles=0
+BANK_JOB epoch=22 inverse=0 admit=244095 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=22 inverse=1 admit=245921 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=22 profile=0 block=0 time_ns=1415656.300000
+BANK_OUTPUT epoch=22 profile=0 block=0 time_ns=1420766.300000
+COMPLETED_INPUT_ACTUAL_CORE_EQ_PASS return_checks=101832 full_shadow_checks=496312
+FFT_BANK_OWNED_SLICE_PASS fast_mhz=175 healthy_blocks=44 inverse_words=22658 forward_words=24064 product_words=24064 purge_cases=4 fault_cases=10 overlap_loads=37 acceptance_equality_witnesses=2 closed_input_prefetch_witnesses=13462 held_final_ready_witnesses=3 provisional_prefix_words=130 nominal_max_forward_interval_cycles=4548
+BANK_CAPTURE_START epoch=23 profile=0 block=0 time_ns=1421056.300000
+BANK_CAPTURE_COMMIT epoch=23 profile=0 block=0 time_ns=1426166.300000
+BANK_FORWARD_ADMIT epoch=23 profile=0 index=0 fast_cycle=249585 time_ns=1426202.928453 interval_cycles=0
+BANK_JOB epoch=23 inverse=0 admit=249585 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=24 profile=0 block=0 time_ns=1437166.300000
+BANK_CAPTURE_COMMIT epoch=24 profile=0 block=0 time_ns=1442276.300000
+BANK_FORWARD_ADMIT epoch=24 profile=0 index=0 fast_cycle=252404 time_ns=1442311.500687 interval_cycles=0
+BANK_JOB epoch=24 inverse=0 admit=252404 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=25 profile=0 block=0 time_ns=1453266.300000
+BANK_CAPTURE_COMMIT epoch=25 profile=0 block=0 time_ns=1458376.300000
+BANK_FORWARD_ADMIT epoch=25 profile=0 index=0 fast_cycle=255222 time_ns=1458414.358635 interval_cycles=0
+BANK_JOB epoch=25 inverse=0 admit=255222 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=26 profile=0 block=0 time_ns=1469376.300000
+BANK_CAPTURE_COMMIT epoch=26 profile=0 block=0 time_ns=1474486.300000
+BANK_FORWARD_ADMIT epoch=26 profile=0 index=0 fast_cycle=258041 time_ns=1474522.930869 interval_cycles=0
+BANK_JOB epoch=26 inverse=0 admit=258041 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=27 profile=0 block=0 time_ns=1485486.300000
+BANK_CAPTURE_COMMIT epoch=27 profile=0 block=0 time_ns=1490596.300000
+BANK_FORWARD_ADMIT epoch=27 profile=0 index=0 fast_cycle=260860 time_ns=1490631.503103 interval_cycles=0
+BANK_JOB epoch=27 inverse=0 admit=260860 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=28 profile=0 block=0 time_ns=1501586.300000
+BANK_CAPTURE_COMMIT epoch=28 profile=0 block=0 time_ns=1506696.300000
+BANK_FORWARD_ADMIT epoch=28 profile=0 index=0 fast_cycle=263678 time_ns=1506734.361051 interval_cycles=0
+BANK_JOB epoch=28 inverse=0 admit=263678 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=29 profile=0 block=0 time_ns=1517696.300000
+BANK_CAPTURE_COMMIT epoch=29 profile=0 block=0 time_ns=1522806.300000
+BANK_FORWARD_ADMIT epoch=29 profile=0 index=0 fast_cycle=266497 time_ns=1522842.933285 interval_cycles=0
+BANK_JOB epoch=29 inverse=0 admit=266497 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=30 profile=0 block=0 time_ns=1533806.300000
+BANK_CAPTURE_COMMIT epoch=30 profile=0 block=0 time_ns=1538916.300000
+BANK_FORWARD_ADMIT epoch=30 profile=0 index=0 fast_cycle=269316 time_ns=1538951.505519 interval_cycles=0
+BANK_JOB epoch=30 inverse=0 admit=269316 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=31 profile=0 block=0 time_ns=1549926.300000
+BANK_CAPTURE_COMMIT epoch=31 profile=0 block=0 time_ns=1555036.300000
+BANK_FORWARD_ADMIT epoch=31 profile=0 index=0 fast_cycle=272137 time_ns=1555071.506325 interval_cycles=0
+BANK_JOB epoch=31 inverse=0 admit=272137 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=32 profile=0 block=0 time_ns=1566046.300000
+BANK_CAPTURE_COMMIT epoch=32 profile=0 block=0 time_ns=1571156.300000
+BANK_FORWARD_ADMIT epoch=32 profile=0 index=0 fast_cycle=274958 time_ns=1571191.507131 interval_cycles=0
+BANK_JOB epoch=32 inverse=0 admit=274958 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=33 profile=0 block=0 time_ns=1582166.300000
+BANK_CAPTURE_COMMIT epoch=33 profile=0 block=0 time_ns=1587276.300000
+BANK_FORWARD_ADMIT epoch=33 profile=0 index=0 fast_cycle=277779 time_ns=1587311.507937 interval_cycles=0
+BANK_JOB epoch=33 inverse=0 admit=277779 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=34 profile=0 block=0 time_ns=1598286.300000
+BANK_CAPTURE_COMMIT epoch=34 profile=0 block=0 time_ns=1603396.300000
+BANK_FORWARD_ADMIT epoch=34 profile=0 index=0 fast_cycle=280600 time_ns=1603431.508743 interval_cycles=0
+BANK_JOB epoch=34 inverse=0 admit=280600 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=35 profile=0 block=0 time_ns=1614066.300000
+BANK_CAPTURE_COMMIT epoch=35 profile=0 block=0 time_ns=1619176.300000
+BANK_FORWARD_ADMIT epoch=35 profile=0 index=0 fast_cycle=283362 time_ns=1619214.366675 interval_cycles=0
+BANK_JOB epoch=35 inverse=0 admit=283362 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=35 inverse=1 admit=285188 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=35 profile=0 block=0 time_ns=1640036.300000
+BANK_OUTPUT epoch=35 profile=0 block=0 time_ns=1645146.300000
+RAW_READY_CERTIFIED_ACK_PASS handoff_fault_cases=11 raw_ready_differences=1386 late_ack_witnesses=4 late_orphan_private_advances=0 handoff_reset_recovery=1 full_shadow_checks=574274
+BANK_CAPTURE_START epoch=36 profile=0 block=0 time_ns=1645426.300000
+BANK_CAPTURE_COMMIT epoch=36 profile=0 block=0 time_ns=1650536.300000
+BANK_CAPTURE_START epoch=37 profile=0 block=0 time_ns=1651136.300000
+BANK_CAPTURE_COMMIT epoch=37 profile=0 block=0 time_ns=1656246.300000
+BANK_CAPTURE_START epoch=38 profile=0 block=0 time_ns=1656846.300000
+BANK_CAPTURE_COMMIT epoch=38 profile=0 block=0 time_ns=1661956.300000
+BANK_CAPTURE_START epoch=39 profile=0 block=0 time_ns=1662566.300000
+BANK_CAPTURE_COMMIT epoch=39 profile=0 block=0 time_ns=1667676.300000
+BANK_FORWARD_ADMIT epoch=39 profile=0 index=0 fast_cycle=291849 time_ns=1667711.511957 interval_cycles=0
+BANK_CAPTURE_START epoch=40 profile=0 block=0 time_ns=1668286.300000
+BANK_CAPTURE_COMMIT epoch=40 profile=0 block=0 time_ns=1673396.300000
+BANK_FORWARD_ADMIT epoch=40 profile=0 index=0 fast_cycle=292850 time_ns=1673431.512243 interval_cycles=0
+BANK_CAPTURE_START epoch=41 profile=0 block=0 time_ns=1674006.300000
+BANK_CAPTURE_COMMIT epoch=41 profile=0 block=0 time_ns=1679116.300000
+BANK_FORWARD_ADMIT epoch=41 profile=0 index=0 fast_cycle=293851 time_ns=1679151.512529 interval_cycles=0
+BANK_JOB epoch=41 inverse=0 admit=293851 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=42 profile=0 block=0 time_ns=1690126.300000
+BANK_CAPTURE_COMMIT epoch=42 profile=0 block=0 time_ns=1695236.300000
+BANK_FORWARD_ADMIT epoch=42 profile=0 index=0 fast_cycle=296672 time_ns=1695271.513335 interval_cycles=0
+BANK_JOB epoch=42 inverse=0 admit=296672 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=43 profile=0 block=0 time_ns=1706246.300000
+BANK_CAPTURE_COMMIT epoch=43 profile=0 block=0 time_ns=1711356.300000
+BANK_FORWARD_ADMIT epoch=43 profile=0 index=0 fast_cycle=299493 time_ns=1711391.514141 interval_cycles=0
+BANK_JOB epoch=43 inverse=0 admit=299493 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=44 profile=0 block=0 time_ns=1722366.300000
+BANK_CAPTURE_COMMIT epoch=44 profile=0 block=0 time_ns=1727476.300000
+BANK_CAPTURE_START epoch=45 profile=0 block=0 time_ns=1727746.300000
+BANK_CAPTURE_COMMIT epoch=45 profile=0 block=0 time_ns=1732856.300000
+BANK_FORWARD_ADMIT epoch=45 profile=0 index=0 fast_cycle=303256 time_ns=1732894.372359 interval_cycles=0
+BANK_JOB epoch=45 inverse=0 admit=303256 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=45 inverse=1 admit=305082 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=45 profile=0 block=0 time_ns=1753716.300000
+BANK_OUTPUT epoch=45 profile=0 block=0 time_ns=1758826.300000
+BANK_CAPTURE_START epoch=46 profile=0 block=0 time_ns=1759106.300000
+BANK_CAPTURE_COMMIT epoch=46 profile=0 block=0 time_ns=1764216.300000
+BANK_CAPTURE_START epoch=47 profile=0 block=0 time_ns=1764496.300000
+BANK_CAPTURE_COMMIT epoch=47 profile=0 block=0 time_ns=1769606.300000
+BANK_FORWARD_ADMIT epoch=47 profile=0 index=0 fast_cycle=309687 time_ns=1769642.945625 interval_cycles=0
+BANK_JOB epoch=47 inverse=0 admit=309687 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=47 inverse=1 admit=311513 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=47 profile=0 block=0 time_ns=1790466.300000
+BANK_OUTPUT epoch=47 profile=0 block=0 time_ns=1795576.300000
+BANK_CAPTURE_START epoch=48 profile=0 block=0 time_ns=1795866.300000
+BANK_CAPTURE_COMMIT epoch=48 profile=0 block=0 time_ns=1800976.300000
+BANK_FORWARD_ADMIT epoch=48 profile=0 index=0 fast_cycle=315177 time_ns=1801014.375765 interval_cycles=0
+BANK_CAPTURE_START epoch=49 profile=0 block=0 time_ns=1801266.300000
+BANK_CAPTURE_COMMIT epoch=49 profile=0 block=0 time_ns=1806376.300000
+BANK_FORWARD_ADMIT epoch=49 profile=0 index=0 fast_cycle=316122 time_ns=1806414.376035 interval_cycles=0
+BANK_JOB epoch=49 inverse=0 admit=316122 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=49 inverse=1 admit=317948 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=49 profile=0 block=0 time_ns=1827236.300000
+BANK_OUTPUT epoch=49 profile=0 block=0 time_ns=1832346.300000
+BANK_CAPTURE_START epoch=50 profile=0 block=0 time_ns=1832626.300000
+BANK_CAPTURE_COMMIT epoch=50 profile=0 block=0 time_ns=1837736.300000
+BANK_FORWARD_ADMIT epoch=50 profile=0 index=0 fast_cycle=321610 time_ns=1837774.377603 interval_cycles=0
+BANK_JOB epoch=50 inverse=0 admit=321610 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=51 profile=0 block=0 time_ns=1848426.300000
+BANK_CAPTURE_COMMIT epoch=51 profile=0 block=0 time_ns=1853536.300000
+BANK_FORWARD_ADMIT epoch=51 profile=0 index=0 fast_cycle=324375 time_ns=1853574.378393 interval_cycles=0
+BANK_JOB epoch=51 inverse=0 admit=324375 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=51 inverse=1 admit=326201 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=51 profile=0 block=0 time_ns=1874396.300000
+BANK_OUTPUT epoch=51 profile=0 block=0 time_ns=1879506.300000
+REGISTERED_SCHEDULING_PASS boundary_fault_cases=8 boundary_reset_cases=4 snapshot_to_admission_cycles=2 completion_receipt_consumptions=106 nominal_max_forward_interval_cycles=4548
+BANK_CAPTURE_START epoch=52 profile=0 block=0 time_ns=1879786.300000
+BANK_CAPTURE_COMMIT epoch=52 profile=0 block=0 time_ns=1884896.300000
+BANK_CAPTURE_START epoch=53 profile=0 block=0 time_ns=1885506.300000
+BANK_CAPTURE_COMMIT epoch=53 profile=0 block=0 time_ns=1890616.300000
+BANK_CAPTURE_START epoch=54 profile=0 block=0 time_ns=1891226.300000
+BANK_CAPTURE_COMMIT epoch=54 profile=0 block=0 time_ns=1896336.300000
+BANK_CAPTURE_START epoch=55 profile=0 block=0 time_ns=1896946.300000
+BANK_CAPTURE_COMMIT epoch=55 profile=0 block=0 time_ns=1902056.300000
+BANK_CAPTURE_START epoch=56 profile=0 block=0 time_ns=1902666.300000
+BANK_CAPTURE_COMMIT epoch=56 profile=0 block=0 time_ns=1907776.300000
+BANK_CAPTURE_START epoch=57 profile=0 block=0 time_ns=1908386.300000
+BANK_CAPTURE_COMMIT epoch=57 profile=0 block=0 time_ns=1913496.300000
+BANK_CAPTURE_START epoch=58 profile=0 block=0 time_ns=1914106.300000
+BANK_CAPTURE_COMMIT epoch=58 profile=0 block=0 time_ns=1919216.300000
+BANK_CAPTURE_START epoch=59 profile=0 block=0 time_ns=1919826.300000
+BANK_CAPTURE_COMMIT epoch=59 profile=0 block=0 time_ns=1924936.300000
+BANK_CAPTURE_START epoch=60 profile=0 block=0 time_ns=1925546.300000
+BANK_CAPTURE_COMMIT epoch=60 profile=0 block=0 time_ns=1930656.300000
+BANK_CAPTURE_START epoch=61 profile=0 block=0 time_ns=1931266.300000
+BANK_CAPTURE_COMMIT epoch=61 profile=0 block=0 time_ns=1936376.300000
+BANK_CAPTURE_START epoch=62 profile=0 block=0 time_ns=1936986.300000
+BANK_CAPTURE_COMMIT epoch=62 profile=0 block=0 time_ns=1942096.300000
+BANK_CAPTURE_START epoch=63 profile=0 block=0 time_ns=1942706.300000
+BANK_CAPTURE_COMMIT epoch=63 profile=0 block=0 time_ns=1947816.300000
+BANK_CAPTURE_START epoch=64 profile=0 block=0 time_ns=1948426.300000
+BANK_CAPTURE_COMMIT epoch=64 profile=0 block=0 time_ns=1953536.300000
+BANK_CAPTURE_START epoch=65 profile=0 block=0 time_ns=1954146.300000
+BANK_CAPTURE_COMMIT epoch=65 profile=0 block=0 time_ns=1959256.300000
+BANK_CAPTURE_START epoch=66 profile=0 block=0 time_ns=1959866.300000
+BANK_CAPTURE_COMMIT epoch=66 profile=0 block=0 time_ns=1964976.300000
+BANK_CAPTURE_START epoch=67 profile=0 block=0 time_ns=1965586.300000
+BANK_CAPTURE_COMMIT epoch=67 profile=0 block=0 time_ns=1970696.300000
+BANK_FORWARD_ADMIT epoch=67 profile=0 index=0 fast_cycle=344878 time_ns=1970734.384251 interval_cycles=0
+BANK_CAPTURE_START epoch=68 profile=0 block=0 time_ns=1971306.300000
+BANK_CAPTURE_COMMIT epoch=68 profile=0 block=0 time_ns=1976416.300000
+BANK_CAPTURE_START epoch=69 profile=0 block=0 time_ns=1977026.300000
+BANK_CAPTURE_COMMIT epoch=69 profile=0 block=0 time_ns=1982136.300000
+BANK_FORWARD_ADMIT epoch=69 profile=0 index=0 fast_cycle=346880 time_ns=1982174.384823 interval_cycles=0
+BANK_CAPTURE_START epoch=70 profile=0 block=0 time_ns=1982746.300000
+BANK_CAPTURE_COMMIT epoch=70 profile=0 block=0 time_ns=1987856.300000
+BANK_CAPTURE_START epoch=71 profile=0 block=0 time_ns=1988466.300000
+BANK_CAPTURE_COMMIT epoch=71 profile=0 block=0 time_ns=1993576.300000
+BANK_FORWARD_ADMIT epoch=71 profile=0 index=0 fast_cycle=348882 time_ns=1993614.385395 interval_cycles=0
+BANK_CAPTURE_START epoch=72 profile=0 block=0 time_ns=1994186.300000
+BANK_CAPTURE_COMMIT epoch=72 profile=0 block=0 time_ns=1999296.300000
+BANK_CAPTURE_START epoch=73 profile=0 block=0 time_ns=1999906.300000
+BANK_CAPTURE_COMMIT epoch=73 profile=0 block=0 time_ns=2005016.300000
+BANK_FORWARD_ADMIT epoch=73 profile=0 index=0 fast_cycle=350884 time_ns=2005054.385967 interval_cycles=0
+BANK_CAPTURE_START epoch=74 profile=0 block=0 time_ns=2005626.300000
+BANK_CAPTURE_COMMIT epoch=74 profile=0 block=0 time_ns=2010736.300000
+BANK_CAPTURE_START epoch=75 profile=0 block=0 time_ns=2011346.300000
+BANK_CAPTURE_COMMIT epoch=75 profile=0 block=0 time_ns=2016456.300000
+BANK_FORWARD_ADMIT epoch=75 profile=0 index=0 fast_cycle=352886 time_ns=2016494.386539 interval_cycles=0
+BANK_CAPTURE_START epoch=76 profile=0 block=0 time_ns=2017066.300000
+BANK_CAPTURE_COMMIT epoch=76 profile=0 block=0 time_ns=2022176.300000
+BANK_CAPTURE_START epoch=77 profile=0 block=0 time_ns=2022786.300000
+BANK_CAPTURE_COMMIT epoch=77 profile=0 block=0 time_ns=2027896.300000
+BANK_FORWARD_ADMIT epoch=77 profile=0 index=0 fast_cycle=354888 time_ns=2027934.387111 interval_cycles=0
+BANK_CAPTURE_START epoch=78 profile=0 block=0 time_ns=2028506.300000
+BANK_CAPTURE_COMMIT epoch=78 profile=0 block=0 time_ns=2033616.300000
+BANK_CAPTURE_START epoch=79 profile=0 block=0 time_ns=2034226.300000
+BANK_CAPTURE_COMMIT epoch=79 profile=0 block=0 time_ns=2039336.300000
+BANK_FORWARD_ADMIT epoch=79 profile=0 index=0 fast_cycle=356890 time_ns=2039374.387683 interval_cycles=0
+BANK_CAPTURE_START epoch=80 profile=0 block=0 time_ns=2039946.300000
+BANK_CAPTURE_COMMIT epoch=80 profile=0 block=0 time_ns=2045056.300000
+BANK_FORWARD_ADMIT epoch=80 profile=0 index=0 fast_cycle=357891 time_ns=2045094.387969 interval_cycles=0
+BANK_CAPTURE_START epoch=81 profile=0 block=0 time_ns=2045666.300000
+BANK_CAPTURE_COMMIT epoch=81 profile=0 block=0 time_ns=2050776.300000
+BANK_FORWARD_ADMIT epoch=81 profile=0 index=0 fast_cycle=358892 time_ns=2050814.388255 interval_cycles=0
+BANK_CAPTURE_START epoch=82 profile=0 block=0 time_ns=2051386.300000
+BANK_CAPTURE_COMMIT epoch=82 profile=0 block=0 time_ns=2056496.300000
+BANK_FORWARD_ADMIT epoch=82 profile=0 index=0 fast_cycle=359893 time_ns=2056534.388541 interval_cycles=0
+BANK_CAPTURE_START epoch=83 profile=0 block=0 time_ns=2057106.300000
+BANK_CAPTURE_COMMIT epoch=83 profile=0 block=0 time_ns=2062216.300000
+BANK_FORWARD_ADMIT epoch=83 profile=0 index=0 fast_cycle=360894 time_ns=2062254.388827 interval_cycles=0
+BANK_CAPTURE_START epoch=84 profile=0 block=0 time_ns=2062826.300000
+BANK_CAPTURE_COMMIT epoch=84 profile=0 block=0 time_ns=2067936.300000
+BANK_FORWARD_ADMIT epoch=84 profile=0 index=0 fast_cycle=361895 time_ns=2067974.389113 interval_cycles=0
+BANK_CAPTURE_START epoch=85 profile=0 block=0 time_ns=2068546.300000
+BANK_CAPTURE_COMMIT epoch=85 profile=0 block=0 time_ns=2073656.300000
+BANK_FORWARD_ADMIT epoch=85 profile=0 index=0 fast_cycle=362896 time_ns=2073694.389399 interval_cycles=0
+BANK_CAPTURE_START epoch=86 profile=0 block=0 time_ns=2074266.300000
+BANK_CAPTURE_COMMIT epoch=86 profile=0 block=0 time_ns=2079376.300000
+BANK_FORWARD_ADMIT epoch=86 profile=0 index=0 fast_cycle=363897 time_ns=2079414.389685 interval_cycles=0
+BANK_CAPTURE_START epoch=87 profile=0 block=0 time_ns=2079986.300000
+BANK_CAPTURE_COMMIT epoch=87 profile=0 block=0 time_ns=2085096.300000
+BANK_FORWARD_ADMIT epoch=87 profile=0 index=0 fast_cycle=364898 time_ns=2085134.389971 interval_cycles=0
+BANK_CAPTURE_START epoch=88 profile=0 block=0 time_ns=2085706.300000
+BANK_CAPTURE_COMMIT epoch=88 profile=0 block=0 time_ns=2090816.300000
+BANK_FORWARD_ADMIT epoch=88 profile=0 index=0 fast_cycle=365899 time_ns=2090854.390257 interval_cycles=0
+BANK_CAPTURE_START epoch=89 profile=0 block=0 time_ns=2091426.300000
+BANK_CAPTURE_COMMIT epoch=89 profile=0 block=0 time_ns=2096536.300000
+BANK_FORWARD_ADMIT epoch=89 profile=0 index=0 fast_cycle=366900 time_ns=2096574.390543 interval_cycles=0
+BANK_CAPTURE_START epoch=90 profile=0 block=0 time_ns=2097146.300000
+BANK_CAPTURE_COMMIT epoch=90 profile=0 block=0 time_ns=2102256.300000
+BANK_FORWARD_ADMIT epoch=90 profile=0 index=0 fast_cycle=367901 time_ns=2102294.390829 interval_cycles=0
+BANK_CAPTURE_START epoch=91 profile=0 block=0 time_ns=2102866.300000
+BANK_CAPTURE_COMMIT epoch=91 profile=0 block=0 time_ns=2107976.300000
+BANK_FORWARD_ADMIT epoch=91 profile=0 index=0 fast_cycle=368902 time_ns=2108014.391115 interval_cycles=0
+BANK_CAPTURE_START epoch=92 profile=0 block=0 time_ns=2108586.300000
+BANK_CAPTURE_COMMIT epoch=92 profile=0 block=0 time_ns=2113696.300000
+BANK_FORWARD_ADMIT epoch=92 profile=0 index=0 fast_cycle=369903 time_ns=2113734.391401 interval_cycles=0
+BANK_CAPTURE_START epoch=93 profile=0 block=0 time_ns=2114306.300000
+BANK_CAPTURE_COMMIT epoch=93 profile=0 block=0 time_ns=2119416.300000
+BANK_FORWARD_ADMIT epoch=93 profile=0 index=0 fast_cycle=370904 time_ns=2119454.391687 interval_cycles=0
+BANK_CAPTURE_START epoch=94 profile=0 block=0 time_ns=2120026.300000
+BANK_CAPTURE_COMMIT epoch=94 profile=0 block=0 time_ns=2125136.300000
+BANK_FORWARD_ADMIT epoch=94 profile=0 index=0 fast_cycle=371905 time_ns=2125174.391973 interval_cycles=0
+BANK_JOB epoch=94 inverse=0 admit=371905 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=95 profile=0 block=0 time_ns=2136176.300000
+BANK_CAPTURE_COMMIT epoch=95 profile=0 block=0 time_ns=2141286.300000
+BANK_FORWARD_ADMIT epoch=95 profile=0 index=0 fast_cycle=374731 time_ns=2141322.964209 interval_cycles=0
+BANK_JOB epoch=95 inverse=0 admit=374731 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=96 profile=0 block=0 time_ns=2152326.300000
+BANK_CAPTURE_COMMIT epoch=96 profile=0 block=0 time_ns=2157436.300000
+BANK_FORWARD_ADMIT epoch=96 profile=0 index=0 fast_cycle=377557 time_ns=2157471.536445 interval_cycles=0
+BANK_JOB epoch=96 inverse=0 admit=377557 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=97 profile=0 block=0 time_ns=2168466.300000
+BANK_CAPTURE_COMMIT epoch=97 profile=0 block=0 time_ns=2173576.300000
+BANK_FORWARD_ADMIT epoch=97 profile=0 index=0 fast_cycle=380382 time_ns=2173614.394395 interval_cycles=0
+BANK_JOB epoch=97 inverse=0 admit=380382 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=98 profile=0 block=0 time_ns=2184616.300000
+BANK_CAPTURE_COMMIT epoch=98 profile=0 block=0 time_ns=2189726.300000
+BANK_FORWARD_ADMIT epoch=98 profile=0 index=0 fast_cycle=383208 time_ns=2189762.966631 interval_cycles=0
+BANK_JOB epoch=98 inverse=0 admit=383208 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=99 profile=0 block=0 time_ns=2200766.300000
+BANK_CAPTURE_COMMIT epoch=99 profile=0 block=0 time_ns=2205876.300000
+BANK_FORWARD_ADMIT epoch=99 profile=0 index=0 fast_cycle=386034 time_ns=2205911.538867 interval_cycles=0
+BANK_JOB epoch=99 inverse=0 admit=386034 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=100 profile=0 block=0 time_ns=2216906.300000
+BANK_CAPTURE_COMMIT epoch=100 profile=0 block=0 time_ns=2222016.300000
+BANK_FORWARD_ADMIT epoch=100 profile=0 index=0 fast_cycle=388859 time_ns=2222054.396817 interval_cycles=0
+BANK_JOB epoch=100 inverse=0 admit=388859 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=101 profile=0 block=0 time_ns=2233056.300000
+BANK_CAPTURE_COMMIT epoch=101 profile=0 block=0 time_ns=2238166.300000
+BANK_FORWARD_ADMIT epoch=101 profile=0 index=0 fast_cycle=391685 time_ns=2238202.969053 interval_cycles=0
+BANK_JOB epoch=101 inverse=0 admit=391685 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=102 profile=0 block=0 time_ns=2249206.300000
+BANK_CAPTURE_COMMIT epoch=102 profile=0 block=0 time_ns=2254316.300000
+BANK_FORWARD_ADMIT epoch=102 profile=0 index=0 fast_cycle=394511 time_ns=2254351.541289 interval_cycles=0
+BANK_JOB epoch=102 inverse=0 admit=394511 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=103 profile=0 block=0 time_ns=2265346.300000
+BANK_CAPTURE_COMMIT epoch=103 profile=0 block=0 time_ns=2270456.300000
+BANK_FORWARD_ADMIT epoch=103 profile=0 index=0 fast_cycle=397336 time_ns=2270494.399239 interval_cycles=0
+BANK_JOB epoch=103 inverse=0 admit=397336 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=104 profile=0 block=0 time_ns=2281496.300000
+BANK_CAPTURE_COMMIT epoch=104 profile=0 block=0 time_ns=2286606.300000
+BANK_FORWARD_ADMIT epoch=104 profile=0 index=0 fast_cycle=400162 time_ns=2286642.971475 interval_cycles=0
+BANK_JOB epoch=104 inverse=0 admit=400162 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=105 profile=0 block=0 time_ns=2297646.300000
+BANK_CAPTURE_COMMIT epoch=105 profile=0 block=0 time_ns=2302756.300000
+BANK_FORWARD_ADMIT epoch=105 profile=0 index=0 fast_cycle=402988 time_ns=2302791.543711 interval_cycles=0
+BANK_JOB epoch=105 inverse=0 admit=402988 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=106 profile=0 block=0 time_ns=2313786.300000
+BANK_CAPTURE_COMMIT epoch=106 profile=0 block=0 time_ns=2318896.300000
+BANK_FORWARD_ADMIT epoch=106 profile=0 index=0 fast_cycle=405813 time_ns=2318934.401661 interval_cycles=0
+BANK_JOB epoch=106 inverse=0 admit=405813 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=107 profile=0 block=0 time_ns=2329936.300000
+BANK_CAPTURE_COMMIT epoch=107 profile=0 block=0 time_ns=2335046.300000
+BANK_FORWARD_ADMIT epoch=107 profile=0 index=0 fast_cycle=408639 time_ns=2335082.973897 interval_cycles=0
+BANK_JOB epoch=107 inverse=0 admit=408639 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=108 profile=0 block=0 time_ns=2346086.300000
+BANK_CAPTURE_COMMIT epoch=108 profile=0 block=0 time_ns=2351196.300000
+BANK_FORWARD_ADMIT epoch=108 profile=0 index=0 fast_cycle=411465 time_ns=2351231.546133 interval_cycles=0
+BANK_JOB epoch=108 inverse=0 admit=411465 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=109 profile=0 block=0 time_ns=2362246.300000
+BANK_CAPTURE_COMMIT epoch=109 profile=0 block=0 time_ns=2367356.300000
+BANK_FORWARD_ADMIT epoch=109 profile=0 index=0 fast_cycle=414293 time_ns=2367391.546941 interval_cycles=0
+BANK_JOB epoch=109 inverse=0 admit=414293 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=110 profile=0 block=0 time_ns=2378406.300000
+BANK_CAPTURE_COMMIT epoch=110 profile=0 block=0 time_ns=2383516.300000
+BANK_FORWARD_ADMIT epoch=110 profile=0 index=0 fast_cycle=417121 time_ns=2383551.547749 interval_cycles=0
+BANK_JOB epoch=110 inverse=0 admit=417121 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=111 profile=0 block=0 time_ns=2394566.300000
+BANK_CAPTURE_COMMIT epoch=111 profile=0 block=0 time_ns=2399676.300000
+BANK_FORWARD_ADMIT epoch=111 profile=0 index=0 fast_cycle=419949 time_ns=2399711.548557 interval_cycles=0
+BANK_JOB epoch=111 inverse=0 admit=419949 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=112 profile=0 block=0 time_ns=2410726.300000
+BANK_CAPTURE_COMMIT epoch=112 profile=0 block=0 time_ns=2415836.300000
+BANK_FORWARD_ADMIT epoch=112 profile=0 index=0 fast_cycle=422777 time_ns=2415871.549365 interval_cycles=0
+BANK_JOB epoch=112 inverse=0 admit=422777 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=113 profile=0 block=0 time_ns=2426886.300000
+BANK_CAPTURE_COMMIT epoch=113 profile=0 block=0 time_ns=2431996.300000
+BANK_FORWARD_ADMIT epoch=113 profile=0 index=0 fast_cycle=425605 time_ns=2432031.550173 interval_cycles=0
+BANK_JOB epoch=113 inverse=0 admit=425605 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=114 profile=0 block=0 time_ns=2443046.300000
+BANK_CAPTURE_COMMIT epoch=114 profile=0 block=0 time_ns=2448156.300000
+BANK_FORWARD_ADMIT epoch=114 profile=0 index=0 fast_cycle=428433 time_ns=2448191.550981 interval_cycles=0
+BANK_JOB epoch=114 inverse=0 admit=428433 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=115 profile=0 block=0 time_ns=2459206.300000
+BANK_CAPTURE_COMMIT epoch=115 profile=0 block=0 time_ns=2464316.300000
+BANK_FORWARD_ADMIT epoch=115 profile=0 index=0 fast_cycle=431261 time_ns=2464351.551789 interval_cycles=0
+BANK_JOB epoch=115 inverse=0 admit=431261 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=116 profile=0 block=0 time_ns=2475366.300000
+BANK_CAPTURE_COMMIT epoch=116 profile=0 block=0 time_ns=2480476.300000
+BANK_FORWARD_ADMIT epoch=116 profile=0 index=0 fast_cycle=434089 time_ns=2480511.552597 interval_cycles=0
+BANK_JOB epoch=116 inverse=0 admit=434089 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=117 profile=0 block=0 time_ns=2491526.300000
+BANK_CAPTURE_COMMIT epoch=117 profile=0 block=0 time_ns=2496636.300000
+BANK_FORWARD_ADMIT epoch=117 profile=0 index=0 fast_cycle=436917 time_ns=2496671.553405 interval_cycles=0
+BANK_JOB epoch=117 inverse=0 admit=436917 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=118 profile=0 block=0 time_ns=2507686.300000
+BANK_CAPTURE_COMMIT epoch=118 profile=0 block=0 time_ns=2512796.300000
+BANK_FORWARD_ADMIT epoch=118 profile=0 index=0 fast_cycle=439745 time_ns=2512831.554213 interval_cycles=0
+BANK_JOB epoch=118 inverse=0 admit=439745 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=119 profile=0 block=0 time_ns=2523846.300000
+BANK_CAPTURE_COMMIT epoch=119 profile=0 block=0 time_ns=2528956.300000
+BANK_FORWARD_ADMIT epoch=119 profile=0 index=0 fast_cycle=442573 time_ns=2528991.555021 interval_cycles=0
+BANK_JOB epoch=119 inverse=0 admit=442573 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=120 profile=0 block=0 time_ns=2540006.300000
+BANK_CAPTURE_COMMIT epoch=120 profile=0 block=0 time_ns=2545116.300000
+BANK_FORWARD_ADMIT epoch=120 profile=0 index=0 fast_cycle=445401 time_ns=2545151.555829 interval_cycles=0
+BANK_JOB epoch=120 inverse=0 admit=445401 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=121 profile=0 block=0 time_ns=2556166.300000
+BANK_CAPTURE_COMMIT epoch=121 profile=0 block=0 time_ns=2561276.300000
+BANK_FORWARD_ADMIT epoch=121 profile=0 index=0 fast_cycle=448229 time_ns=2561311.556637 interval_cycles=0
+BANK_JOB epoch=121 inverse=0 admit=448229 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=122 profile=0 block=0 time_ns=2572326.300000
+BANK_CAPTURE_COMMIT epoch=122 profile=0 block=0 time_ns=2577436.300000
+BANK_FORWARD_ADMIT epoch=122 profile=0 index=0 fast_cycle=451057 time_ns=2577471.557445 interval_cycles=0
+BANK_JOB epoch=122 inverse=0 admit=451057 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=123 profile=0 block=0 time_ns=2588486.300000
+BANK_CAPTURE_COMMIT epoch=123 profile=0 block=0 time_ns=2593596.300000
+BANK_FORWARD_ADMIT epoch=123 profile=0 index=0 fast_cycle=453885 time_ns=2593631.558253 interval_cycles=0
+BANK_JOB epoch=123 inverse=0 admit=453885 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=124 profile=0 block=0 time_ns=2604646.300000
+BANK_CAPTURE_COMMIT epoch=124 profile=0 block=0 time_ns=2609756.300000
+BANK_FORWARD_ADMIT epoch=124 profile=0 index=0 fast_cycle=456713 time_ns=2609791.559061 interval_cycles=0
+BANK_JOB epoch=124 inverse=0 admit=456713 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=125 profile=0 block=0 time_ns=2620806.300000
+BANK_CAPTURE_COMMIT epoch=125 profile=0 block=0 time_ns=2625916.300000
+BANK_FORWARD_ADMIT epoch=125 profile=0 index=0 fast_cycle=459541 time_ns=2625951.559869 interval_cycles=0
+BANK_JOB epoch=125 inverse=0 admit=459541 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=126 profile=0 block=0 time_ns=2636966.300000
+BANK_CAPTURE_COMMIT epoch=126 profile=0 block=0 time_ns=2642076.300000
+BANK_FORWARD_ADMIT epoch=126 profile=0 index=0 fast_cycle=462369 time_ns=2642111.560677 interval_cycles=0
+BANK_JOB epoch=126 inverse=0 admit=462369 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=127 profile=0 block=0 time_ns=2653126.300000
+BANK_CAPTURE_COMMIT epoch=127 profile=0 block=0 time_ns=2658236.300000
+BANK_FORWARD_ADMIT epoch=127 profile=0 index=0 fast_cycle=465197 time_ns=2658271.561485 interval_cycles=0
+BANK_JOB epoch=127 inverse=0 admit=465197 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=128 profile=0 block=0 time_ns=2669286.300000
+BANK_CAPTURE_COMMIT epoch=128 profile=0 block=0 time_ns=2674396.300000
+BANK_FORWARD_ADMIT epoch=128 profile=0 index=0 fast_cycle=468025 time_ns=2674431.562293 interval_cycles=0
+BANK_JOB epoch=128 inverse=0 admit=468025 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=129 profile=0 block=0 time_ns=2685446.300000
+BANK_CAPTURE_COMMIT epoch=129 profile=0 block=0 time_ns=2690556.300000
+BANK_FORWARD_ADMIT epoch=129 profile=0 index=0 fast_cycle=470853 time_ns=2690591.563101 interval_cycles=0
+BANK_JOB epoch=129 inverse=0 admit=470853 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=130 profile=0 block=0 time_ns=2701606.300000
+BANK_CAPTURE_COMMIT epoch=130 profile=0 block=0 time_ns=2706716.300000
+BANK_FORWARD_ADMIT epoch=130 profile=0 index=0 fast_cycle=473681 time_ns=2706751.563909 interval_cycles=0
+BANK_JOB epoch=130 inverse=0 admit=473681 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=131 profile=0 block=0 time_ns=2717766.300000
+BANK_CAPTURE_COMMIT epoch=131 profile=0 block=0 time_ns=2722876.300000
+BANK_FORWARD_ADMIT epoch=131 profile=0 index=0 fast_cycle=476509 time_ns=2722911.564717 interval_cycles=0
+BANK_JOB epoch=131 inverse=0 admit=476509 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=132 profile=0 block=0 time_ns=2733926.300000
+BANK_CAPTURE_COMMIT epoch=132 profile=0 block=0 time_ns=2739036.300000
+BANK_FORWARD_ADMIT epoch=132 profile=0 index=0 fast_cycle=479337 time_ns=2739071.565525 interval_cycles=0
+BANK_JOB epoch=132 inverse=0 admit=479337 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=133 profile=0 block=0 time_ns=2750086.300000
+BANK_CAPTURE_COMMIT epoch=133 profile=0 block=0 time_ns=2755196.300000
+BANK_FORWARD_ADMIT epoch=133 profile=0 index=0 fast_cycle=482165 time_ns=2755231.566333 interval_cycles=0
+BANK_JOB epoch=133 inverse=0 admit=482165 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=134 profile=0 block=0 time_ns=2766246.300000
+BANK_CAPTURE_COMMIT epoch=134 profile=0 block=0 time_ns=2771356.300000
+BANK_FORWARD_ADMIT epoch=134 profile=0 index=0 fast_cycle=484993 time_ns=2771391.567141 interval_cycles=0
+BANK_JOB epoch=134 inverse=0 admit=484993 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=135 profile=0 block=0 time_ns=2782406.300000
+BANK_CAPTURE_COMMIT epoch=135 profile=0 block=0 time_ns=2787516.300000
+BANK_FORWARD_ADMIT epoch=135 profile=0 index=0 fast_cycle=487821 time_ns=2787551.567949 interval_cycles=0
+BANK_JOB epoch=135 inverse=0 admit=487821 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=136 profile=0 block=0 time_ns=2798566.300000
+BANK_CAPTURE_COMMIT epoch=136 profile=0 block=0 time_ns=2803676.300000
+BANK_FORWARD_ADMIT epoch=136 profile=0 index=0 fast_cycle=490649 time_ns=2803711.568757 interval_cycles=0
+BANK_JOB epoch=136 inverse=0 admit=490649 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=136 inverse=1 admit=492475 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=136 profile=0 block=0 time_ns=2824536.300000
+BANK_OUTPUT epoch=136 profile=0 block=0 time_ns=2829646.300000
+BANK_CAPTURE_START epoch=137 profile=0 block=0 time_ns=2829936.300000
+BANK_CAPTURE_COMMIT epoch=137 profile=0 block=0 time_ns=2835046.300000
+BANK_FORWARD_ADMIT epoch=137 profile=0 index=0 fast_cycle=496139 time_ns=2835082.998897 interval_cycles=0
+BANK_CAPTURE_START epoch=138 profile=0 block=0 time_ns=2835656.300000
+BANK_CAPTURE_COMMIT epoch=138 profile=0 block=0 time_ns=2840766.300000
+BANK_FORWARD_ADMIT epoch=138 profile=0 index=0 fast_cycle=497140 time_ns=2840802.999183 interval_cycles=0
+BANK_JOB epoch=138 inverse=0 admit=497140 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=138 inverse=1 admit=498966 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=138 profile=0 block=0 time_ns=2861626.300000
+BANK_OUTPUT epoch=138 profile=0 block=0 time_ns=2866736.300000
+PREFLIGHT_REASON_SPLIT_PASS matrix_cases=84 transform_phases=2 reason_bits=6 simultaneous_orphan_and_next_status=1 one_sided_fault_recoveries=2 private_ready_differences=60 private_admits=12 masked_start_samples=60 exact_public_and_reason_shadow=1
+BANK_CAPTURE_START epoch=139 profile=0 block=0 time_ns=2867026.300000
+BANK_CAPTURE_COMMIT epoch=139 profile=0 block=0 time_ns=2872136.300000
+BANK_FORWARD_ADMIT epoch=139 profile=0 index=0 fast_cycle=502630 time_ns=2872174.429323 interval_cycles=0
+BANK_CAPTURE_START epoch=140 profile=0 block=0 time_ns=2872986.300000
+BANK_CAPTURE_COMMIT epoch=140 profile=0 block=0 time_ns=2878096.300000
+BANK_FORWARD_ADMIT epoch=140 profile=0 index=0 fast_cycle=503673 time_ns=2878134.429621 interval_cycles=0
+BANK_CAPTURE_START epoch=141 profile=0 block=0 time_ns=2878946.300000
+BANK_CAPTURE_COMMIT epoch=141 profile=0 block=0 time_ns=2884056.300000
+BANK_FORWARD_ADMIT epoch=141 profile=0 index=0 fast_cycle=504716 time_ns=2884094.429919 interval_cycles=0
+BANK_CAPTURE_START epoch=142 profile=0 block=0 time_ns=2884906.300000
+BANK_CAPTURE_COMMIT epoch=142 profile=0 block=0 time_ns=2890016.300000
+BANK_FORWARD_ADMIT epoch=142 profile=0 index=0 fast_cycle=505759 time_ns=2890054.430217 interval_cycles=0
+BANK_CAPTURE_START epoch=143 profile=0 block=0 time_ns=2890866.300000
+BANK_CAPTURE_COMMIT epoch=143 profile=0 block=0 time_ns=2895976.300000
+BANK_FORWARD_ADMIT epoch=143 profile=0 index=0 fast_cycle=506802 time_ns=2896014.430515 interval_cycles=0
+BANK_CAPTURE_START epoch=144 profile=0 block=0 time_ns=2896826.300000
+BANK_CAPTURE_COMMIT epoch=144 profile=0 block=0 time_ns=2901936.300000
+BANK_FORWARD_ADMIT epoch=144 profile=0 index=0 fast_cycle=507845 time_ns=2901974.430813 interval_cycles=0
+BANK_CAPTURE_START epoch=145 profile=0 block=0 time_ns=2902786.300000
+BANK_CAPTURE_COMMIT epoch=145 profile=0 block=0 time_ns=2907896.300000
+BANK_FORWARD_ADMIT epoch=145 profile=0 index=0 fast_cycle=508888 time_ns=2907934.431111 interval_cycles=0
+BANK_JOB epoch=145 inverse=0 admit=508888 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=146 profile=0 block=0 time_ns=2919186.300000
+BANK_CAPTURE_COMMIT epoch=146 profile=0 block=0 time_ns=2924296.300000
+BANK_FORWARD_ADMIT epoch=146 profile=0 index=0 fast_cycle=511758 time_ns=2924334.431931 interval_cycles=0
+BANK_JOB epoch=146 inverse=0 admit=511758 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=147 profile=0 block=0 time_ns=2935586.300000
+BANK_CAPTURE_COMMIT epoch=147 profile=0 block=0 time_ns=2940696.300000
+BANK_FORWARD_ADMIT epoch=147 profile=0 index=0 fast_cycle=514628 time_ns=2940734.432751 interval_cycles=0
+BANK_JOB epoch=147 inverse=0 admit=514628 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=148 profile=0 block=0 time_ns=2951986.300000
+BANK_CAPTURE_COMMIT epoch=148 profile=0 block=0 time_ns=2957096.300000
+BANK_FORWARD_ADMIT epoch=148 profile=0 index=0 fast_cycle=517498 time_ns=2957134.433571 interval_cycles=0
+BANK_JOB epoch=148 inverse=0 admit=517498 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=149 profile=0 block=0 time_ns=2968386.300000
+BANK_CAPTURE_COMMIT epoch=149 profile=0 block=0 time_ns=2973496.300000
+BANK_FORWARD_ADMIT epoch=149 profile=0 index=0 fast_cycle=520368 time_ns=2973534.434391 interval_cycles=0
+BANK_JOB epoch=149 inverse=0 admit=520368 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=150 profile=0 block=0 time_ns=2984786.300000
+BANK_CAPTURE_COMMIT epoch=150 profile=0 block=0 time_ns=2989896.300000
+BANK_FORWARD_ADMIT epoch=150 profile=0 index=0 fast_cycle=523238 time_ns=2989934.435211 interval_cycles=0
+BANK_JOB epoch=150 inverse=0 admit=523238 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=151 profile=0 block=0 time_ns=3001186.300000
+BANK_CAPTURE_COMMIT epoch=151 profile=0 block=0 time_ns=3006296.300000
+BANK_FORWARD_ADMIT epoch=151 profile=0 index=0 fast_cycle=526108 time_ns=3006334.436031 interval_cycles=0
+BANK_CAPTURE_START epoch=152 profile=0 block=0 time_ns=3007166.300000
+BANK_CAPTURE_COMMIT epoch=152 profile=0 block=0 time_ns=3012276.300000
+BANK_FORWARD_ADMIT epoch=152 profile=0 index=0 fast_cycle=527154 time_ns=3012311.579187 interval_cycles=0
+BANK_JOB epoch=152 inverse=0 admit=527154 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_CAPTURE_START epoch=153 profile=0 block=0 time_ns=3023576.300000
+BANK_CAPTURE_COMMIT epoch=153 profile=0 block=0 time_ns=3028686.300000
+BANK_FORWARD_ADMIT epoch=153 profile=0 index=0 fast_cycle=530026 time_ns=3028723.008579 interval_cycles=0
+BANK_JOB epoch=153 inverse=0 admit=530026 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=153 inverse=1 admit=531852 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=153 profile=0 block=0 time_ns=3049546.300000
+BANK_OUTPUT epoch=153 profile=0 block=0 time_ns=3054656.300000
+BANK_CAPTURE_START epoch=154 profile=0 block=0 time_ns=3054946.300000
+BANK_CAPTURE_COMMIT epoch=154 profile=0 block=0 time_ns=3060056.300000
+BANK_FORWARD_ADMIT epoch=154 profile=0 index=0 fast_cycle=535516 time_ns=3060094.438719 interval_cycles=0
+BANK_JOB epoch=154 inverse=0 admit=535516 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_JOB epoch=154 inverse=1 admit=537342 config_delta=3 input_span=513 input_last_to_output_first=781 commit_delta=1810
+BANK_OUTPUT_START epoch=154 profile=0 block=0 time_ns=3080916.300000
+BANK_OUTPUT epoch=154 profile=0 block=0 time_ns=3086026.300000
+HELD_PHASE_INPUT_PASS registered=1 active_fault_cases=12 vendor_open_quarantine_cases=2 reset_recoveries=2 input_shadow_checks=1073334 full_open_tuple_checks=193530 quarantine_open_checks=12 exact_certified_and_bank_reads=1
+$finish called at time : 3086065869589 fs : File "/tmp/starlink-completed-input.5EaJuD/held-phase-actual-v1/frozen_sources/tb_starlink_pss_fft_bank_owned_slice.sv" Line 769
+run: Time (s): cpu = 00:00:02 ; elapsed = 00:03:39 . Memory (MB): peak = 1414.500 ; gain = 0.000 ; free physical = 15792 ; free virtual = 147227
+xsim: Time (s): cpu = 00:00:02 ; elapsed = 00:03:40 . Memory (MB): peak = 1414.500 ; gain = 13.902 ; free physical = 15792 ; free virtual = 147227
+INFO: [USF-XSim-96] XSim completed. Design snapshot 'tb_starlink_pss_fft_bank_owned_slice_behav' loaded.
+INFO: [USF-XSim-97] XSim simulation ran for all
+launch_simulation: Time (s): cpu = 00:00:17 ; elapsed = 00:03:52 . Memory (MB): peak = 1414.500 ; gain = 77.934 ; free physical = 15792 ; free virtual = 147227
+# close_sim
+INFO: xsimkernel Simulation Memory Usage: 135620 KB (Peak: 184776 KB), Simulation CPU Usage: 217650 ms
+INFO: [Simtcl 6-16] Simulation closed
+# set logfile [file join $project_dir ${project_name}.sim sim_1 behav xsim simulate.log]
+# set channel [open $logfile r]
+# set log [read $channel]
+# close $channel
+# if {$mutation} {
+#   if {[string first "Fatal: join acceptance differs from guard retirement" $log] < 0 ||
+#       [string first "FFT_BANK_OWNED_SLICE_PASS" $log] >= 0} {
+#     error "mutation did not fail its specific held-final witness; inspect $logfile"
+#   }
+#   close_project
+#   puts "FFT_BANK_OWNED_JOIN_GATE_MUTATION_REJECTED_BY_ACTUAL_CORE_WITNESS"
+#   exit
+# }
+# if {[string first "FFT_BANK_OWNED_SLICE_PASS" $log] < 0 || [regexp -nocase {fatal:|error:} $log]} {
+#   error "bank-owned simulation failed; inspect $logfile"
+# }
+# if {$registered && [string first "REGISTERED_SCHEDULING_PASS" $log] < 0} {
+#   error "registered scheduling boundary tests did not complete"
+# }
+# if {$registered && [string first "PREFLIGHT_REASON_SPLIT_PASS" $log] < 0} {
+#   error "preflight reason/admission split matrix did not complete"
+# }
+# if {[string first "HELD_PHASE_INPUT_PASS" $log] < 0} {
+#   error "held-phase input tuple/active fault matrix did not complete"
+# }
+# close_project
+# puts "FFT_BANK_OWNED_ACTUAL_CORE_VERIFIED_NO_PHYSICAL_OR_RF_CLAIM"
+FFT_BANK_OWNED_ACTUAL_CORE_VERIFIED_NO_PHYSICAL_OR_RF_CLAIM
+INFO: [Common 17-206] Exiting Vivado at Thu Sep 10 02:52:19 2026...
