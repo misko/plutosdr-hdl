@@ -240,8 +240,7 @@
     if (sample_index !== 64'd34359738560) fail("fixed command trigger skipped");
     native_trigger_cycle = cycles;
     read_reg(2, 8'h18, current_index[31:0]); read_reg(2, 8'h1c, current_index[63:32]);
-    if (current_index < 64'd34359738560 || current_index > 64'd34359738720)
-      fail("native60 public current-index snapshot outside admission window");
+    check_native_snapshot(current_index);
     write_reg(2, 8'h20, NATIVE_REQUEST); write_reg(2, 8'h24, NATIVE_CENTER[31:0]);
     write_reg(2, 8'h28, NATIVE_CENTER[63:32]); write_reg(2, 8'h2c, NATIVE_CENTER[31:0]);
     write_reg(2, 8'h30, NATIVE_CENTER[63:32]);

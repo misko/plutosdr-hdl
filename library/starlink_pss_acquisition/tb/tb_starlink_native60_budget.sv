@@ -60,6 +60,7 @@ module tb_starlink_native60_budget;
   end
   `include "high_rate_paired_axi.svh"
   `include "native60_budget_checks.svh"
+  `include "native60_readback_checks.svh"
   always @(posedge sample_clk) if (resetn && native_configured) begin
     if ({source_enable, sample_strobe} !== 2'b00 &&
         {source_enable, sample_strobe} !== 2'b11) fail("unknown/unequal source flags");
