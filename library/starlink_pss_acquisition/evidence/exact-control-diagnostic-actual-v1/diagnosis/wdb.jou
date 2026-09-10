@@ -1,0 +1,24 @@
+#-----------------------------------------------------------
+# Vivado v2022.2 (64-bit)
+# SW Build 3671981 on Fri Oct 14 04:59:54 MDT 2022
+# IP Build 3669848 on Fri Oct 14 08:30:02 MDT 2022
+# Start of session at: Thu Sep 10 07:09:10 2026
+# Process ID: 3556096
+# Current directory: /home/mouse9911
+# Command line: vivado -mode tcl -log /tmp/starlink-completed-input.5EaJuD/exact-control-named-witness-readonly-v1/wdb.log -journal /tmp/starlink-completed-input.5EaJuD/exact-control-named-witness-readonly-v1/wdb.jou
+# Log file: /tmp/starlink-completed-input.5EaJuD/exact-control-named-witness-readonly-v1/wdb.log
+# Journal file: /tmp/starlink-completed-input.5EaJuD/exact-control-named-witness-readonly-v1/wdb.jou
+# Running On: gauss, OS: Linux, CPU Frequency: 5400.000 MHz, CPU Physical cores: 24, Host memory: 132067 MB
+#-----------------------------------------------------------
+set_param general.maxThreads 2
+open_wave_database /tmp/starlink-completed-input.5EaJuD/exact-control-diagnostic-actual-v1/project/exact_control_actual.sim/sim_1/behav/xsim/tb_starlink_pss_fft_bank_owned_slice_behav.wdb
+foreach obj [get_objects -r -filter {NAME =~ *status* || NAME =~ *shadow_valid* || NAME =~ *forward_old_valid* || NAME =~ *faults_now* || NAME =~ *final_qualified*} /*] { puts "NAMED_WDB $obj=[get_value_database -time 1198594347644fs -radix hex $obj]" }
+foreach name {forward_old_valid shadow_valid forward_old_private shadow_private_valid forward_current forward_sticky input_shadow_checks exact_checks exact_active_checks exact_consumed statuses old_core_valid old_input_fault} { foreach obj [get_objects -r -filter "NAME =~ */$name" /*] {set val [get_value_database -time 1198594347644fs -radix unsigned $obj]; if {$val ne "<Blank>"} {puts "KNOWN_WDB $obj=$val"}} }
+help report_drivers
+help get_drivers
+set cs [lindex [get_objects -r -filter {NAME =~ */dut/core_status_data} /*] 0]
+puts "DRIVER_OBJECT=$cs"
+report_drivers $cs
+foreach pat {*forward_old_valid *forward_old_private *shadow_valid *injected_status *statuses *dut/core_status_valid *dut/shared_xfft/m_axis_status_tvalid} {foreach obj [get_objects -r -filter "NAME =~ $pat" /*] {puts "FAIL_SAMPLE $obj=[get_value_database -time 1198594347644fs -radix bin $obj]"}}
+foreach pat {*forward_old_valid *forward_old_private *shadow_valid *statuses *injected_status *old_core_valid *old_input_fault *exact_checks *exact_active_checks *exact_consumed} {foreach obj [get_objects -r -filter "NAME =~ $pat" /*] {foreach tm {1198591490501fs 1198594345644fs 1198594347644fs} {puts "EDGE_SAMPLE time=$tm $obj=[get_value_database -time $tm -radix hex $obj]"}}}
+close_sim -force
