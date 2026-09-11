@@ -116,7 +116,7 @@ module starlink_pss_fft_staged_output_impl #(
     .writer_reset_idle(source_writer_idle), .reader_reset_idle(source_reader_idle)
   );
   (* ASYNC_REG = "TRUE" *) reg [1:0] source_fault_fast, lookup_fault_fast, fast_fault_slow;
-  wire fast_fault; // DISTRIBUTED STICKY FAULT OUTPUT
+  reg fast_fault;
   reg slow_lookup_fault;
   reg [1:0] reader_descriptor_phase;
   localparam [1:0] RD_EMPTY=0, RD_CHECK=1, RD_VALID=2, RD_FAULT=3;
@@ -885,12 +885,10 @@ module starlink_pss_fft_staged_output_impl #(
         product_consume_generation <= !product_consume_generation;
     end
   end
-  // BEGIN DISTRIBUTED STICKY FAULT
-  // Capture independent causes on the original sticky-fault edge. Current
-  // publication vetoes continue to use the unmodified common fault expression.
-  // Known supported configuration: admission_reject already partitions the
-  // external and guard facts. Outside a known active epoch, use the original
-  // preflight predicate. Other/unknown configurations retain the full scalar.
+  // BEGIN SCALAR FAULT SOURCES
+  // Flatten the checked cause expression BEFORE the original scalar register.
+  // Keep its original synchronous reset, capture edge and direct CDC source.
+  // Current publication vetoes and unsupported/unknown fallback are unchanged.
   wire [18:0] sticky_fault_sources =
     ((INPUT_OFFER_FAULT_SUMMARY === 1) &&
      (CONTEXTUAL_DESTINATION_SUMMARY === 1) &&
@@ -898,14 +896,10 @@ module starlink_pss_fft_staged_output_impl #(
     {admission_reject[18],
      ((fast_running === 1'b1) ? summary_preflight_events : {5'b0,preparation_fault_now}),
      admission_reject[11:0]} : {18'b0,any_fast_fault};
-  reg [18:0] sticky_fault_latched;
-  assign fast_fault = |sticky_fault_latched;
-  generate for (genvar cause_index=0; cause_index<19; cause_index=cause_index+1) begin : sticky_fault_causes
-    always @(posedge fft_clk)
-      if (!fast_running) sticky_fault_latched[cause_index] <= 1'b0;
-      else if (sticky_fault_sources[cause_index]) sticky_fault_latched[cause_index] <= 1'b1;
-  end endgenerate
-  // END DISTRIBUTED STICKY FAULT
+  always @(posedge fft_clk)
+    if (!fast_running) fast_fault <= 0;
+    else if (|sticky_fault_sources) fast_fault <= 1;
+  // END SCALAR FAULT SOURCES
   generate if (!REGISTERED_SCHEDULING) begin : original_scheduling
   always @(posedge fft_clk) begin
     if (!fast_running) begin
