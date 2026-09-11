@@ -20,6 +20,31 @@ module tb #(parameter integer ACK_ONLY=0);
     .PRIVATE_DESCRIPTOR_OFFER(1),.CLOSED_INPUT_CUTOVER(1),
     .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1)) dut(.*);
   reg [31:0] samples[0:1405];
+  // BEGIN SPLIT CAPACITY WITNESS
+  integer split_capacity_checks=0,split_nonfinal_checks=0;
+  wire original_product_capacity = (dut.fast_running && !dut.product_stage_fault) &&
+    (!dut.product_identity_stage.full ||
+     ((dut.staged_product_last === 1'b0) && dut.staged_product_ready));
+  always @(posedge fft_clk)begin
+    if(dut.fast_running)begin
+      if(dut.product_stage_ready!==original_product_capacity)
+        $fatal(1,"split capacity changed original producer acceptance");
+      if(dut.staged_product_valid && !dut.staged_product_last)begin
+        if(dut.product_identity_stage.refill_capacity!==dut.staged_product_ready)
+          $fatal(1,"nonfinal capacity differs from actual retirement");
+        split_nonfinal_checks=split_nonfinal_checks+1;
+      end
+      split_capacity_checks=split_capacity_checks+1;
+    end
+  end
+  task automatic report_split_capacity;
+    begin
+      if(split_capacity_checks<1000 || split_nonfinal_checks<6144)
+        $fatal(1,"split capacity coverage missing");
+      $display("STAGED_SPLIT_CAPACITY_PASS checks=%0d nonfinal=%0d input_ready_exact=1 current_retirement_exact=1",split_capacity_checks,split_nonfinal_checks);
+    end
+  endtask
+  // END SPLIT CAPACITY WITNESS
   // BEGIN FINAL CAPACITY WITNESS
   integer final_capacity_checks=0,final_capacity_starts=0;
   always @(posedge fft_clk)begin
@@ -1374,6 +1399,7 @@ module tb #(parameter integer ACK_ONLY=0);
       report_product_stage;
       // END ACTUAL PRODUCT STAGE AUXILIARY
       report_final_capacity; // FINAL CAPACITY AUXILIARY
+      report_split_capacity; // SPLIT CAPACITY AUXILIARY
       $fclose(log_file);$finish;
     end
     for(mode=0;mode<6;mode=mode+1) begin
@@ -1461,6 +1487,7 @@ module tb #(parameter integer ACK_ONLY=0);
     report_forward_receipt; // FORWARD RECEIPT MAIN
     report_product_stage; // ACTUAL PRODUCT STAGE MAIN
     report_final_capacity; // FINAL CAPACITY MAIN
+    report_split_capacity; // SPLIT CAPACITY MAIN
     $finish;
   end
   initial begin #3000000;$fatal(1,"staged FFT absolute deadline");end

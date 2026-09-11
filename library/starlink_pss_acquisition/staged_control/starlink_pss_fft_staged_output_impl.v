@@ -677,7 +677,7 @@ module starlink_pss_fft_staged_output_impl #(
   // feedback loop through the stage's immediate control-fault detection.
   assign staged_product_ready = (product_bank_ready === 1'b1) && (fast_fault === 1'b0) &&
     ((staged_product_last === 1'b0) || (product_commit_authorized === 1'b1));
-  starlink_pss_product_identity_stage product_identity_stage (
+  starlink_pss_product_identity_split_capacity product_identity_stage (
     .clk(fft_clk), .resetn(fast_running),
     .abort_epoch(fast_fault || product_ram_fault ||
       (product_bank_ready !== 1'b0 && product_bank_ready !== 1'b1)),
@@ -686,6 +686,7 @@ module starlink_pss_fft_staged_output_impl #(
     .input_metadata({1'b1,product_start,product_exponent}),
     .reference_metadata(product_writer_metadata_load ? staged_product_metadata : product_writer_metadata),
     .output_valid(staged_product_valid), .output_ready(staged_product_ready),
+    .refill_capacity((product_bank_ready === 1'b1) && (fast_fault === 1'b0)),
     .output_data(staged_product_data), .output_position(staged_product_position),
     .output_last(staged_product_last), .output_identity_good(staged_product_identity_good),
     .output_metadata(staged_product_metadata), .idle(), .fault(product_stage_fault)
