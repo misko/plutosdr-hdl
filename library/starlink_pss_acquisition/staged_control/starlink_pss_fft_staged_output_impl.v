@@ -228,13 +228,16 @@ module starlink_pss_fft_staged_output_impl #(
   assign source_read_ready = !selected_phase && transport_ready && engine_input_enable;
   assign product_bank_read_ready = selected_phase && transport_ready && engine_input_enable;
   starlink_pss_realtime_input_guard_local_admission #(.CHECK_INPUT_BLOCK_IDENTITY(1),
+    .BANK_LOCAL_IDENTITY(REGISTERED_SCHEDULING),
     .BALANCED_IDENTITY_EQ(REGISTERED_SCHEDULING),
     .LOCAL_FIRST_ADMISSION(LOCAL_FIRST_ADMISSION)) input_guard (
     .clk(fft_clk), .resetn(core_aresetn), .job_start(input_job_start),
     .job_descriptor(engine_metadata), .input_enable(engine_input_enable),
     .input_valid(guard_valid), .input_ready(), .input_transport_ready(transport_ready),
     .input_data(guard_data), .input_position(guard_position), .input_last(guard_last),
-    .input_metadata(guard_metadata), .core_input_tdata(core_input_data),
+    .input_metadata(guard_metadata), .bank_phase(guard_phase),
+    .source_bank_metadata(source_metadata), .product_bank_metadata(product_bank_metadata),
+    .core_input_tdata(core_input_data),
     .core_input_tvalid(core_input_valid), .core_input_tready(core_input_ready),
     .core_input_tlast(core_input_last), .certified_input_beat(certified_input_beat),
     .certified_input_complete(certified_input_complete), .input_complete(checked_input_complete),

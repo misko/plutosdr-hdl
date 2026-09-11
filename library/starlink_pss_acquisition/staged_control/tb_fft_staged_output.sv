@@ -20,6 +20,45 @@ module tb;
     .PRIVATE_DESCRIPTOR_OFFER(1),.CLOSED_INPUT_CUTOVER(1),
     .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1)) dut(.*);
   reg [31:0] samples[0:1405];
+  // Default-mode real checker is the source-inverse-proved original behavior.
+  wire [47:0] identity_reference_data;
+  wire identity_reference_ready,identity_reference_valid,identity_reference_last;
+  wire identity_reference_beat,identity_reference_final,identity_reference_complete;
+  wire identity_reference_fault,identity_reference_duplicate,identity_reference_protocol;
+  wire [2:0] identity_reference_events,identity_reference_reasons;
+  integer bank_identity_checks=0,bank_identity_forward=0,bank_identity_inverse=0;
+  reg [69:0] bank_identity_injected_metadata;
+  starlink_pss_realtime_input_guard_local_admission #(.CHECK_INPUT_BLOCK_IDENTITY(1),
+    .BALANCED_IDENTITY_EQ(1),.LOCAL_FIRST_ADMISSION(1),.BANK_LOCAL_IDENTITY(0)) original_input_identity (
+    .clk(fft_clk),.resetn(dut.core_aresetn),.job_start(dut.input_job_start),
+    .job_descriptor(dut.engine_metadata),.input_enable(dut.engine_input_enable),
+    .input_valid(dut.guard_valid),.input_ready(),.input_transport_ready(identity_reference_ready),
+    .input_data(dut.guard_data),.input_position(dut.guard_position),.input_last(dut.guard_last),
+    .input_metadata(dut.guard_metadata),.bank_phase(dut.guard_phase),
+    .source_bank_metadata(dut.source_metadata),.product_bank_metadata(dut.product_bank_metadata),
+    .core_input_tdata(identity_reference_data),.core_input_tvalid(identity_reference_valid),
+    .core_input_tready(dut.core_input_ready),.core_input_tlast(identity_reference_last),
+    .certified_input_beat(identity_reference_beat),.certified_input_complete(identity_reference_final),
+    .input_complete(identity_reference_complete),.fault_now(identity_reference_fault),
+    .duplicate_start_fault_now(identity_reference_duplicate),.fault_events_now(identity_reference_events),
+    .protocol_fault(identity_reference_protocol),.fault_reasons(identity_reference_reasons));
+  always @(negedge fft_clk) begin
+    #0.002;
+    if(dut.fast_running) begin
+      if({dut.transport_ready,dut.core_input_data,dut.core_input_valid,dut.core_input_last,
+          dut.certified_input_beat,dut.certified_input_complete,dut.checked_input_complete,
+          dut.input_fault_now,dut.duplicate_start_fault_now,dut.input_fault_events_now,dut.input_guard_fault,
+          dut.input_guard.fault_reasons,dut.input_guard.identity_matches} !==
+         {identity_reference_ready,identity_reference_data,identity_reference_valid,identity_reference_last,
+          identity_reference_beat,identity_reference_final,identity_reference_complete,
+          identity_reference_fault,identity_reference_duplicate,identity_reference_events,identity_reference_protocol,
+          identity_reference_reasons,original_input_identity.identity_matches})
+        $fatal(1,"bank local identity differs from original real checker");
+      bank_identity_checks=bank_identity_checks+1;
+      if(dut.certified_input_beat && dut.guard_phase===1'b0) bank_identity_forward=bank_identity_forward+1;
+      if(dut.certified_input_beat && dut.guard_phase===1'b1) bank_identity_inverse=bank_identity_inverse+1;
+    end
+  end
   reg [35:0] forwards[0:1535],products[0:1535],inverses[0:1535];
   reg [4:0] fe[0:2],ie[0:2];
   integer mode=0,fast_cycles=0,slow_cycles=0,reads=0,jobs=0,publications=0,releases=0;
@@ -387,6 +426,46 @@ module tb;
       end
       if(fault!==1'b1 || stress_reads!=0 || stress_releases!=0) $fatal(1,"guard fact veto evidence missing");
       $display("STAGED_GUARDFACTS_CASE_PASS gate=%0d owner=%0d fact=%0d starts=0 reads=0 releases=0",gate,owner,fact);
+    end
+  endtask
+  task automatic bank_identity_boundary(input integer owner,input integer corrupt_selected);
+    reg request_before;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      while(dut.guard_phase!==owner[0] || dut.input_guard.expected_position!=32 ||
+            !dut.certified_input_beat) @(negedge fft_clk);
+      request_before=dut.output_request;
+      stress_fault_expected=corrupt_selected;
+      if(owner[0]!==corrupt_selected[0]) begin
+        bank_identity_injected_metadata=dut.source_metadata ^ 70'h20;
+        force dut.source_metadata=bank_identity_injected_metadata;
+      end else begin
+        bank_identity_injected_metadata=dut.product_bank_metadata ^ 70'h20;
+        force dut.product_bank_metadata=bank_identity_injected_metadata;
+      end
+      #0.003;
+      if(dut.input_fault_now!==corrupt_selected[0] || identity_reference_fault!==corrupt_selected[0])
+        $fatal(1,"bank-local selected/unselected fault isolation");
+      @(posedge fft_clk);#0.003;
+      if(corrupt_selected && dut.fast_fault!==1'b1) $fatal(1,"bank-local current fault not latched");
+      @(negedge fft_clk);release dut.source_metadata;release dut.product_bank_metadata;
+      if(corrupt_selected) begin
+        repeat(100) begin
+          @(negedge fft_clk);
+          if(dut.output_request!==request_before || dut.output_released_valid!==1'b0 ||
+             dut.input_job_start!==1'b0 || dut.core_input_valid!==1'b0)
+            $fatal(1,"bank identity stale work escaped quarantine");
+        end
+        if(stress_reads!=0 || stress_releases!=0 || !fault) $fatal(1,"bank identity fault evidence");
+      end else begin
+        stress_drain=1;
+        while(stress_reads!=512 || !dut.retained_reusable) @(negedge fft_clk);
+        if(fault || stress_releases!=1) $fatal(1,"unselected bank spoiled healthy result");
+      end
+      stress_reset;stress_fixture=0;send_block(0);stress_drain=1;
+      while(stress_reads!=512 || !dut.retained_reusable) @(negedge fft_clk);
+      if(fault || stress_releases!=1) $fatal(1,"bank identity fresh recovery");
+      $display("STAGED_BANKIDENTITY_CASE_PASS owner=%0d selected=%0d fresh_reads=512 fresh_releases=1",owner,corrupt_selected);
     end
   endtask
   task automatic certification_boundary(input integer boundary);
@@ -884,9 +963,14 @@ module tb;
     repeat(10) @(negedge fft_clk);
     if(fault || stress_releases!=1 || guardfacts_cycles<1000) $fatal(1,"guard facts fresh recovery or coverage failed");
     $display("STAGED_GUARDFACTS_PASS cases=32 cycles=%0d exact_certificates=1 fresh_reads=512 fresh_releases=1",guardfacts_cycles);
+    for(integer owner=0;owner<2;owner=owner+1)
+      for(integer selected=0;selected<2;selected=selected+1) bank_identity_boundary(owner,selected);
+    if(bank_identity_checks<1000 || bank_identity_forward<9216 || bank_identity_inverse<9216)
+      $fatal(1,"bank identity insufficient real checker coverage");
+    $display("STAGED_BANKIDENTITY_PASS cases=4 checks=%0d forward=%0d inverse=%0d checker_exact=1",bank_identity_checks,bank_identity_forward,bank_identity_inverse);
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     $finish;
   end
-  initial begin #3000000;$fatal(1,"staged FFT absolute deadline");end
+  initial begin #3500000;$fatal(1,"staged FFT absolute deadline");end
 endmodule
