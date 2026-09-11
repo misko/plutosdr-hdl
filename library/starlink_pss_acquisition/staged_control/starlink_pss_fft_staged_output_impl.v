@@ -309,6 +309,7 @@ module starlink_pss_fft_staged_output_impl #(
   wire [1:0] guard_ready, guard_capacity, guard_busy, guard_commit, guard_fault, guard_ack, guard_current_fault, guard_forward_retire;
   wire [1:0] guard_valid_out, guard_private_out, guard_commit_out, guard_last_out;
   wire [1:0] guard_forward_private_offer;
+  wire [7:0] guard_offered_local_faults [0:1];
   wire [35:0] guard_return_data [0:1];
   wire [8:0] guard_return_position [0:1];
   wire [74:0] guard_return_metadata [0:1];
@@ -372,18 +373,23 @@ module starlink_pss_fft_staged_output_impl #(
   assign admission_reject[11] = output_bank_framing_fault_now;
   assign admission_reject[17:12] = summary_preflight_events;
   assign admission_reject[18] = result_fault;
+  // Preserve the scalar predicate for current fault fencing. Certificates
+  // register each guard fact before reduction; no fault is omitted or delayed.
+  wire [32:0] admission_reject_expanded = {admission_reject[18:10],
+    guard_offered_local_faults[1],guard_offered_local_faults[0],admission_reject[7:0]};
+  wire [35:0] admission_checks = {!next_inverse || inverse_descriptor_live,
+    cutover_admission_capacity,guard_capacity[next_inverse],~admission_reject_expanded};
   // Availability may legitimately rise while inverse allocation is pending.
   // Do not freeze a rejected capacity snapshot; begin validation only after
   // these small private-capacity predicates are ready. No fault tree here.
   wire admission_request = CERTIFIED_ADMISSION && job_valid &&
     guard_capacity[next_inverse] && cutover_admission_capacity &&
     (!next_inverse || inverse_descriptor_live);
-  starlink_pss_admission_certificate #(.CHECKS(22)) admission_gate (
+  starlink_pss_admission_certificate #(.CHECKS(36)) admission_gate (
     .clk(fft_clk), .resetn(fast_running),
     .request(admission_request), .quarantine(registered_quarantine),
     .consume(job_accept),
-    .checks_good({!next_inverse || inverse_descriptor_live,
-      cutover_admission_capacity,guard_capacity[next_inverse],~admission_reject}),
+    .checks_good(admission_checks),
     .permit(admission_permit), .snapshot_valid(), .snapshot_good()
   );
   generate for (genvar owner_index = 0; owner_index < 2; owner_index = owner_index + 1) begin : owners
@@ -408,6 +414,7 @@ module starlink_pss_fft_staged_output_impl #(
     .offered_input_beat(summary_offer_beat && this_raw_owner),
     .offered_input_complete(summary_offer_complete && this_raw_owner),
     .offered_local_fault_now(guard_offered_local_fault[OWNER]),
+    .offered_local_faults_now(guard_offered_local_faults[OWNER]),
     .final_fence_certified(final_fence), .external_fault_now(external_fault_now),
     .phase_input_fault_now(1'b0), .core_event_frame_started(event_frame && this_raw_owner),
     .preflight_fault_evidence_now(preparation_fault_now),
@@ -674,10 +681,11 @@ module starlink_pss_fft_staged_output_impl #(
     !event_frame,!core_status_valid,!core_output_valid,
     ~admission_reject};
   wire completion_permit;
-  starlink_pss_admission_certificate #(.CHECKS(28)) completion_gate (
+  wire [41:0] completion_checks = {completion_good[27:19],~admission_reject_expanded};
+  starlink_pss_admission_certificate #(.CHECKS(42)) completion_gate (
     .clk(fft_clk), .resetn(fast_running), .request(completion_request),
     .quarantine(registered_quarantine), .consume(completion_accept),
-    .checks_good(completion_good), .permit(completion_permit),
+    .checks_good(completion_checks), .permit(completion_permit),
     .snapshot_valid(), .snapshot_good()
   );
   assign completion_accept = CERTIFIED_ADMISSION ? completion_permit : legacy_completion_accept;

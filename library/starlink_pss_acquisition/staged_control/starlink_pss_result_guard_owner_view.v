@@ -66,6 +66,7 @@ module starlink_pss_result_guard_owner_view #(
   input wire certified_input_complete,
   input wire offered_input_beat, offered_input_complete,
   output wire offered_local_fault_now,
+  output wire [7:0] offered_local_faults_now,
   input wire final_fence_certified,
   input wire external_fault_now,
   input wire phase_input_fault_now,
@@ -216,6 +217,9 @@ module starlink_pss_result_guard_owner_view #(
     summary_frame_error, summary_input_error, summary_reservation_error, 1'b0 || mailbox_input_fault};
   wire summary_fault_now = |summary_faults_now;
   assign offered_local_fault_now = ENABLE_OFFERED_FAULT_SUMMARY ? summary_fault_now : 1'b0;
+  // Same facts as the scalar view, before its OR reduction. Callers may
+  // snapshot them separately; their reduction and unknown behavior are exact.
+  assign offered_local_faults_now = ENABLE_OFFERED_FAULT_SUMMARY ? summary_faults_now : 8'b0;
   assign protocol_fault = |fault_reasons;
   assign busy = active || awaiting_ack;
   // Admission already requires !active. In that phase reservation, slot and

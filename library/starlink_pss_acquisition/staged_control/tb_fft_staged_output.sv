@@ -68,6 +68,46 @@ module tb;
                 input [47:0] data,input [9:0] exponent);
     $fdisplay(log_file,"%0d,%s,%0d,%0d,%012h,%03h",mode,stream,block_id,position,data,exponent);
   endtask
+  // Real old-width certificate instances observe the same request, quarantine
+  // and consumption events. They are witnesses only, not authorization paths.
+  wire [21:0] guardfacts_legacy_admission = {!dut.next_inverse || dut.inverse_descriptor_live,
+    dut.cutover_admission_capacity,dut.guard_capacity[dut.next_inverse],~dut.admission_reject};
+  wire legacy_admission_permit,legacy_completion_permit;
+  starlink_pss_admission_certificate #(.CHECKS(22)) legacy_admission (
+    .clk(fft_clk),.resetn(dut.fast_running),.request(dut.admission_request),
+    .quarantine(dut.registered_quarantine),.consume(dut.job_accept),
+    .checks_good(guardfacts_legacy_admission),.permit(legacy_admission_permit),
+    .snapshot_valid(),.snapshot_good());
+  starlink_pss_admission_certificate #(.CHECKS(28)) legacy_completion (
+    .clk(fft_clk),.resetn(dut.fast_running),.request(dut.completion_request),
+    .quarantine(dut.registered_quarantine),.consume(dut.completion_accept),
+    .checks_good(dut.completion_good),.permit(legacy_completion_permit),
+    .snapshot_valid(),.snapshot_good());
+  wire [21:0] compressed_admission = {dut.admission_gate.snapshot_good[35:24],
+    (&dut.admission_gate.snapshot_good[23:16]),(&dut.admission_gate.snapshot_good[15:8]),
+    dut.admission_gate.snapshot_good[7:0]};
+  wire [27:0] compressed_completion = {dut.completion_gate.snapshot_good[41:24],
+    (&dut.completion_gate.snapshot_good[23:16]),(&dut.completion_gate.snapshot_good[15:8]),
+    dut.completion_gate.snapshot_good[7:0]};
+  integer guardfacts_cycles=0;
+  reg [7:0] guardfacts_mask;
+  always @(posedge fft_clk) begin
+    if(dut.fast_running) begin
+      if((|dut.admission_reject_expanded)!==(|dut.admission_reject) ||
+         (&dut.admission_checks)!==(&guardfacts_legacy_admission) ||
+         (&dut.completion_checks)!==(&dut.completion_good))
+        $fatal(1,"actual expanded current predicates differ");
+      #0.001;
+      if(dut.fast_running) begin
+        if({dut.admission_permit,dut.admission_gate.snapshot_valid,dut.admission_gate.consumed,compressed_admission} !==
+           {legacy_admission_permit,legacy_admission.snapshot_valid,legacy_admission.consumed,legacy_admission.snapshot_good} ||
+           {dut.completion_permit,dut.completion_gate.snapshot_valid,dut.completion_gate.consumed,compressed_completion} !==
+           {legacy_completion_permit,legacy_completion.snapshot_valid,legacy_completion.consumed,legacy_completion.snapshot_good})
+          $fatal(1,"actual old/expanded certificate state differs");
+        guardfacts_cycles=guardfacts_cycles+1;
+      end
+    end
+  end
   reg original_descriptor_certificate=0;
   integer certificate_checks=0,certificate_private_differences=0;
   always @(posedge fft_clk) begin
@@ -317,6 +357,38 @@ module tb;
       while(!dut.fast_running) @(negedge fft_clk);
     end
   endtask
+  task automatic guardfacts_boundary(input integer gate,input integer owner,input integer fact);
+    reg request_before;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      if(gate==0) while(!dut.admission_request || dut.admission_gate.snapshot_valid) @(negedge fft_clk);
+      else while(!dut.completion_request || dut.completion_gate.snapshot_valid) @(negedge fft_clk);
+      request_before=dut.output_request;stress_fault_expected=1;guardfacts_mask=8'(1<<fact);
+      if(owner==0) force dut.owners[0].result_guard.summary_faults_now=guardfacts_mask;
+      else force dut.owners[1].result_guard.summary_faults_now=guardfacts_mask;
+      @(posedge fft_clk);#0.001;
+      if(dut.fast_fault!==1'b1 || dut.admission_permit!==1'b0 || dut.completion_permit!==1'b0)
+        $fatal(1,"guard fact did not quarantine real certificates");
+      if(gate==0 && (dut.admission_gate.snapshot_valid!==1'b1 ||
+         dut.admission_gate.snapshot_good[8+owner*8+fact]!==1'b0 || legacy_admission.snapshot_good[8+owner]!==1'b0))
+        $fatal(1,"admission fact not independently captured");
+      if(gate==1 && (dut.completion_gate.snapshot_valid!==1'b1 ||
+         dut.completion_gate.snapshot_good[8+owner*8+fact]!==1'b0 || legacy_completion.snapshot_good[8+owner]!==1'b0))
+        $fatal(1,"completion fact not independently captured");
+      @(negedge fft_clk);
+      release dut.owners[0].result_guard.summary_faults_now;release dut.owners[1].result_guard.summary_faults_now;
+      repeat(100) begin
+        @(negedge fft_clk);
+        if(dut.input_job_start!==1'b0 || dut.config_valid!==1'b0 || dut.core_input_valid!==1'b0 ||
+           dut.admission_permit!==1'b0 || dut.completion_permit!==1'b0 ||
+           dut.admission_receipt!==1'b0 || dut.completion_receipt!==1'b0 ||
+           dut.output_request!==request_before || dut.output_released_valid!==1'b0)
+          $fatal(1,"guard fact escaped snapshot quarantine");
+      end
+      if(fault!==1'b1 || stress_reads!=0 || stress_releases!=0) $fatal(1,"guard fact veto evidence missing");
+      $display("STAGED_GUARDFACTS_CASE_PASS gate=%0d owner=%0d fact=%0d starts=0 reads=0 releases=0",gate,owner,fact);
+    end
+  endtask
   task automatic certification_boundary(input integer boundary);
     reg request_before;
     integer n;
@@ -489,7 +561,7 @@ module tb;
       $display("STAGED_FAULT_PASS boundary=%0d no_late_publication=1 releases=0 reads=%0d",boundary,stress_reads);
     end
   endtask
-  integer block_index,word_index;
+  integer block_index,word_index,guardfacts_gate,guardfacts_owner,guardfacts_fact;
   task automatic sequence_boundary(input integer boundary);
     reg request_before;
     reg [8:0] index_before;
@@ -803,6 +875,15 @@ module tb;
       $fatal(1,"missing private certification cycle coverage");
     $display("STAGED_CERTIFICATION_CYCLES_PASS checks=%0d private_differences=%0d",certificate_checks,certificate_private_differences);
     $display("STAGED_CERTIFICATION_PASS cases=6 snapshot_cancelled=1 consume_cancelled=1 fresh_recovery=1");
+    for(guardfacts_gate=0;guardfacts_gate<2;guardfacts_gate=guardfacts_gate+1)
+      for(guardfacts_owner=0;guardfacts_owner<2;guardfacts_owner=guardfacts_owner+1)
+        for(guardfacts_fact=0;guardfacts_fact<8;guardfacts_fact=guardfacts_fact+1)
+          guardfacts_boundary(guardfacts_gate,guardfacts_owner,guardfacts_fact);
+    stress_reset;stress_fixture=0;send_block(0);stress_drain=1;
+    while(stress_reads!=512 || !dut.retained_reusable) @(negedge fft_clk);
+    repeat(10) @(negedge fft_clk);
+    if(fault || stress_releases!=1 || guardfacts_cycles<1000) $fatal(1,"guard facts fresh recovery or coverage failed");
+    $display("STAGED_GUARDFACTS_PASS cases=32 cycles=%0d exact_certificates=1 fresh_reads=512 fresh_releases=1",guardfacts_cycles);
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     $finish;
