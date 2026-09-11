@@ -68,6 +68,27 @@ module tb;
                 input [47:0] data,input [9:0] exponent);
     $fdisplay(log_file,"%0d,%s,%0d,%0d,%012h,%03h",mode,stream,block_id,position,data,exponent);
   endtask
+  reg original_descriptor_certificate=0;
+  integer certificate_checks=0,certificate_private_differences=0;
+  always @(posedge fft_clk) begin
+    if(!dut.fast_running) original_descriptor_certificate=0;
+    else begin
+      if(dut.state==9) original_descriptor_certificate=dut.preparation_valid && !dut.any_fast_fault;
+      if(dut.registered_quarantine) original_descriptor_certificate=0;
+      else if((dut.state==2 && dut.selected_valid && dut.destination_reserved) ||
+              (dut.state==10 && dut.admission_receipt)) original_descriptor_certificate=0;
+      #0.001;
+      if(dut.fast_running) begin
+        certificate_checks=certificate_checks+1;
+        if(dut.descriptor_certified!==original_descriptor_certificate) begin
+          certificate_private_differences=certificate_private_differences+1;
+          if(dut.registered_quarantine!==1'b1 || dut.job_accept!==1'b0 ||
+             dut.input_job_start!==1'b0 || dut.config_valid!==1'b0 || dut.core_input_valid!==1'b0)
+            $fatal(1,"private descriptor difference escaped quarantine");
+        end
+      end
+    end
+  end
   reg [8:0] sequence_index_before;
   reg [63:0] sequence_next_before,sequence_input_next;
   reg sequence_previous_before,sequence_advance;
@@ -294,6 +315,53 @@ module tb;
       stress_reads=0;stress_prefix=0;stress_releases=0;stress_fault_expected=0;
       resetn=1;fft_resetn=1;
       while(!dut.fast_running) @(negedge fft_clk);
+    end
+  endtask
+  task automatic certification_boundary(input integer boundary);
+    reg request_before;
+    integer n;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      while(dut.state!=9 || dut.next_inverse!==(boundary==1)) @(negedge fft_clk);
+      request_before=dut.output_request;stress_fault_expected=1;
+      if(boundary<2) begin
+        if(dut.preparation_valid!==1'b1 || dut.registered_quarantine!==1'b0)
+          $fatal(1,"snapshot not initially valid/live");
+        force dut.event_last_missing=1'b1;
+      end else if(boundary==2) resetn=0;
+      else if(boundary==3) fft_resetn=0;
+      else if(boundary==4) force dut.preflight_position=9'd1;
+      else force dut.preflight_position=9'bx;
+      @(posedge fft_clk);#0.001;
+      if(boundary<2 && (dut.descriptor_certified!==1'b1 || original_descriptor_certificate!==1'b0 ||
+                        dut.registered_quarantine!==1'b1))
+        $fatal(1,"fault-edge private descriptor snapshot was not isolated");
+      if(boundary>=4 && dut.descriptor_certified===1'b1)
+        $fatal(1,"bad/unknown descriptor certified");
+      if(boundary!=2 && boundary!=3 &&
+         (dut.input_job_start!==1'b0 || dut.config_valid!==1'b0 || dut.core_input_valid!==1'b0))
+        $fatal(1,"descriptor snapshot fault escaped into FFT");
+      @(negedge fft_clk);release dut.event_last_missing;release dut.preflight_position;
+      if(boundary==2 || boundary==3) begin
+        repeat(10) @(negedge fft_clk);resetn=1;fft_resetn=1;
+      end
+      repeat(100) begin
+        @(negedge fft_clk);
+        if(dut.input_job_start!==1'b0 || dut.config_valid!==1'b0 || dut.core_input_valid!==1'b0 ||
+           dut.admission_permit!==1'b0 || dut.admission_receipt!==1'b0 ||
+           dut.output_request!==request_before || dut.output_released_valid!==1'b0)
+          $fatal(1,"stale private descriptor escaped snapshot cancellation");
+      end
+      if(stress_reads!=0 || stress_releases!=0 ||
+         ((boundary<2 || boundary==4) && fault!==1'b1) ||
+         (boundary==5 && dut.epoch_preflight_reasons===6'b0))
+        $fatal(1,"missing snapshot cancellation evidence");
+      // Common reset must permit genuinely fresh work, not merely remain idle.
+      stress_reset;stress_fixture=0;send_block(0);stress_drain=1;
+      while(stress_reads!=512 || !dut.retained_reusable) @(negedge fft_clk);
+      repeat(10) @(negedge fft_clk);
+      if(fault || stress_releases!=1) $fatal(1,"fresh certification epoch recovery failed");
+      $display("STAGED_CERTIFICATION_CASE_PASS boundary=%0d stale_starts=0 stale_reads=0 fresh_reads=512 fresh_releases=1",boundary);
     end
   endtask
   task automatic admission_boundary(input integer boundary);
@@ -730,6 +798,11 @@ module tb;
     $display("STAGED_FINALCAPTURE_PASS loads=%0d holds=%0d accepts=%0d fault_loads=%0d original_payload_checked=1",final_loads,final_holds,final_accepts,final_fault_loads);
     for(mode=0;mode<6;mode=mode+1) sequence_boundary(mode);
     $display("STAGED_SEQUENCE_PASS cases=6 public_acceptance_preserved=1 next_block_checked=1 quarantine_checked=1");
+    for(mode=0;mode<6;mode=mode+1) certification_boundary(mode);
+    if(certificate_checks<1000 || certificate_private_differences<2)
+      $fatal(1,"missing private certification cycle coverage");
+    $display("STAGED_CERTIFICATION_CYCLES_PASS checks=%0d private_differences=%0d",certificate_checks,certificate_private_differences);
+    $display("STAGED_CERTIFICATION_PASS cases=6 snapshot_cancelled=1 consume_cancelled=1 fresh_recovery=1");
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     $finish;

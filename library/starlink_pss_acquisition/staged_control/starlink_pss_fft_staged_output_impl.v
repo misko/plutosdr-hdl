@@ -756,7 +756,10 @@ module starlink_pss_fft_staged_output_impl #(
         if (preparing) preparation_age <= preparation_age + 1'b1;
         else preparation_age <= 0;
         if (state == VERIFY_LEASE)
-          descriptor_certified <= preparation_valid && !any_fast_fault;
+          // In certified mode this is only a private descriptor snapshot.
+          // Admission still checks current faults and consumes a registered
+          // certificate under epoch quarantine before any core/job start.
+          descriptor_certified <= preparation_valid && (CERTIFIED_ADMISSION || !any_fast_fault);
         // Private expected descriptor capture does not authorize the bank.
         if (return_private_valid && !next_inverse && return_last)
           expected_product_metadata <= {1'b1, engine_metadata[68:5], return_metadata[4:0]};
