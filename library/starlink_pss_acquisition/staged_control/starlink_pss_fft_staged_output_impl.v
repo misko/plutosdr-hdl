@@ -20,7 +20,8 @@ module starlink_pss_fft_staged_output_impl #(
   parameter integer PRIVATE_DESCRIPTOR_OFFER = 0,
   parameter integer CLOSED_INPUT_CUTOVER = 0,
   parameter integer INPUT_OFFER_FAULT_SUMMARY = 0,
-  parameter integer CONTEXTUAL_DESTINATION_SUMMARY = 0
+  parameter integer CONTEXTUAL_DESTINATION_SUMMARY = 0,
+  parameter integer REPLAY_QUIET_PUBLICATION = 0
 ) (
   input wire clk, resetn, fft_clk, fft_resetn,
   input wire input_valid,
@@ -38,6 +39,15 @@ module starlink_pss_fft_staged_output_impl #(
   output wire fault
 );
   initial begin
+    // BEGIN REPLAY FENCE CONFIGURATION
+    if (REPLAY_QUIET_PUBLICATION !== 0 && REPLAY_QUIET_PUBLICATION !== 1)
+      $fatal(1, "replay publication mode must be known zero or one");
+    if (REPLAY_QUIET_PUBLICATION === 1 &&
+        (REGISTERED_SCHEDULING !== 1 || INPUT_OFFER_FAULT_SUMMARY !== 1 ||
+         CONTEXTUAL_DESTINATION_SUMMARY !== 1 || PRIVATE_DESCRIPTOR_OFFER !== 1 ||
+         CLOSED_INPUT_CUTOVER !== 1))
+      $fatal(1, "replay publication requires the proved ownership profile");
+    // END REPLAY FENCE CONFIGURATION
     if (CONTEXTUAL_DESTINATION_SUMMARY !== 0 && CONTEXTUAL_DESTINATION_SUMMARY !== 1)
       $fatal(1, "contextual destination summary mode must be known zero or one");
     if (INPUT_OFFER_FAULT_SUMMARY !== 0 && INPUT_OFFER_FAULT_SUMMARY !== 1)
@@ -371,6 +381,7 @@ module starlink_pss_fft_staged_output_impl #(
     (CLOSED_INPUT_CUTOVER ? cutover_closed_input_fault_now : cutover_fault_now) ||
     (|cutover_reasons) || retained_fault_now || (|retained_reasons);
   wire [1:0] guard_ready, guard_capacity, guard_busy, guard_commit, guard_fault, guard_ack, guard_current_fault, guard_forward_retire;
+  wire [1:0] guard_active;
   wire [1:0] guard_valid_out, guard_private_out, guard_commit_out, guard_last_out;
   wire [1:0] guard_forward_private_offer;
   wire [7:0] guard_offered_local_faults [0:1];
@@ -500,7 +511,7 @@ module starlink_pss_fft_staged_output_impl #(
     .mailbox_input_last(guard_last_out[OWNER]), .mailbox_input_metadata(guard_return_metadata[OWNER]),
     .busy(guard_busy[OWNER]), .commit_pulse(guard_commit[OWNER]),
     .protocol_fault(guard_fault[OWNER]), .fault_reasons(),
-    .owner_active(), .owner_awaiting_ack(), .owner_ack_accept(guard_ack[OWNER]),
+    .owner_active(guard_active[OWNER]), .owner_awaiting_ack(), .owner_ack_accept(guard_ack[OWNER]),
     .owner_fault_now(guard_current_fault[OWNER])
   );
   end endgenerate
@@ -540,7 +551,29 @@ module starlink_pss_fft_staged_output_impl #(
   // the adapter before any notification/release. The adapter independently
   // rejects P_ACK if the real bank request did not transition.
   wire output_replay_private_ready = output_bank_ready && output_descriptor_valid;
-  wire output_replay_accept = output_replay_valid && output_descriptor_valid && output_bank_ready && !common_current_fault;
+  // BEGIN REPLAY QUIET PUBLICATION FENCE
+  // Only the fully closed inverse producer can publish its retained final word.
+  // Inactive guards reject any new event regardless of its status/data payload.
+  // Keep all current external and mailbox vetoes; this is not a delayed permit.
+  localparam REPLAY_FENCE_PROFILE = (REGISTERED_SCHEDULING === 1) &&
+    (INPUT_OFFER_FAULT_SUMMARY === 1) && (CONTEXTUAL_DESTINATION_SUMMARY === 1) &&
+    (PRIVATE_DESCRIPTOR_OFFER === 1) && (CLOSED_INPUT_CUTOVER === 1);
+  wire replay_publication_context = state==ACK_DRAIN && next_inverse && routed_inverse &&
+    !preparing && !guard_active[0] && !guard_active[1];
+  wire replay_publication_fault = offered_external_fault_now || result_fault ||
+    output_bank_fault || output_bank_framing_fault_now || preparation_fault_now ||
+    core_status_valid || core_output_valid || event_frame ||
+    summary_offer_beat || summary_offer_complete;
+  wire output_replay_accept;
+  generate if (REPLAY_QUIET_PUBLICATION === 0) begin : original_replay_publication
+    assign output_replay_accept = output_replay_valid && output_descriptor_valid && output_bank_ready && !common_current_fault;
+  end else if (REPLAY_QUIET_PUBLICATION === 1 && REPLAY_FENCE_PROFILE) begin : quiet_replay_publication
+    assign output_replay_accept = output_replay_valid && output_descriptor_valid && output_bank_ready &&
+      replay_publication_context && !replay_publication_fault;
+  end else begin : invalid_replay_publication
+    assign output_replay_accept = 1'b0;
+  end endgenerate
+  // END REPLAY QUIET PUBLICATION FENCE
   starlink_pss_completion_mailbox_stage #(.PRIVATE_FINAL_CAPTURE(1)) output_control (
     .clk(fft_clk), .resetn(fast_running), .abort_epoch(fast_fault),
     .allocate_valid(output_allocate_valid), .allocate_ready(output_allocate_ready),

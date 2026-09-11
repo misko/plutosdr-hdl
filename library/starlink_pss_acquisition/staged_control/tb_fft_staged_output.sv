@@ -24,6 +24,14 @@ module tb #(parameter integer ACK_ONLY=0);
   task automatic check_replay_quiet;
     begin
       if(dut.fast_running)begin
+        // BEGIN INTEGRATED REPLAY FENCE WITNESS
+        if(dut.REPLAY_QUIET_PUBLICATION!==1 || dut.REPLAY_FENCE_PROFILE!==1)
+          $fatal(1,"integrated replay fence not enabled in actual FFT");
+        if(dut.guard_active!=={dut.owners[1].result_guard.active,dut.owners[0].result_guard.active} ||
+           dut.replay_publication_context!==replay_quiet_context ||
+           dut.replay_publication_fault!==replay_quiet_fault)
+          $fatal(1,"integrated replay fence differs from independent shadow");
+        // END INTEGRATED REPLAY FENCE WITNESS
         if((replay_quiet_accept===1'b1)!==(replay_original_predicate===1'b1))
           $fatal(1,"replay quiet publication decision differs");
         if((dut.output_replay_accept===1'b1)!==(!publication_probe_paused && replay_original_predicate===1'b1))
@@ -44,7 +52,8 @@ module tb #(parameter integer ACK_ONLY=0);
     begin
       if(replay_quiet_checks<1000 || replay_quiet_offers<18 || replay_quiet_accepts<18)
         $fatal(1,"replay quiet witness coverage short");
-      $display("STAGED_REPLAY_QUIET_PASS checks=%0d offers=%0d accepts=%0d sweep=%0d paused=%0d current_exact=1 runtime_unchanged=1",replay_quiet_checks,replay_quiet_offers,replay_quiet_accepts,replay_quiet_sweep,replay_quiet_paused);
+      $display("STAGED_REPLAY_QUIET_PASS checks=%0d offers=%0d accepts=%0d sweep=%0d paused=%0d current_exact=1 runtime_unchanged=0",replay_quiet_checks,replay_quiet_offers,replay_quiet_accepts,replay_quiet_sweep,replay_quiet_paused);
+      $display("STAGED_REPLAY_FENCE_PASS enabled=1 profile=1 independent_shadow=1 current_publication_exact=1"); // INTEGRATED REPLAY FENCE REPORT
     end
   endtask
   // END REPLAY QUIET WITNESS
@@ -189,7 +198,7 @@ module tb #(parameter integer ACK_ONLY=0);
   starlink_pss_fft_staged_output_impl #(.REGISTERED_SCHEDULING(1),
     .BOUNDARY_ROUND_SAT(1),.REGISTER_OPERANDS(1),.LOCAL_FIRST_ADMISSION(1),
     .PRIVATE_DESCRIPTOR_OFFER(1),.CLOSED_INPUT_CUTOVER(1),
-    .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1)) dut(.*);
+    .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1),.REPLAY_QUIET_PUBLICATION(1)) dut(.*);
   reg [31:0] samples[0:1405];
   // BEGIN OUTPUT METADATA WITNESS
   integer output_metadata_checks=0,output_metadata_live_words=0,output_metadata_replay_words=0;
