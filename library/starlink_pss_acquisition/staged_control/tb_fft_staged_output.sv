@@ -3,6 +3,47 @@
 // Changed control latency is measured, not assumed equal to the old controller.
 `timescale 1ns/1fs
 module tb #(parameter integer ACK_ONLY=0);
+  // BEGIN COMPLETION MAILBOX WITNESS
+  integer completion_slot_accepts=0, completion_slot_consumes=0, completion_slot_holds=0;
+  reg completion_slot_held=0;
+  reg [31:0] completion_slot_tag;
+  reg [35:0] completion_slot_data;
+  always @(posedge fft_clk) begin : completion_slot_monitor
+    reg accepting,consuming;
+    accepting=dut.fast_running && dut.output_complete_accept;
+    consuming=dut.fast_running && !dut.output_control.fault && dut.output_control.complete_pending;
+    if(!dut.fast_running)completion_slot_held=0;
+    else begin
+      if(accepting)begin
+        completion_slot_held=1;completion_slot_tag=dut.inverse_tag;
+        completion_slot_data=dut.guard_return_data[1];completion_slot_accepts=completion_slot_accepts+1;
+      end
+      #0.001;
+      if(dut.fast_running)begin
+        if(accepting && (!dut.output_publication_busy || dut.output_complete_ready))
+          $fatal(1,"actual completion receipt did not reserve ownership immediately");
+        if(consuming && !dut.output_control.fault)begin
+          if(dut.output_control.complete_pending || dut.output_control.phase!==3'd1)
+            $fatal(1,"actual completion receipt not consumed into private COMMIT");
+          completion_slot_consumes=completion_slot_consumes+1;
+        end
+        if(completion_slot_held && dut.output_publication_busy)begin
+          if(dut.output_control.active_tag!==completion_slot_tag || dut.output_control.final_data!==completion_slot_data)
+            $fatal(1,"actual held completion tag/final word changed");
+          completion_slot_holds=completion_slot_holds+1;
+        end
+        if(!dut.output_publication_busy)completion_slot_held=0;
+      end
+    end
+  end
+  task automatic report_completion_slot;
+    begin
+      if(completion_slot_accepts<18 || completion_slot_consumes<18 || completion_slot_holds<1000)
+        $fatal(1,"incomplete actual completion receipt coverage");
+      $display("STAGED_COMPLETION_SLOT_PASS accepts=%0d consumes=%0d holds=%0d immediate_ownership=1 held_payload=1",completion_slot_accepts,completion_slot_consumes,completion_slot_holds);
+    end
+  endtask
+  // END COMPLETION MAILBOX WITNESS
   // BEGIN BALANCED HANDOFF WITNESS
   integer handoff_checks=0, handoff_owned_checks=0;
   always @(negedge fft_clk) begin : settled_handoff_monitor
@@ -492,7 +533,7 @@ module tb #(parameter integer ACK_ONLY=0);
     else begin
       final_before={dut.output_control.active_tag,dut.output_control.final_data,dut.output_control.initial_request};
       final_inputs={dut.inverse_tag,dut.guard_return_data[1],dut.output_request};
-      final_open=dut.output_control.phase==0;
+      final_open=!dut.output_publication_busy;
       final_accept=!dut.output_control.fault && dut.output_complete_valid && dut.output_complete_ready;
       final_fault=dut.output_control.fault;
       if(final_accept) final_original=final_inputs;
@@ -500,10 +541,10 @@ module tb #(parameter integer ACK_ONLY=0);
       if(dut.fast_running) begin
         if({dut.output_control.active_tag,dut.output_control.final_data,dut.output_control.initial_request} !==
            (final_open ? final_inputs : final_before)) $fatal(1,"actual private final load/hold");
-        if(dut.output_control.phase!=0 &&
+        if(dut.output_publication_busy &&
            {dut.output_control.active_tag,dut.output_control.final_data,dut.output_control.initial_request}!==final_original)
           $fatal(1,"actual accepted final differs from original");
-        if(final_accept && dut.output_control.phase==0) $fatal(1,"actual final ownership missing");
+        if(final_accept && !dut.output_publication_busy) $fatal(1,"actual final ownership missing");
         if(final_open) begin
           final_loads=final_loads+1;
           if(final_fault) final_fault_loads=final_fault_loads+1;
@@ -878,6 +919,38 @@ module tb #(parameter integer ACK_ONLY=0);
     end
   endtask
   // END OUTPUT METADATA BOUNDARIES
+  // BEGIN COMPLETION MAILBOX BOUNDARIES
+  task automatic completion_slot_boundary(input integer boundary);
+    reg request_before;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      while(!dut.output_control.complete_pending)@(negedge fft_clk);
+      if(!dut.output_publication_busy || dut.output_control.phase!==3'd0 || dut.output_complete_ready)
+        $fatal(1,"actual test did not reach reserved pending receipt");
+      request_before=dut.output_request;stress_fault_expected=1;
+      if(boundary==0)force dut.event_last_missing=1'b1;
+      else if(boundary==1)resetn=0;
+      else fft_resetn=0;
+      @(posedge fft_clk);#0.001;@(negedge fft_clk);
+      release dut.event_last_missing;
+      if(boundary!=0)begin
+        repeat(10)@(negedge fft_clk);resetn=1;fft_resetn=1;request_before=dut.output_request;
+      end
+      repeat(100)begin
+        @(negedge fft_clk);
+        if(dut.output_request!==request_before || dut.output_published_valid || dut.output_released_valid || dut.output_replay_accept || output_valid)
+          $fatal(1,"pending completion cancellation escaped quarantine");
+      end
+      if(stress_reads!=0 || stress_releases!=0 || (boundary==0 && !fault))
+        $fatal(1,"missing pending completion cancellation evidence");
+      stress_reset;stress_fixture=0;send_block(0);stress_drain=1;
+      while(stress_reads!=512 || !dut.retained_reusable)@(negedge fft_clk);
+      repeat(10)@(negedge fft_clk);
+      if(fault || stress_releases!=1)$fatal(1,"pending completion fresh recovery failed");
+      $display("STAGED_COMPLETION_SLOT_CASE_PASS boundary=%0d fresh_reads=512 fresh_releases=1",boundary);
+    end
+  endtask
+  // END COMPLETION MAILBOX BOUNDARIES
   task automatic private_ack_boundary(input integer boundary);
     reg request_before;
     begin
@@ -1484,6 +1557,9 @@ module tb #(parameter integer ACK_ONLY=0);
     $fdisplay(log_file,"context,stream,job,position,data,exponent");
     if(ACK_ONLY) begin
       stress=1;
+      // BEGIN COMPLETION MAILBOX AUXILIARY
+      for(mode=0;mode<3;mode=mode+1)completion_slot_boundary(mode);
+      // END COMPLETION MAILBOX AUXILIARY
       // BEGIN OUTPUT METADATA AUXILIARY
       for(mode=0;mode<6;mode=mode+1)output_metadata_boundary(mode);
       // END OUTPUT METADATA AUXILIARY
@@ -1503,6 +1579,7 @@ module tb #(parameter integer ACK_ONLY=0);
       report_split_capacity; // SPLIT CAPACITY AUXILIARY
       report_output_metadata; // OUTPUT METADATA AUXILIARY
       report_balanced_handoff; // BALANCED HANDOFF AUXILIARY
+      report_completion_slot; // COMPLETION MAILBOX AUXILIARY
       $fclose(log_file);$finish;
     end
     for(mode=0;mode<6;mode=mode+1) begin
@@ -1593,6 +1670,7 @@ module tb #(parameter integer ACK_ONLY=0);
     report_split_capacity; // SPLIT CAPACITY MAIN
     report_output_metadata; // OUTPUT METADATA MAIN
     report_balanced_handoff; // BALANCED HANDOFF MAIN
+    report_completion_slot; // COMPLETION MAILBOX MAIN
     $finish;
   end
   initial begin #3000000;$fatal(1,"staged FFT absolute deadline");end
