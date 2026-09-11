@@ -774,13 +774,22 @@ module starlink_pss_fft_staged_output_impl #(
     end
   end
   end else begin : registered_scheduling
+    // BEGIN PRIVATE ENGINE DESCRIPTOR
+    // This payload grants nothing in WAIT_BANK. Follow the selected bank while
+    // waiting, then freeze on the unchanged capacity/admission transition.
+    // Quarantine may cancel a private capture, never authorize a core start.
+    always @(posedge fft_clk) begin
+      if (!fast_running) engine_metadata <= 0;
+      else if (state == WAIT_BANK) engine_metadata <= selected_metadata;
+    end
+    // END PRIVATE ENGINE DESCRIPTOR
     // Wide comparisons terminate only at certificates/reasons. The private
     // scheduler consumes registered receipts and registered epoch quarantine.
     // A fault-edge private advance is not publication or a bank release.
     always @(posedge fft_clk) begin
       if (!fast_running) begin
         state <= RESET0; core_release <= 0; input_job_start_private <= 0; next_inverse <= 0;
-        engine_metadata <= 0; engine_input_reserved <= 0; engine_output_reserved <= 0;
+        engine_input_reserved <= 0; engine_output_reserved <= 0;
         forward_committed <= 0; held_phase <= 0; held_lease <= 0;
         descriptor_certified <= 0; admission_receipt <= 0; completion_receipt <= 0;
         expected_product_metadata <= 0; preparation_age <= 0;
@@ -807,7 +816,6 @@ module starlink_pss_fft_staged_output_impl #(
           RESET0: begin core_release <= 0; state <= RESET1; end
           RESET1: begin core_release <= 0; state <= WAIT_BANK; end
           WAIT_BANK: if (selected_valid && destination_reserved) begin
-            engine_metadata <= selected_metadata;
             held_phase <= next_inverse; held_lease <= selected_lease;
             engine_input_reserved <= 1; engine_output_reserved <= 1;
             descriptor_certified <= 0; state <= VERIFY_LEASE;

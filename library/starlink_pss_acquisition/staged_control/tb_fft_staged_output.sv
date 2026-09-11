@@ -32,6 +32,26 @@ module tb;
   integer log_file;
   integer publication_phase_checks=0,replay_phase_checks=0,preflight_unread_checks=0;
   integer stalled_publication_checks=0;
+  reg [69:0] legacy_engine_metadata=0;
+  integer engine_capture_checks=0,engine_private_differences=0;
+  always @(posedge fft_clk) begin
+    if(!dut.fast_running) legacy_engine_metadata<=0;
+    else if(dut.registered_quarantine) begin end
+    else if(dut.state==2 && dut.selected_valid && dut.destination_reserved)
+      legacy_engine_metadata<=dut.selected_metadata;
+  end
+  always @(negedge fft_clk) begin
+    #0.003;
+    if(dut.fast_running===1'b1) begin
+      engine_capture_checks=engine_capture_checks+1;
+      if(dut.engine_metadata!==legacy_engine_metadata) begin
+        engine_private_differences=engine_private_differences+1;
+        if((dut.state!=2 && dut.state!=8) || dut.job_accept || dut.config_valid ||
+           dut.core_input_valid || dut.output_complete_accept || dut.output_replay_accept)
+          $fatal(1,"private engine descriptor reached an owned/public operation");
+      end
+    end
+  end
   // Independent private-slot scoreboard across the actual FFT/core resets.
   integer input_stage_pushes=0,input_stage_pops=0,input_stage_checks=0,input_stage_final_holds=0;
   reg input_stage_owned=0;
@@ -462,6 +482,50 @@ module tb;
       repeat(10)@(negedge fft_clk);
       if(fault || stress_releases!=1)$fatal(1,"staged input fresh recovery failed");
       $display("STAGED_INPUT_IDENTITY_CASE_PASS boundary=%0d stale_reads=0 publications=0 fresh_reads=512 fresh_releases=1",boundary);
+    end
+  endtask
+  task automatic engine_capture_boundary(input integer boundary);
+    reg request_before;
+    begin
+      stress_reset;stress_fixture=0;
+      while(dut.state!=2)@(negedge fft_clk);
+      force dut.destination_reserved=1'b0;
+      if(boundary==2)begin
+        send_block(0);
+        while(dut.selected_valid!==1'b1)@(negedge fft_clk);
+      end else if(boundary==1 || boundary>=4)force dut.selected_metadata=70'bx;
+      else force dut.selected_metadata=70'h123456789abcdef;
+      repeat(4)@(negedge fft_clk);
+      #0.004;
+      if(dut.engine_metadata!==dut.selected_metadata || dut.state!=2 || dut.job_accept ||
+         dut.config_valid || dut.core_input_valid || dut.output_replay_accept)
+        $fatal(1,"private engine capture did not stay private boundary=%0d",boundary);
+      request_before=dut.output_request;
+      if(boundary==3)begin
+        stress_fault_expected=1;force dut.event_last_missing=1'b1;
+        repeat(3)@(negedge fft_clk);release dut.event_last_missing;
+      end else if(boundary>=4)begin
+        stress_fault_expected=1;
+        if(boundary==4)fft_resetn=0;else resetn=0;
+        repeat(10)@(negedge fft_clk);
+      end
+      release dut.selected_metadata;release dut.destination_reserved;
+      if(boundary>=3)begin
+        repeat(20)begin
+          @(negedge fft_clk);
+          if(dut.output_request!==request_before || dut.output_published_valid ||
+             dut.job_accept || dut.config_valid || dut.core_input_valid)
+            $fatal(1,"cancelled private engine capture escaped boundary=%0d",boundary);
+        end
+        if(boundary==3 && !fault)$fatal(1,"missing engine capture cancellation fault");
+        stress_reset;
+      end
+      if(boundary!=2)send_block(0);
+      stress_drain=1;
+      while(stress_reads!=512 || !dut.retained_reusable)@(negedge fft_clk);
+      repeat(10)@(negedge fft_clk);
+      if(fault || stress_releases!=1)$fatal(1,"private engine capture fresh recovery failed");
+      $display("STAGED_ENGINE_CAPTURE_CASE_PASS boundary=%0d extra_private=1 stale_reads=0 fresh_reads=512 fresh_releases=1",boundary);
     end
   endtask
   task automatic guardfacts_boundary(input integer gate,input integer owner,input integer fact);
@@ -1058,6 +1122,10 @@ module tb;
     if(input_stage_pushes<18432 || input_stage_pops<18432 || input_stage_checks<18432 || input_stage_final_holds<36)
       $fatal(1,"actual staged input coverage missing");
     $display("STAGED_INPUT_IDENTITY_PASS pushes=%0d pops=%0d checks=%0d final_holds=%0d exact_payload=1 admitted_descriptor=1",input_stage_pushes,input_stage_pops,input_stage_checks,input_stage_final_holds);
+    for(integer boundary=0;boundary<6;boundary=boundary+1)engine_capture_boundary(boundary);
+    if(engine_capture_checks<1000 || engine_private_differences<8)
+      $fatal(1,"private engine capture oracle coverage missing");
+    $display("STAGED_ENGINE_CAPTURE_PASS checks=%0d private_differences=%0d owned_exact=1 cases=6",engine_capture_checks,engine_private_differences);
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     $finish;
