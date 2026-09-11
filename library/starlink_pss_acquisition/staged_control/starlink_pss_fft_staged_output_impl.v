@@ -438,6 +438,7 @@ module starlink_pss_fft_staged_output_impl #(
   reg [74:0] output_descriptor_payload;
   reg output_descriptor_valid, output_descriptor_fault;
   reg output_descriptor_pending, output_descriptor_lookup_ok;
+  reg output_descriptor_locked;
   reg [69:0] output_descriptor_expected;
   wire output_allocate_ready, output_allocated_valid;
   wire [31:0] output_allocated_tag;
@@ -455,6 +456,11 @@ module starlink_pss_fft_staged_output_impl #(
   assign inverse_guard_ready = (output_bank_ready && output_complete_ready) || output_released_valid;
   wire output_complete_valid = guard_commit_out[1] && output_bank_ready;
   wire output_complete_accept = output_complete_valid && output_complete_ready;
+  // Private payload may follow the owned producer before completion. The
+  // acceptance edge freezes it through validation, publication and real reader
+  // release. Only the small receipt/lock registers use qualified acceptance;
+  // wide payload enables must not inherit the current-fault tree.
+  wire output_descriptor_capture = inverse_descriptor_live && !output_descriptor_locked;
   // Private replay consumption is not publication. A new current fault still
   // vetoes bank authorization below, and its registered epoch abort cancels
   // the adapter before any notification/release. The adapter independently
@@ -519,19 +525,23 @@ module starlink_pss_fft_staged_output_impl #(
       inverse_descriptor_live<=0;inverse_allocation_pending<=0;inverse_tag<=0;
       output_descriptor_tag<=0;output_descriptor_payload<=0;output_descriptor_valid<=0;output_descriptor_fault<=0;
       output_descriptor_pending<=0;output_descriptor_lookup_ok<=0;output_descriptor_expected<=0;
+      output_descriptor_locked<=0;
       retained_published<=0;producer_transfer_receipt<=0;
     end else begin
       if (output_allocate_valid && output_allocate_ready) inverse_allocation_pending<=1;
       if (output_allocated_valid) begin
         inverse_descriptor_live<=1;inverse_allocation_pending<=0;inverse_tag<=output_allocated_tag;
       end
-      if (output_complete_accept) begin
-        // Capture lookup and expected descriptor first. Public authorization
-        // stays closed until the next-edge comparison of these held registers.
+      if (output_descriptor_capture) begin
+        // Invalid private values grant nothing. On the actual acceptance edge
+        // these are the same lookup/return values as the qualified capture.
         output_descriptor_tag<=inverse_tag;
         output_descriptor_payload<={output_lookup_descriptor,guard_return_metadata[1][4:0]};
         output_descriptor_expected<=guard_return_metadata[1][74:5];
         output_descriptor_lookup_ok<=output_lookup_found===1'b1 && output_lookup_committed===1'b0;
+      end
+      if (output_complete_accept) begin
+        output_descriptor_locked<=1;
         output_descriptor_valid<=0;output_descriptor_pending<=1;
       end else if (output_descriptor_pending) begin
         output_descriptor_pending<=0;
@@ -542,7 +552,9 @@ module starlink_pss_fft_staged_output_impl #(
       end
       if (output_published_valid) begin retained_published<=1;producer_transfer_receipt<=1;end
       if (completion_accept && next_inverse) producer_transfer_receipt<=0;
-      if (output_released_valid) begin inverse_descriptor_live<=0;retained_published<=0;end
+      if (output_released_valid) begin
+        inverse_descriptor_live<=0;retained_published<=0;output_descriptor_locked<=0;
+      end
     end
   end
   starlink_pss_core_job_cutover #(.ENABLE_CLOSED_INPUT_VIEW(CLOSED_INPUT_CUTOVER),

@@ -34,6 +34,36 @@ module tb;
   integer stress_reads=0,stress_fixture=0,stress_prefix=0,stress_releases=0;
   integer handover_admissions=0,handover_completions=0,slow_edges=0;
   reg previous_admission=0,previous_completion=0;
+  integer capture_load_checks=0,capture_hold_checks=0,capture_accept_checks=0;
+  reg [177:0] capture_before,capture_inputs;
+  reg capture_was_open,capture_was_accept,capture_was_release;
+  // Clock-by-clock payload contract in every healthy numerical context. Fault
+  // injection below deliberately corrupts held registers, so has its own checks.
+  always @(posedge fft_clk) begin
+    if(dut.fast_running && !stress) begin
+      capture_before={dut.output_descriptor_tag,dut.output_descriptor_payload,
+        dut.output_descriptor_expected,dut.output_descriptor_lookup_ok};
+      capture_inputs={dut.inverse_tag,dut.output_lookup_descriptor,dut.guard_return_metadata[1][4:0],
+        dut.guard_return_metadata[1][74:5],(dut.output_lookup_found===1'b1 && dut.output_lookup_committed===1'b0)};
+      capture_was_open=dut.output_descriptor_capture;
+      capture_was_accept=dut.output_complete_accept;
+      capture_was_release=dut.output_released_valid;
+      #0.001;
+      if(dut.fast_running) begin
+        if({dut.output_descriptor_tag,dut.output_descriptor_payload,
+            dut.output_descriptor_expected,dut.output_descriptor_lookup_ok} !==
+           (capture_was_open ? capture_inputs : capture_before))
+          $fatal(1,"private descriptor load/freeze contract");
+        if(capture_was_accept && !dut.output_descriptor_locked)
+          $fatal(1,"accepted descriptor did not freeze");
+        if(capture_was_release && dut.output_descriptor_locked)
+          $fatal(1,"real release did not reopen private capture");
+        if(capture_was_open) capture_load_checks=capture_load_checks+1;
+        else capture_hold_checks=capture_hold_checks+1;
+        if(capture_was_accept) capture_accept_checks=capture_accept_checks+1;
+      end
+    end
+  end
   task automatic log_word(input string stream,input integer block_id,input integer position,
                 input [47:0] data,input [9:0] exponent);
     $fdisplay(log_file,"%0d,%s,%0d,%0d,%012h,%03h",mode,stream,block_id,position,data,exponent);
@@ -157,6 +187,10 @@ module tb;
         $fatal(1,"partitioned admission facts differ from full current predicate");
       if(dut.output_complete_accept && dut.inverse_descriptor_live!==1'b1)
         $fatal(1,"completion sampled private lookup without held ownership");
+      if(dut.output_complete_accept && dut.output_descriptor_capture!==1'b1)
+        $fatal(1,"completion missed its private descriptor capture");
+      if(dut.output_descriptor_pending && !dut.output_descriptor_locked)
+        $fatal(1,"pending descriptor was not frozen");
       if(dut.output_descriptor_pending && (dut.output_descriptor_valid || dut.output_replay_accept || dut.output_complete_accept))
         $fatal(1,"writer validation pending was overwritten or authorized output");
       if(dut.output_replay_accept!==(dut.output_replay_valid && dut.output_replay_private_ready && !dut.common_current_fault))
@@ -325,6 +359,74 @@ module tb;
     end
   endtask
   integer block_index,word_index;
+  task automatic capture_boundary(input integer boundary);
+    reg request_before;
+    reg [177:0] held_descriptor;
+    integer n;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      if(boundary==0) while(!dut.output_descriptor_capture) @(negedge fft_clk);
+      else if(boundary==1) while(!dut.output_descriptor_pending) @(negedge fft_clk);
+      else while(!dut.output_complete_accept) @(negedge fft_clk);
+      request_before=dut.output_request;
+      held_descriptor={dut.output_descriptor_tag,dut.output_descriptor_payload,
+        dut.output_descriptor_expected,dut.output_descriptor_lookup_ok};
+      if(boundary==2) begin
+        stress_fault_expected=1;
+        force dut.event_last_missing=1'b1;
+        force dut.output_lookup_descriptor=70'b0;
+        #0.001;
+        if(!dut.output_descriptor_capture || dut.output_complete_accept || dut.output_replay_accept)
+          $fatal(1,"fault-edge private load was not separated from authorization");
+        @(posedge fft_clk);#0.001;
+        if(dut.output_descriptor_payload[74:5]!==70'b0 || dut.output_descriptor_pending ||
+           dut.output_descriptor_locked || dut.output_descriptor_valid)
+          $fatal(1,"fault-edge capture acquired authority");
+        @(negedge fft_clk);release dut.event_last_missing;release dut.output_lookup_descriptor;
+        repeat(100) begin
+          @(negedge fft_clk);
+          if(dut.output_request!==request_before || dut.output_published_valid || dut.output_released_valid ||
+             dut.output_replay_accept || dut.job_accept || dut.config_valid || dut.core_input_valid)
+            $fatal(1,"fault-edge private capture escaped quarantine");
+        end
+        if(!fault || stress_reads!=0 || stress_releases!=0) $fatal(1,"missing capture veto evidence");
+      end else begin
+        // Only private lookup inputs are perturbed; actual bank/core inputs and
+        // public faults are untouched. Before acceptance these may load, after
+        // acceptance even invalid/X lookup values must not change the bundle.
+        force dut.output_lookup_found=1'b0;force dut.output_lookup_committed=1'b1;
+        for(n=0;n<16;n=n+1) begin
+          if(n%2) force dut.output_lookup_descriptor={70{1'bx}};
+          else force dut.output_lookup_descriptor=70'b0;
+          @(posedge fft_clk);#0.001;
+          if(boundary==0) begin
+            if(dut.output_complete_accept || dut.output_descriptor_pending || dut.output_descriptor_locked ||
+               dut.output_descriptor_valid || dut.output_descriptor_lookup_ok ||
+               dut.output_descriptor_payload[74:5] !== (n%2 ? {70{1'bx}} : 70'b0))
+              $fatal(1,"invalid private lookup churn gained authority or failed to load");
+          end else if({dut.output_descriptor_tag,dut.output_descriptor_payload,
+                       dut.output_descriptor_expected,dut.output_descriptor_lookup_ok}!==held_descriptor)
+            $fatal(1,"pending/published descriptor changed with private lookup churn");
+          @(negedge fft_clk);
+        end
+        if(boundary==0) begin
+          release dut.output_lookup_descriptor;release dut.output_lookup_found;release dut.output_lookup_committed;
+        end
+        stress_drain=1;
+        while(stress_reads!=512 || !dut.retained_reusable) begin
+          @(negedge fft_clk);
+          if(boundary==1 && {dut.output_descriptor_tag,dut.output_descriptor_payload,
+                             dut.output_descriptor_expected,dut.output_descriptor_lookup_ok}!==held_descriptor)
+            $fatal(1,"held reader bundle changed before real release");
+        end
+        release dut.output_lookup_descriptor;release dut.output_lookup_found;release dut.output_lookup_committed;
+        repeat(10) @(negedge fft_clk);
+        if(stress_releases!=1 || dut.output_descriptor_locked || fault)
+          $fatal(1,"private capture recovery/real release missing");
+      end
+      $display("STAGED_CAPTURE_CASE_PASS boundary=%0d reads=%0d releases=%0d",boundary,stress_reads,stress_releases);
+    end
+  endtask
   task automatic writer_boundary(input integer boundary);
     reg request_before;
     begin
@@ -461,6 +563,9 @@ module tb;
       if(mode>=4) $display("STAGED_TIMESTAMP_PASS mode=%0d base=%016h words=1536",mode,context_start_base);
     end
     $fclose(log_file);$display("STAGED_FFT_PASS contexts=6 no_continuous_or_physical_claim");
+    if(capture_load_checks<1000 || capture_hold_checks<1000 || capture_accept_checks!=18)
+      $fatal(1,"missing private descriptor cycle coverage");
+    $display("STAGED_CAPTURE_CYCLES_PASS loads=%0d holds=%0d accepts=%0d",capture_load_checks,capture_hold_checks,capture_accept_checks);
     stress=1;reset_stopped_reader(1);reset_stopped_reader(2);
     for(mode=0;mode<7;mode=mode+1) fault_boundary(mode);
     for(mode=0;mode<6;mode=mode+1) admission_boundary(mode);
@@ -471,6 +576,8 @@ module tb;
     $display("STAGED_REPLAY_PASS cases=5 actual_authorization_checked=1");
     for(mode=0;mode<4;mode=mode+1) writer_boundary(mode);
     $display("STAGED_WRITER_PASS cases=4 pending_fenced=1");
+    for(mode=0;mode<3;mode=mode+1) capture_boundary(mode);
+    $display("STAGED_CAPTURE_PASS cases=3 private_load_checked=1 held_until_release=1");
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     $finish;
