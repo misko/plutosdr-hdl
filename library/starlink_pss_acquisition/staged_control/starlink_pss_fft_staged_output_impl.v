@@ -626,10 +626,32 @@ module starlink_pss_fft_staged_output_impl #(
   wire any_fast_fault = common_current_fault;
   assign registered_quarantine = fast_fault || result_fault || (|epoch_input_reasons) ||
     (|epoch_preflight_reasons) || (|cutover_reasons) || (|retained_reasons);
-  assign completion_accept = state == ACK_DRAIN && !completion_receipt &&
+  wire legacy_completion_accept = state == ACK_DRAIN && !completion_receipt &&
     (next_inverse ? producer_transfer_receipt : (!guard_busy[0] && forward_handoff_ack)) && !any_fast_fault &&
     !certified_input_beat && !certified_input_complete && !event_frame &&
     !core_status_valid && !core_output_valid;
+  // The bank and phase remain owned throughout ACK_DRAIN. Capture each fault,
+  // quiet-input and forward-identity check before issuing the private close.
+  // The next-edge receipt consumer still observes registered quarantine; no
+  // public write, reader release or core reuse is authorized by these facts.
+  wire completion_request = CERTIFIED_ADMISSION && state==ACK_DRAIN && !completion_receipt &&
+    (next_inverse ? producer_transfer_receipt : (!guard_busy[0] && forward_committed && product_bank_valid));
+  wire [27:0] completion_good = {
+    !cutover_fault_now,
+    next_inverse || forward_handoff_identity,
+    next_inverse || product_bank_position==0,
+    next_inverse || !product_bank_last,
+    !certified_input_beat,!certified_input_complete,
+    !event_frame,!core_status_valid,!core_output_valid,
+    ~admission_reject};
+  wire completion_permit;
+  starlink_pss_admission_certificate #(.CHECKS(28)) completion_gate (
+    .clk(fft_clk), .resetn(fast_running), .request(completion_request),
+    .quarantine(registered_quarantine), .consume(completion_accept),
+    .checks_good(completion_good), .permit(completion_permit),
+    .snapshot_valid(), .snapshot_good()
+  );
+  assign completion_accept = CERTIFIED_ADMISSION ? completion_permit : legacy_completion_accept;
   // All detailed input evidence belongs to the common epoch, not the private
   // core-reset epoch. The original checker and result reason banks still run.
   always @(posedge fft_clk) begin

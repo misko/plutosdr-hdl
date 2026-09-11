@@ -157,6 +157,10 @@ module tb;
         $fatal(1,"partitioned admission facts differ from full current predicate");
       if(dut.output_complete_accept && dut.inverse_descriptor_live!==1'b1)
         $fatal(1,"completion sampled private lookup without held ownership");
+      if(dut.completion_request && (((&dut.completion_good)===1'b1)!==(dut.legacy_completion_accept===1'b1)))
+        $fatal(1,"completion facts differ from original close validation");
+      if(dut.completion_accept && (!dut.completion_gate.snapshot_valid || !dut.completion_permit))
+        $fatal(1,"producer close bypassed clocked facts");
       if(dut.job_accept && (!dut.admission_gate.snapshot_valid || !dut.admission_permit))
         $fatal(1,"private admission bypassed clocked certificate");
       if(dut.admission_receipt!==previous_admission || dut.completion_receipt!==previous_completion)
@@ -311,6 +315,44 @@ module tb;
     end
   endtask
   integer block_index,word_index;
+  task automatic completion_boundary(input integer boundary);
+    integer wanted_phase,stage;
+    reg request_before;
+    begin
+      wanted_phase=(boundary<6 ? boundary/3 : boundary>=8 ? 1 : 0);
+      stage=boundary<6 ? boundary%3 : 1;
+      stress_reset;stress_fixture=0;send_block(0);
+      if(stage==0)
+        while(dut.next_inverse!=wanted_phase || !dut.completion_request || dut.completion_gate.snapshot_valid) @(negedge fft_clk);
+      else if(stage==1)
+        while(dut.next_inverse!=wanted_phase || !dut.completion_permit) @(negedge fft_clk);
+      else
+        while(dut.next_inverse!=wanted_phase || !dut.completion_receipt) @(negedge fft_clk);
+      request_before=dut.output_request;stress_fault_expected=1;
+      if(boundary==6) force dut.product_bank_metadata=70'b0;
+      else if(boundary==7) force dut.product_bank_position=9'd1;
+      else if(boundary==8) resetn=0;
+      else if(boundary==9) fft_resetn=0;
+      else force dut.core_status_valid=1'b1;
+      @(posedge fft_clk);#0.001;
+      @(negedge fft_clk);
+      release dut.product_bank_metadata;release dut.product_bank_position;release dut.core_status_valid;
+      if(boundary>=8) begin
+        repeat(10) @(negedge fft_clk);
+        resetn=1;fft_resetn=1;request_before=dut.output_request;
+      end
+      repeat(100) begin
+        @(negedge fft_clk);
+        if(dut.job_accept || dut.input_job_start || dut.config_valid || dut.core_input_valid ||
+           dut.completion_permit || dut.completion_receipt || dut.output_request!==request_before ||
+           dut.output_released_valid || dut.reader_release)
+          $fatal(1,"cancelled completion escaped to core reuse/publication boundary=%0d",boundary);
+      end
+      if(stress_reads!=0 || stress_releases!=0 || (boundary<8 && !fault))
+        $fatal(1,"completion cancellation evidence missing");
+      $display("STAGED_COMPLETION_CASE_PASS boundary=%0d phase=%0d reuse_after_cancel=0 publications=0 releases=0",boundary,wanted_phase);
+    end
+  endtask
   initial begin
     $readmemh("samples_ci16.mem",samples);$readmemh("forward_q17.mem",forwards);
     $readmemh("product_q17.mem",products);$readmemh("inverse_q17.mem",inverses);
@@ -350,6 +392,8 @@ module tb;
     for(mode=0;mode<7;mode=mode+1) fault_boundary(mode);
     for(mode=0;mode<6;mode=mode+1) admission_boundary(mode);
     $display("STAGED_ADMISSION_PASS cases=6 partition_checked=1");
+    for(mode=0;mode<10;mode=mode+1) completion_boundary(mode);
+    $display("STAGED_COMPLETION_PASS cases=10 partition_checked=1");
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     $finish;
