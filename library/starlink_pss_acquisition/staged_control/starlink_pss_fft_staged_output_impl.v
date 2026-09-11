@@ -467,7 +467,7 @@ module starlink_pss_fft_staged_output_impl #(
   // rejects P_ACK if the real bank request did not transition.
   wire output_replay_private_ready = output_bank_ready && output_descriptor_valid;
   wire output_replay_accept = output_replay_valid && output_descriptor_valid && output_bank_ready && !common_current_fault;
-  starlink_pss_staged_mailbox_control output_control (
+  starlink_pss_staged_mailbox_control #(.PRIVATE_FINAL_CAPTURE(1)) output_control (
     .clk(fft_clk), .resetn(fast_running), .abort_epoch(fast_fault),
     .allocate_valid(output_allocate_valid), .allocate_ready(output_allocate_ready),
     .allocate_descriptor(engine_metadata), .allocated_valid(output_allocated_valid),

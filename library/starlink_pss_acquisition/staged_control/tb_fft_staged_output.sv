@@ -68,6 +68,36 @@ module tb;
                 input [47:0] data,input [9:0] exponent);
     $fdisplay(log_file,"%0d,%s,%0d,%0d,%012h,%03h",mode,stream,block_id,position,data,exponent);
   endtask
+  // Full campaign check: private adapter payload tracks only in EMPTY, while
+  // every accepted/owned payload equals the original qualified capture.
+  integer final_loads=0,final_holds=0,final_accepts=0,final_fault_loads=0;
+  reg [68:0] final_before,final_inputs,final_original=0;
+  reg final_open,final_accept,final_fault;
+  always @(posedge fft_clk) begin
+    if(!dut.fast_running) final_original=0;
+    else begin
+      final_before={dut.output_control.active_tag,dut.output_control.final_data,dut.output_control.initial_request};
+      final_inputs={dut.inverse_tag,dut.guard_return_data[1],dut.output_request};
+      final_open=dut.output_control.phase==0;
+      final_accept=!dut.output_control.fault && dut.output_complete_valid && dut.output_complete_ready;
+      final_fault=dut.output_control.fault;
+      if(final_accept) final_original=final_inputs;
+      #0.001;
+      if(dut.fast_running) begin
+        if({dut.output_control.active_tag,dut.output_control.final_data,dut.output_control.initial_request} !==
+           (final_open ? final_inputs : final_before)) $fatal(1,"actual private final load/hold");
+        if(dut.output_control.phase!=0 &&
+           {dut.output_control.active_tag,dut.output_control.final_data,dut.output_control.initial_request}!==final_original)
+          $fatal(1,"actual accepted final differs from original");
+        if(final_accept && dut.output_control.phase==0) $fatal(1,"actual final ownership missing");
+        if(final_open) begin
+          final_loads=final_loads+1;
+          if(final_fault) final_fault_loads=final_fault_loads+1;
+        end else final_holds=final_holds+1;
+        if(final_accept) final_accepts=final_accepts+1;
+      end
+    end
+  end
   always @(negedge clk) begin
     slow_cycles=slow_cycles+1;
     output_ready=stress ? stress_drain : mode==0 ? 1 : mode==1 ? slow_cycles%17<13 :
@@ -578,6 +608,9 @@ module tb;
     $display("STAGED_WRITER_PASS cases=4 pending_fenced=1");
     for(mode=0;mode<3;mode=mode+1) capture_boundary(mode);
     $display("STAGED_CAPTURE_PASS cases=3 private_load_checked=1 held_until_release=1");
+    if(final_loads<1000 || final_holds<1000 || final_accepts<18 || final_fault_loads<100)
+      $fatal(1,"missing private final actual cycle coverage");
+    $display("STAGED_FINALCAPTURE_PASS loads=%0d holds=%0d accepts=%0d fault_loads=%0d original_payload_checked=1",final_loads,final_holds,final_accepts,final_fault_loads);
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     $finish;

@@ -12,7 +12,8 @@
 // All tag holders and both bank clock domains MUST share coordinated reset.
 `timescale 1ns/1ps
 module starlink_pss_staged_mailbox_control #(
-  parameter integer DESCRIPTOR_WIDTH=70, TAG_WIDTH=32, DATA_WIDTH=36
+  parameter integer DESCRIPTOR_WIDTH=70, TAG_WIDTH=32, DATA_WIDTH=36,
+  parameter integer PRIVATE_FINAL_CAPTURE=0
 ) (
   input wire clk, resetn, abort_epoch,
   input wire allocate_valid,
@@ -92,10 +93,26 @@ module starlink_pss_staged_mailbox_control #(
     .occupied(occupied),.committed(committed),.tags_exhausted(tags_exhausted),.fault(ledger_fault)
   );
 
+  // Private payloads may track unvalidated/X inputs only while ownership is
+  // empty. Acceptance still uses the original fault-qualified handshake and
+  // captures these same inputs on that edge. Non-empty phase freezes them
+  // through COMMIT, replay, publication and the real reader ACK/RELEASE.
+  // Invalid replay payloads have no meaning. No public-valid gate is removed.
+  wire capture_final_payload = PRIVATE_FINAL_CAPTURE ? phase==P_EMPTY :
+    (!fault && complete_valid && complete_ready);
+  always @(posedge clk or negedge resetn) begin
+    if (!resetn) begin
+      active_tag<=0;final_data<=0;initial_request<=0;
+    end else if (capture_final_payload) begin
+      active_tag<=complete_tag;final_data<=complete_final_data;
+      initial_request<=bank_request;
+    end
+  end
+
   always @(posedge clk or negedge resetn) begin
     if (!resetn) begin
       command_state<=C_IDLE;phase<=P_EMPTY;command_opcode<=0;command_tag<=0;
-      command_descriptor<=0;active_tag<=0;final_data<=0;initial_request<=0;
+      command_descriptor<=0;
       fault_q<=0;allocated_pending<=0;allocated_tag<=0;released_pending<=0;released_tag<=0;
       publication_seen<=0;published_pending<=0;
     end else if (fault) begin
@@ -106,8 +123,7 @@ module starlink_pss_staged_mailbox_control #(
       published_pending<=0;
       if (allocated_valid && allocated_ready) allocated_pending<=0;
       if (complete_valid && complete_ready) begin
-        active_tag<=complete_tag;final_data<=complete_final_data;
-        initial_request<=bank_request;phase<=P_COMMIT;publication_seen<=0;
+        phase<=P_COMMIT;publication_seen<=0;
       end
       if (phase==P_REPLAY && replay_ready) phase<=P_ACK;
       // P_ACK is an observation boundary, not proof of publication. Reject a
