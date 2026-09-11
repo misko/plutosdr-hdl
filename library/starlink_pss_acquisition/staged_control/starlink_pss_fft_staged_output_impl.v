@@ -651,17 +651,32 @@ module starlink_pss_fft_staged_output_impl #(
     (output_publication_busy ? {output_replay_tag,output_descriptor_payload[4:0]} :
       {inverse_tag,guard_return_metadata[1][4:0]});
   // END HELD BANK METADATA
+  // BEGIN HELD BANK HANDOFF
+  // Qualified completion retires the inverse guard on the same edge that
+  // takes the adapter out of EMPTY. Its private-valid is then low and its
+  // final payload remains held until actual reader release and a later job.
+  // The two private offers are disjoint; neither grants commit authority.
+  wire output_write_valid = REGISTERED_SCHEDULING ?
+    (guard_private_out[1] || output_replay_valid) :
+    (output_publication_busy ? output_replay_valid : guard_private_out[1]);
+  wire [35:0] output_write_data = REGISTERED_SCHEDULING ? guard_return_data[1] :
+    (output_publication_busy ? output_replay_data : guard_return_data[1]);
+  wire [8:0] output_write_position = REGISTERED_SCHEDULING ? guard_return_position[1] :
+    (output_publication_busy ? 9'd511 : guard_return_position[1]);
+  wire output_write_last = REGISTERED_SCHEDULING ? guard_last_out[1] :
+    (output_publication_busy ? 1'b1 : guard_last_out[1]);
+  // END HELD BANK HANDOFF
   starlink_pss_mailbox_owner_view #(.METADATA_WIDTH(37), .RESET_RELEASE_EXTERNAL(1),
       .EXPLICIT_COMMIT(1)) output_bank (
     .input_clk(fft_clk), .input_resetn(fast_running),
     // Payload selection follows registered private ownership, not a fault-
     // gated public-valid signal. A fault must not switch the metadata mux and
     // then traverse a wide framing comparator back into global control.
-    .input_valid(output_publication_busy ? output_replay_valid : guard_private_out[1]),
+    .input_valid(output_write_valid),
     .input_commit_authorized(output_replay_accept), .input_ready(output_bank_ready),
-    .input_data(output_publication_busy ? output_replay_data : guard_return_data[1]),
-    .input_position(output_publication_busy ? 9'd511 : guard_return_position[1]),
-    .input_last(output_publication_busy ? 1'b1 : guard_last_out[1]),
+    .input_data(output_write_data),
+    .input_position(output_write_position),
+    .input_last(output_write_last),
     .input_metadata(output_write_metadata), .input_fault(output_bank_fault),
     .input_framing_fault_now(output_bank_framing_fault_now),
     .output_clk(clk), .output_resetn(slow_running),

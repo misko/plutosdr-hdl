@@ -29,10 +29,11 @@ module tb;
   starlink_pss_mailbox_owner_view #(.METADATA_WIDTH(37),.RESET_RELEASE_EXTERNAL(1),
     .EXPLICIT_COMMIT(1)) metadata_reference_bank (
     .input_clk(fft_clk),.input_resetn(dut.fast_running),
-    .input_valid(dut.output_bank.input_valid),.input_ready(),
+    .input_valid(dut.output_publication_busy ? dut.output_replay_valid : dut.guard_private_out[1]),.input_ready(),
     .input_commit_authorized(dut.output_bank.input_commit_authorized),
-    .input_data(dut.output_bank.input_data),.input_position(dut.output_bank.input_position),
-    .input_last(dut.output_bank.input_last),.input_metadata(original_bank_metadata),
+    .input_data(dut.output_publication_busy ? dut.output_replay_data : dut.guard_return_data[1]),
+    .input_position(dut.output_publication_busy ? 9'd511 : dut.guard_return_position[1]),
+    .input_last(dut.output_publication_busy ? 1'b1 : dut.guard_last_out[1]),.input_metadata(original_bank_metadata),
     .input_fault(),.input_framing_fault_now(),
     .output_clk(clk),.output_resetn(dut.slow_running),.output_valid(),
     .output_ready(dut.output_bank.output_ready),.output_data(),.output_position(),
@@ -75,6 +76,24 @@ module tb;
     end
   end
   // END HELD METADATA WITNESS
+  integer held_handoff_checks=0,held_handoff_replays=0;
+  always @(posedge fft_clk) begin
+    if(dut.fast_running) begin
+      if(dut.output_bank.input_valid!==metadata_reference_bank.input_valid ||
+         (dut.output_publication_busy && dut.guard_private_out[1])!==1'b0 ||
+         (!dut.output_publication_busy && dut.output_replay_valid)!==1'b0)
+        $fatal(1,"held handoff private ownership/validity differs");
+      if(dut.output_bank.input_valid && dut.output_bank.input_ready) begin
+        if({dut.output_bank.input_data,dut.output_bank.input_position,dut.output_bank.input_last,
+            dut.output_bank.input_metadata} !==
+           {metadata_reference_bank.input_data,metadata_reference_bank.input_position,
+            metadata_reference_bank.input_last,metadata_reference_bank.input_metadata})
+          $fatal(1,"held handoff accepted payload differs");
+        if(dut.output_replay_valid) held_handoff_replays=held_handoff_replays+1;
+      end
+      held_handoff_checks=held_handoff_checks+1;
+    end
+  end
   reg [35:0] forwards[0:1535],products[0:1535],inverses[0:1535];
   reg [4:0] fe[0:2],ie[0:2];
   integer mode=0,fast_cycles=0,slow_cycles=0,reads=0,jobs=0,publications=0,releases=0;
@@ -410,6 +429,67 @@ module tb;
       stress_reads=0;stress_prefix=0;stress_releases=0;stress_fault_expected=0;
       resetn=1;fft_resetn=1;
       while(!dut.fast_running) @(negedge fft_clk);
+    end
+  endtask
+  task automatic held_handoff_boundary(input integer boundary);
+    reg request_before;
+    reg [82:0] final_bundle;
+    integer n;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      if(boundary==0) while(!dut.output_publication_busy) @(negedge fft_clk);
+      else while(!dut.output_replay_valid) @(negedge fft_clk);
+      if(dut.guard_private_out[1]!==0 || dut.owners[1].result_guard.active!==0)
+        $fatal(1,"held handoff did not retire inverse guard");
+      request_before=dut.output_request;
+      final_bundle={dut.guard_return_data[1],dut.guard_return_position[1],dut.guard_last_out[1],
+        dut.inverse_tag,dut.guard_return_metadata[1][4:0]};
+      if(boundary>=3) begin
+        // Pause both sides of the private replay/actual commit boundary.
+        // Release wires (not held descriptor registers) to resume naturally.
+        force dut.output_replay_private_ready=1'b0;
+        force dut.output_replay_accept=1'b0;
+        for(n=0;n<16;n=n+1) begin
+          @(posedge fft_clk);#0.001;
+          if({dut.guard_return_data[1],dut.guard_return_position[1],dut.guard_last_out[1],
+              dut.inverse_tag,dut.guard_return_metadata[1][4:0]}!==final_bundle ||
+             dut.output_request!==request_before || dut.output_replay_accept!==0 || fault)
+            $fatal(1,"held handoff replay stall changed held payload/authority");
+          @(negedge fft_clk);
+        end
+      end
+      if(boundary!=3) begin
+        stress_fault_expected=1;
+        if(boundary<=1) force dut.core_output_valid=1'b1;
+        else if(boundary==2) force dut.core_status_valid=1'b1;
+        else if(boundary==4) fft_resetn=0;
+        else resetn=0;
+        #0.001;
+        if(dut.output_replay_accept!==0) $fatal(1,"held handoff current fault did not veto publication");
+        @(posedge fft_clk);#0.001;
+        if(boundary<3 && {dut.guard_return_data[1],dut.guard_return_position[1],dut.guard_last_out[1],
+            dut.inverse_tag,dut.guard_return_metadata[1][4:0]}!==final_bundle)
+          $fatal(1,"orphan raw event changed retired inverse payload");
+        @(negedge fft_clk);release dut.core_output_valid;release dut.core_status_valid;
+        release dut.output_replay_private_ready;release dut.output_replay_accept;
+        if(boundary>=4) begin
+          repeat(10) @(negedge fft_clk);resetn=1;fft_resetn=1;
+        end
+        repeat(100) begin
+          @(negedge fft_clk);
+          if(dut.output_request!==request_before || dut.output_published_valid || dut.output_released_valid ||
+             output_valid || dut.job_accept || dut.config_valid || dut.core_input_valid)
+            $fatal(1,"cancelled held handoff escaped quarantine");
+        end
+        if(stress_reads!=0 || stress_releases!=0 || (boundary<3 && !fault))
+          $fatal(1,"held handoff cancellation evidence missing");
+        stress_reset;stress_fixture=0;send_block(0);
+      end else begin release dut.output_replay_private_ready;release dut.output_replay_accept;end
+      stress_drain=1;
+      while(stress_reads!=512 || !dut.retained_reusable) @(negedge fft_clk);
+      repeat(10) @(negedge fft_clk);
+      if(fault || stress_releases!=1) $fatal(1,"held handoff fresh recovery failed");
+      $display("STAGED_HELDHANDOFF_CASE_PASS boundary=%0d fresh_reads=512 fresh_releases=1",boundary);
     end
   endtask
   task automatic guardfacts_boundary(input integer gate,input integer owner,input integer fact);
@@ -939,6 +1019,9 @@ module tb;
     repeat(10) @(negedge fft_clk);
     if(fault || stress_releases!=1 || guardfacts_cycles<1000) $fatal(1,"guard facts fresh recovery or coverage failed");
     $display("STAGED_GUARDFACTS_PASS cases=32 cycles=%0d exact_certificates=1 fresh_reads=512 fresh_releases=1",guardfacts_cycles);
+    for(mode=0;mode<6;mode=mode+1) held_handoff_boundary(mode);
+    if(held_handoff_checks<1000 || held_handoff_replays<18) $fatal(1,"held handoff cycle coverage missing");
+    $display("STAGED_HELDHANDOFF_PASS cases=6 checks=%0d replays=%0d exact_offers=1 immediate_veto=1",held_handoff_checks,held_handoff_replays);
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     if(held_metadata_checks<1000 || held_metadata_firsts<18 || held_metadata_finals<36 ||
