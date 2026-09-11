@@ -30,6 +30,31 @@ module tb;
   reg [120:0] held_output;
   reg [35:0] expected;
   integer log_file;
+  integer publication_phase_checks=0,replay_phase_checks=0,preflight_unread_checks=0;
+  integer stalled_publication_checks=0;
+  reg publication_probe_paused=0;
+  // Reachable-phase evidence, not an arbitrary-input combinational identity.
+  // FFT producer reuse is publication-gated, not reader-release-gated.
+  always @(negedge fft_clk) begin
+    #0.002;
+    if(dut.fast_running) begin
+      publication_phase_checks=publication_phase_checks+1;
+      if(dut.output_replay_valid===1'b1) begin
+        replay_phase_checks=replay_phase_checks+1;
+        if(dut.preparing!==1'b0 || dut.preflight_events_now!==6'b0 || dut.summary_preflight_events!==6'b0)
+          $fatal(1,"unpublished inverse replay overlapped preflight validation");
+      end
+      if(dut.preparing && dut.output_publication_busy && dut.retained_published && !dut.output_bank_ready)
+        preflight_unread_checks=preflight_unread_checks+1;
+      if(publication_probe_paused) begin
+        stalled_publication_checks=stalled_publication_checks+1;
+        if(dut.preparing!==1'b0 || dut.next_inverse!==1'b1 ||
+           dut.producer_transfer_receipt!==1'b0 || dut.completion_request!==1'b0 ||
+           dut.completion_accept!==1'b0 || dut.output_published_valid!==1'b0)
+          $fatal(1,"paused publication permitted early producer reuse");
+      end
+    end
+  end
   reg stress=0,stress_drain=0,stress_fault_expected=0;
   integer stress_reads=0,stress_fixture=0,stress_prefix=0,stress_releases=0;
   integer handover_admissions=0,handover_completions=0,slow_edges=0;
@@ -387,6 +412,65 @@ module tb;
       end
       if(fault!==1'b1 || stress_reads!=0 || stress_releases!=0) $fatal(1,"guard fact veto evidence missing");
       $display("STAGED_GUARDFACTS_CASE_PASS gate=%0d owner=%0d fact=%0d starts=0 reads=0 releases=0",gate,owner,fact);
+    end
+  endtask
+  task automatic publication_preflight_boundary(input integer boundary);
+    reg request_before;
+    integer paused_before;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      while(dut.output_replay_valid!==1'b1) @(negedge fft_clk);
+      request_before=dut.output_request;paused_before=stalled_publication_checks;
+      force dut.output_replay_private_ready=1'b0;
+      force dut.output_replay_accept=1'b0;
+      publication_probe_paused=1;
+      // A complete next source bank is queued while inverse replay is stalled.
+      send_block(1);
+      repeat(128) @(negedge fft_clk);
+      if(dut.source_valid!==1'b1 || dut.source_metadata[68:5]!==64'd1447 ||
+         dut.output_request!==request_before || dut.retained_published!==1'b0 ||
+         stress_reads!=0 || stress_releases!=0 || stalled_publication_checks-paused_before<128)
+        $fatal(1,"queued source / paused inverse publication premise failed");
+      publication_probe_paused=0;
+      if(boundary==2) begin
+        // Cancel before releasing either pause, so reset cannot race a publish.
+        fft_resetn=0;
+        release dut.output_replay_private_ready;release dut.output_replay_accept;
+        repeat(10) @(negedge fft_clk);
+        if(dut.fast_running!==1'b0 || dut.output_replay_accept!==1'b0 || output_valid!==1'b0)
+          $fatal(1,"paused publication reset did not cancel both domains");
+      end else begin
+        release dut.output_replay_private_ready;release dut.output_replay_accept;
+        while(!(dut.preparing && !dut.next_inverse)) @(negedge fft_clk);
+        if(dut.retained_published!==1'b1 || dut.output_request===request_before ||
+           dut.output_publication_busy!==1'b1 || dut.output_bank_ready!==1'b0 ||
+           dut.output_replay_valid!==1'b0 || stress_reads!=0 || stress_releases!=0)
+          $fatal(1,"preflight must overlap published unread ownership, not replay");
+        if(boundary==1) begin
+          stress_fault_expected=1;force dut.preflight_position=9'd7;
+          #0.003;
+          if(dut.preparation_fault_now!==1'b1 || dut.common_current_fault!==1'b1)
+            $fatal(1,"preflight corruption missed original current fault fence");
+          @(posedge fft_clk);#0.003;
+          if(dut.fast_fault!==1'b1) $fatal(1,"preflight fault not latched");
+          @(negedge fft_clk);release dut.preflight_position;
+          repeat(100) begin
+            @(negedge fft_clk);
+            if(dut.output_request===request_before || dut.input_job_start!==1'b0 ||
+               dut.core_input_valid!==1'b0 || dut.output_replay_accept!==1'b0)
+              $fatal(1,"preflight fault changed publication or allowed stale work");
+          end
+          if(!fault || stress_reads!=0 || stress_releases!=0) $fatal(1,"preflight unread fault evidence");
+        end else begin
+          stress_drain=1;
+          while(stress_reads!=512 || !dut.retained_reusable) @(negedge fft_clk);
+          if(fault || stress_releases!=1) $fatal(1,"old published reader did not release normally");
+        end
+      end
+      stress_reset;stress_fixture=0;send_block(0);stress_drain=1;
+      while(stress_reads!=512 || !dut.retained_reusable) @(negedge fft_clk);
+      if(fault || stress_releases!=1) $fatal(1,"publication/preflight fresh recovery");
+      $display("STAGED_PREFLIGHT_PUBLICATION_CASE_PASS boundary=%0d paused=%0d queued=1 fresh_reads=512 fresh_releases=1",boundary,stalled_publication_checks-paused_before);
     end
   endtask
   task automatic certification_boundary(input integer boundary);
@@ -884,6 +968,10 @@ module tb;
     repeat(10) @(negedge fft_clk);
     if(fault || stress_releases!=1 || guardfacts_cycles<1000) $fatal(1,"guard facts fresh recovery or coverage failed");
     $display("STAGED_GUARDFACTS_PASS cases=32 cycles=%0d exact_certificates=1 fresh_reads=512 fresh_releases=1",guardfacts_cycles);
+    for(integer boundary=0;boundary<3;boundary=boundary+1) publication_preflight_boundary(boundary);
+    if(publication_phase_checks<1000 || replay_phase_checks<384 || preflight_unread_checks<2)
+      $fatal(1,"publication/preflight phase coverage missing");
+    $display("STAGED_PREFLIGHT_PUBLICATION_PASS cases=3 checks=%0d replay=%0d unread=%0d phase_exact=1",publication_phase_checks,replay_phase_checks,preflight_unread_checks);
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     $finish;
