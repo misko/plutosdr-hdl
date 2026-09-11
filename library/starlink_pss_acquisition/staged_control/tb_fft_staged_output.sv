@@ -3,6 +3,34 @@
 // Changed control latency is measured, not assumed equal to the old controller.
 `timescale 1ns/1fs
 module tb #(parameter integer ACK_ONLY=0);
+  // BEGIN DISTRIBUTED STICKY FAULT WITNESS
+  reg original_sticky_fault;
+  integer sticky_fault_checks=0,sticky_fault_events=0,sticky_fault_resets=0;
+  reg [18:0] sticky_fault_seen=0;
+  always @(posedge fft_clk)begin
+    if(!dut.fast_running)original_sticky_fault<=0;
+    else if(dut.any_fast_fault)original_sticky_fault<=1;
+    if((|dut.sticky_fault_sources) !== dut.any_fast_fault)
+      $fatal(1,"distributed fault sources differ from original scalar");
+    if(dut.fast_running === 1'b0)sticky_fault_resets=sticky_fault_resets+1;
+    if(dut.fast_running === 1'b1 && dut.any_fast_fault === 1'b1)begin
+      sticky_fault_events=sticky_fault_events+1;
+      for(integer c=0;c<19;c=c+1)
+        if(dut.sticky_fault_sources[c] === 1'b1)sticky_fault_seen[c]=1'b1;
+    end
+    #0.002;
+    if(dut.fast_fault !== original_sticky_fault)
+      $fatal(1,"distributed sticky fault changed capture edge or persistence");
+    sticky_fault_checks=sticky_fault_checks+1;
+  end
+  task automatic report_sticky_fault;
+    begin
+      if(sticky_fault_checks<1000 || sticky_fault_events<10 || sticky_fault_resets<10)
+        $fatal(1,"distributed sticky fault coverage incomplete");
+      $display("STAGED_STICKY_FAULT_PASS checks=%0d events=%0d resets=%0d seen=%05h scalar_exact=1 same_edge=1",sticky_fault_checks,sticky_fault_events,sticky_fault_resets,sticky_fault_seen);
+    end
+  endtask
+  // END DISTRIBUTED STICKY FAULT WITNESS
   // BEGIN FORWARD FINAL COMMIT WITNESS
   integer forward_final_checks=0, forward_final_accepts=0;
   always @(negedge fft_clk)begin
@@ -41,6 +69,7 @@ module tb #(parameter integer ACK_ONLY=0);
   end
   task automatic report_parallel_ready;
     begin
+      report_sticky_fault; // DISTRIBUTED STICKY FAULT REPORT
       report_forward_final; // FORWARD FINAL REPORT
       if(parallel_ready_checks<1000)$fatal(1,"parallel ready coverage incomplete");
       $display("STAGED_PARALLEL_READY_PASS checks=%0d ports=1 current_exact=1 original_guard_wiring=1 latency_unchanged=1",parallel_ready_checks);
