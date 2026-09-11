@@ -475,7 +475,19 @@ module starlink_pss_fft_staged_output_impl #(
   // the adapter before any notification/release. The adapter independently
   // rejects P_ACK if the real bank request did not transition.
   wire output_replay_private_ready = output_bank_ready && output_descriptor_valid;
-  wire output_replay_accept = output_replay_valid && output_descriptor_valid && output_bank_ready && !common_current_fault;
+  // BEGIN PUBLICATION FAULT SCOPE
+  // In certified scheduling, live replay precedes producer close and all new
+  // preflight. Both current preflight vectors are therefore zero during replay.
+  // Retain every other current/sticky fault and all original diagnostics.
+  // An unknown replay-valid uses the exact original full predicate.
+  wire publication_nonpreflight_fault = offered_external_fault_now ||
+    guard_offered_local_fault[0] || guard_offered_local_fault[1] ||
+    output_bank_fault || output_bank_framing_fault_now || result_fault;
+  wire publication_replay_known = output_replay_valid === 1'b0 || output_replay_valid === 1'b1;
+  wire publication_current_fault = CERTIFIED_ADMISSION && publication_replay_known ?
+    publication_nonpreflight_fault : common_current_fault;
+  wire output_replay_accept = output_replay_valid && output_descriptor_valid && output_bank_ready && !publication_current_fault;
+  // END PUBLICATION FAULT SCOPE
   starlink_pss_staged_mailbox_control #(.PRIVATE_FINAL_CAPTURE(1)) output_control (
     .clk(fft_clk), .resetn(fast_running), .abort_epoch(fast_fault),
     .allocate_valid(output_allocate_valid), .allocate_ready(output_allocate_ready),

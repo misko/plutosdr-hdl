@@ -31,6 +31,7 @@ module tb;
   reg [35:0] expected;
   integer log_file;
   integer publication_phase_checks=0,replay_phase_checks=0,preflight_unread_checks=0;
+  integer publication_scope_checks=0,publication_scope_live=0;
   integer stalled_publication_checks=0;
   reg publication_probe_paused=0;
   // Reachable-phase evidence, not an arbitrary-input combinational identity.
@@ -38,8 +39,14 @@ module tb;
   always @(negedge fft_clk) begin
     #0.002;
     if(dut.fast_running) begin
+      publication_scope_checks=publication_scope_checks+1;
+      if(dut.output_replay_accept !== (dut.output_replay_valid && dut.output_replay_private_ready && !dut.common_current_fault))
+        $fatal(1,"publication scope changed original authorization");
       publication_phase_checks=publication_phase_checks+1;
       if(dut.output_replay_valid===1'b1) begin
+        publication_scope_live=publication_scope_live+1;
+        if(dut.publication_current_fault!==dut.common_current_fault)
+          $fatal(1,"live publication current fault differs from original");
         replay_phase_checks=replay_phase_checks+1;
         if(dut.preparing!==1'b0 || dut.preflight_events_now!==6'b0 || dut.summary_preflight_events!==6'b0)
           $fatal(1,"unpublished inverse replay overlapped preflight validation");
@@ -471,6 +478,46 @@ module tb;
       while(stress_reads!=512 || !dut.retained_reusable) @(negedge fft_clk);
       if(fault || stress_releases!=1) $fatal(1,"publication/preflight fresh recovery");
       $display("STAGED_PREFLIGHT_PUBLICATION_CASE_PASS boundary=%0d paused=%0d queued=1 fresh_reads=512 fresh_releases=1",boundary,stalled_publication_checks-paused_before);
+    end
+  endtask
+  task automatic publication_scope_boundary(input integer boundary);
+    reg request_before;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      while(dut.output_replay_valid!==1'b1) @(negedge fft_clk);
+      request_before=dut.output_request;stress_fault_expected=1;
+      case(boundary)
+        // Drive sources shared by scalar and expanded validation views.
+        // Forcing only a reduced aggregate would violate their contract.
+        0: force dut.event_last_missing=1'b1;
+        1: force dut.owners[0].result_guard.summary_faults_now=8'h01;
+        2: force dut.owners[1].result_guard.summary_faults_now=8'h01;
+        3: force dut.output_bank_fault=1'b1;
+        4: force dut.output_bank_framing_fault_now=1'b1;
+        5: force dut.result_fault=1'b1;
+      endcase
+      #0.003;
+      if(dut.publication_current_fault!==1'b1 || dut.output_replay_accept!==1'b0 ||
+         dut.common_current_fault!==1'b1)
+        $fatal(1,"retained publication fault term lost current veto");
+      @(posedge fft_clk);#0.003;
+      if(dut.output_request!==request_before || dut.fast_fault!==1'b1)
+        $fatal(1,"publication scope veto failed to quarantine");
+      @(negedge fft_clk);
+      release dut.event_last_missing;
+      release dut.owners[0].result_guard.summary_faults_now;release dut.owners[1].result_guard.summary_faults_now;
+      release dut.output_bank_fault;release dut.output_bank_framing_fault_now;release dut.result_fault;
+      repeat(100) begin
+        @(negedge fft_clk);
+        if(dut.output_request!==request_before || dut.output_published_valid ||
+           dut.output_released_valid || dut.reader_release || dut.job_accept || dut.core_input_valid)
+          $fatal(1,"retained fault escaped publication quarantine");
+      end
+      if(!fault || stress_reads!=0 || stress_releases!=0) $fatal(1,"publication fault evidence missing");
+      stress_reset;stress_fixture=0;send_block(0);stress_drain=1;
+      while(stress_reads!=512 || !dut.retained_reusable) @(negedge fft_clk);
+      if(fault || stress_releases!=1) $fatal(1,"publication fault fresh recovery");
+      $display("STAGED_PUBLICATION_SCOPE_CASE_PASS boundary=%0d publications=0 stale_reads=0 fresh_reads=512 fresh_releases=1",boundary);
     end
   endtask
   task automatic certification_boundary(input integer boundary);
@@ -972,6 +1019,9 @@ module tb;
     if(publication_phase_checks<1000 || replay_phase_checks<384 || preflight_unread_checks<2)
       $fatal(1,"publication/preflight phase coverage missing");
     $display("STAGED_PREFLIGHT_PUBLICATION_PASS cases=3 checks=%0d replay=%0d unread=%0d phase_exact=1",publication_phase_checks,replay_phase_checks,preflight_unread_checks);
+    for(integer boundary=0;boundary<6;boundary=boundary+1) publication_scope_boundary(boundary);
+    if(publication_scope_checks<1000 || publication_scope_live<384) $fatal(1,"publication scope coverage missing");
+    $display("STAGED_PUBLICATION_SCOPE_PASS cases=6 checks=%0d live=%0d authorization_exact=1",publication_scope_checks,publication_scope_live);
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     $finish;
