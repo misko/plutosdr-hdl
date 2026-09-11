@@ -20,6 +20,61 @@ module tb;
     .PRIVATE_DESCRIPTOR_OFFER(1),.CLOSED_INPUT_CUTOVER(1),
     .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1)) dut(.*);
   reg [31:0] samples[0:1405];
+  // BEGIN HELD METADATA WITNESS
+  // Same real bank and inputs, but the reference uses the original mux.
+  // It observes only: none of its outputs authorize candidate activity.
+  wire [36:0] original_bank_metadata = dut.output_publication_busy ?
+    {dut.output_replay_tag,dut.output_descriptor_payload[4:0]} :
+    {dut.inverse_tag,dut.guard_return_metadata[1][4:0]};
+  starlink_pss_mailbox_owner_view #(.METADATA_WIDTH(37),.RESET_RELEASE_EXTERNAL(1),
+    .EXPLICIT_COMMIT(1)) metadata_reference_bank (
+    .input_clk(fft_clk),.input_resetn(dut.fast_running),
+    .input_valid(dut.output_bank.input_valid),.input_ready(),
+    .input_commit_authorized(dut.output_bank.input_commit_authorized),
+    .input_data(dut.output_bank.input_data),.input_position(dut.output_bank.input_position),
+    .input_last(dut.output_bank.input_last),.input_metadata(original_bank_metadata),
+    .input_fault(),.input_framing_fault_now(),
+    .output_clk(clk),.output_resetn(dut.slow_running),.output_valid(),
+    .output_ready(dut.output_bank.output_ready),.output_data(),.output_position(),
+    .output_last(),.output_metadata(),.owner_request(),.owner_ack_sync(),
+    .writer_reset_idle(),.reader_reset_idle());
+  integer held_metadata_checks=0,held_metadata_firsts=0,held_metadata_finals=0;
+  integer held_metadata_replays=0,held_metadata_reads=0,held_metadata_stalls=0;
+  always @(negedge fft_clk) begin
+    if(dut.fast_running) begin
+      if({dut.output_bank.input_ready,dut.output_bank.input_fault,
+          dut.output_bank.input_framing_fault_now,dut.output_bank.owner_request,
+          dut.output_bank.owner_ack_sync,dut.output_bank.write_position} !==
+         {metadata_reference_bank.input_ready,metadata_reference_bank.input_fault,
+          metadata_reference_bank.input_framing_fault_now,metadata_reference_bank.owner_request,
+          metadata_reference_bank.owner_ack_sync,metadata_reference_bank.write_position})
+        $fatal(1,"held metadata bank writer/ownership differs");
+      held_metadata_checks=held_metadata_checks+1;
+      if(dut.output_bank.input_valid && dut.output_bank.input_ready) begin
+        if(dut.output_bank.input_metadata!==original_bank_metadata)
+          $fatal(1,"held metadata accepted word differs");
+        if(dut.output_bank.input_position==0) held_metadata_firsts=held_metadata_firsts+1;
+        if(dut.output_bank.input_last) held_metadata_finals=held_metadata_finals+1;
+        if(dut.output_publication_busy) held_metadata_replays=held_metadata_replays+1;
+      end
+    end
+  end
+  always @(negedge clk) begin
+    if(dut.slow_running) begin
+      if(dut.output_bank.output_valid!==metadata_reference_bank.output_valid)
+        $fatal(1,"held metadata reader validity differs");
+      if(dut.output_bank.output_valid) begin
+        if({dut.output_bank.output_data,dut.output_bank.output_position,
+            dut.output_bank.output_last,dut.output_bank.output_metadata} !==
+           {metadata_reference_bank.output_data,metadata_reference_bank.output_position,
+            metadata_reference_bank.output_last,metadata_reference_bank.output_metadata})
+          $fatal(1,"held metadata reader payload differs");
+        if(dut.output_bank.output_ready) held_metadata_reads=held_metadata_reads+1;
+        else held_metadata_stalls=held_metadata_stalls+1;
+      end
+    end
+  end
+  // END HELD METADATA WITNESS
   reg [35:0] forwards[0:1535],products[0:1535],inverses[0:1535];
   reg [4:0] fe[0:2],ie[0:2];
   integer mode=0,fast_cycles=0,slow_cycles=0,reads=0,jobs=0,publications=0,releases=0;
@@ -886,6 +941,10 @@ module tb;
     $display("STAGED_GUARDFACTS_PASS cases=32 cycles=%0d exact_certificates=1 fresh_reads=512 fresh_releases=1",guardfacts_cycles);
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
+    if(held_metadata_checks<1000 || held_metadata_firsts<18 || held_metadata_finals<36 ||
+       held_metadata_replays<18 || held_metadata_reads<9216 || held_metadata_stalls<1000)
+      $fatal(1,"held metadata coverage missing");
+    $display("STAGED_HELDMETA_PASS checks=%0d firsts=%0d finals=%0d replays=%0d reads=%0d stalls=%0d exact_bank=1",held_metadata_checks,held_metadata_firsts,held_metadata_finals,held_metadata_replays,held_metadata_reads,held_metadata_stalls);
     $finish;
   end
   initial begin #3000000;$fatal(1,"staged FFT absolute deadline");end

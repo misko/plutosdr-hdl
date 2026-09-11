@@ -639,6 +639,18 @@ module starlink_pss_fft_staged_output_impl #(
     .reader_reset_idle(product_reader_idle)
   );
   assign output_valid = slow_running && slow_output_valid && slow_metadata_valid && !fault;
+  // BEGIN HELD BANK METADATA
+  // The inverse tag remains owned until real release. The retired inverse
+  // guard holds its last exponent through that interval, including replay.
+  // Use that same pair for private writes and replay: publication phase must
+  // not select metadata into the bank's current framing/fault comparator.
+  // Nonregistered callers retain their original selection. No valid, commit,
+  // fault, descriptor validation or reader-ACK predicate changes here.
+  wire [36:0] output_write_metadata = REGISTERED_SCHEDULING ?
+    {inverse_tag,guard_return_metadata[1][4:0]} :
+    (output_publication_busy ? {output_replay_tag,output_descriptor_payload[4:0]} :
+      {inverse_tag,guard_return_metadata[1][4:0]});
+  // END HELD BANK METADATA
   starlink_pss_mailbox_owner_view #(.METADATA_WIDTH(37), .RESET_RELEASE_EXTERNAL(1),
       .EXPLICIT_COMMIT(1)) output_bank (
     .input_clk(fft_clk), .input_resetn(fast_running),
@@ -650,8 +662,7 @@ module starlink_pss_fft_staged_output_impl #(
     .input_data(output_publication_busy ? output_replay_data : guard_return_data[1]),
     .input_position(output_publication_busy ? 9'd511 : guard_return_position[1]),
     .input_last(output_publication_busy ? 1'b1 : guard_last_out[1]),
-    .input_metadata(output_publication_busy ? {output_replay_tag,output_descriptor_payload[4:0]} :
-      {inverse_tag,guard_return_metadata[1][4:0]}), .input_fault(output_bank_fault),
+    .input_metadata(output_write_metadata), .input_fault(output_bank_fault),
     .input_framing_fault_now(output_bank_framing_fault_now),
     .output_clk(clk), .output_resetn(slow_running),
     .output_valid(slow_output_valid), .output_ready(output_ready && slow_metadata_valid && !fault),
