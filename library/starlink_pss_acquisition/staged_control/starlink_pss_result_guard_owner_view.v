@@ -26,6 +26,7 @@ module starlink_pss_result_guard_owner_view #(
   // same-edge registered fault before core start. Only private occupancy may
   // advance on a new fault edge; public output/ACK checks are unchanged.
   parameter integer CERTIFIED_PRIVATE_ADMISSION = 0,
+  parameter integer PRIVATE_ACK_RETIREMENT = 0,
   parameter integer USE_PRIVATE_DESCRIPTOR_OFFER = 0,
   parameter integer ENABLE_OFFERED_FAULT_SUMMARY = 0,
   parameter integer REQUIRE_KNOWN_COMPLETED_INPUT = 0,
@@ -231,6 +232,21 @@ module starlink_pss_result_guard_owner_view #(
     (external_fault_now || certified_input_beat || certified_input_complete);
   wire idle_fault_now = phase_input_fault || mailbox_input_fault ||
     core_event_frame_started || core_status_tvalid || core_output_tvalid;
+  // BEGIN PRIVATE ACK RETIREMENT
+  // Inactive ACK ownership may clear privately on a known current fault.
+  // faults_now latches that same idle fault on this edge, so sticky quarantine
+  // blocks every later admission/public ACK. Keep X/Z behavior identical to
+  // the original conditional and retain the original public ACK predicate.
+  // This opt-in requires unrestricted idle fault accounting, not a caller's
+  // substituted phase predicate that might not appear in faults_now.
+  initial begin
+    if ((PRIVATE_ACK_RETIREMENT != 0 && PRIVATE_ACK_RETIREMENT != 1) ||
+        (PRIVATE_ACK_RETIREMENT && USE_PHASE_INPUT_FAULT))
+      $fatal(1,"private ACK requires a known mode and full idle fault accounting");
+  end
+  wire private_ack_clear_allowed = PRIVATE_ACK_RETIREMENT ?
+    (idle_fault_now === 1'b0 || idle_fault_now === 1'b1) : !idle_fault_now;
+  // END PRIVATE ACK RETIREMENT
   assign admission_capacity = resetn && !protocol_fault &&
     !active && !awaiting_ack && !return_valid &&
     input_bank_reserved && output_bank_reserved && mailbox_input_ready;
@@ -437,8 +453,9 @@ module starlink_pss_result_guard_owner_view #(
       // ACK wait is inactive. The optional caller-specific input predicate
       // is exact only under its completed-input contract; all other callers
       // retain idle_fault_now's full independent event checks.
-      // Retain a faulted ACK wait and never clear it on a coincident orphan.
-      if (awaiting_ack && mailbox_input_ready && !protocol_fault && !idle_fault_now)
+      // Legacy retains a faulted ACK wait; opt-in private retirement may clear
+      // on a known fault. The public ACK below still rejects that same edge.
+      if (awaiting_ack && mailbox_input_ready && !protocol_fault && private_ack_clear_allowed)
         awaiting_ack <= 0;
       if (final_commit) awaiting_ack <= 1;
     end

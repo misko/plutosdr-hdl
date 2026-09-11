@@ -2,7 +2,7 @@
 // Real generated XFFT required. Exact frozen forward/product/inverse vectors.
 // Changed control latency is measured, not assumed equal to the old controller.
 `timescale 1ns/1fs
-module tb;
+module tb #(parameter integer ACK_ONLY=0);
   reg clk=0,fft_clk=0,resetn=0,fft_resetn=0,run_slow=1;
   always #2.857143 fft_clk=~fft_clk;
   initial begin #1.3;forever begin #5;if(run_slow)clk=~clk;end end
@@ -20,6 +20,62 @@ module tb;
     .PRIVATE_DESCRIPTOR_OFFER(1),.CLOSED_INPUT_CUTOVER(1),
     .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1)) dut(.*);
   reg [31:0] samples[0:1405];
+  // Original ACK-state update, same live inputs, no control authority.
+  starlink_pss_result_guard_owner_view #(.USE_COMPLETED_INPUT_FAULT(1),
+    .CERTIFIED_PRIVATE_ADMISSION(1),.PRIVATE_ACK_RETIREMENT(0),
+    .USE_PRIVATE_DESCRIPTOR_OFFER(1),.ENABLE_OFFERED_FAULT_SUMMARY(1),
+    .REQUIRE_KNOWN_COMPLETED_INPUT(1),.USE_PREFLIGHT_REASON_ONLY(1),
+    .USE_FORWARD_RETIREMENT(1)) original_inverse_ack (
+    .clk(fft_clk),.resetn(dut.fast_running),
+    .job_valid(dut.job_valid && dut.job_ready && dut.next_inverse==1),.job_ready(),.admission_capacity(),
+    .private_descriptor_offer(dut.job_valid && dut.next_inverse==1),
+    .job_descriptor(dut.engine_metadata),.input_bank_reserved(dut.engine_input_reserved),
+    .output_bank_reserved(dut.retained_reserved),
+    .certified_input_beat(dut.certified_input_beat && dut.routed_inverse==1),
+    .certified_input_complete(dut.certified_input_complete && dut.routed_inverse==1),
+    .offered_input_beat(dut.summary_offer_beat && dut.routed_inverse==1),
+    .offered_input_complete(dut.summary_offer_complete && dut.routed_inverse==1),
+    .offered_local_fault_now(),.offered_local_faults_now(),
+    .final_fence_certified(dut.final_fence),.external_fault_now(dut.external_fault_now),
+    .phase_input_fault_now(1'b0),.core_event_frame_started(dut.event_frame && dut.routed_inverse==1),
+    .preflight_fault_evidence_now(dut.preparation_fault_now),
+    .completed_input_certified(dut.checked_input_complete),.completed_input_fault_now(dut.completed_input_fault_now),
+    .core_output_tdata(dut.core_output_data),.core_output_tuser(dut.core_output_user),
+    .core_output_tvalid(dut.core_output_valid && dut.routed_inverse==1),.core_output_tlast(dut.core_output_last),
+    .core_status_tdata(dut.core_status_data),.core_status_tvalid(dut.core_status_valid && dut.routed_inverse==1),
+    .mailbox_input_valid(),.mailbox_private_valid(),.mailbox_commit_valid(),
+    .mailbox_input_ready(dut.inverse_guard_ready),
+    .mailbox_input_fault(dut.output_bank_fault || dut.output_bank_framing_fault_now),
+    .inverse_phase(1'b1),.forward_mailbox_fault(dut.output_bank_fault),
+    .forward_retirement_valid(),.forward_private_offer(),.mailbox_input_data(),.mailbox_input_position(),
+    .mailbox_input_last(),.mailbox_input_metadata(),.busy(),.commit_pulse(),.protocol_fault(),.fault_reasons(),
+    .owner_active(),.owner_awaiting_ack(),.owner_fault_now(),.owner_ack_accept());
+  integer private_ack_checks=0,private_ack_quarantine_cycles=0;
+  always @(posedge fft_clk) begin
+    #0.001;
+    if(dut.fast_running) begin
+      if({dut.owners[1].result_guard.job_ready,dut.owners[1].result_guard.admission_capacity,
+          dut.owners[1].result_guard.mailbox_input_valid,dut.owners[1].result_guard.mailbox_private_valid,
+          dut.owners[1].result_guard.mailbox_commit_valid,dut.owners[1].result_guard.owner_ack_accept,
+          dut.owners[1].result_guard.fault_reasons,dut.owners[1].result_guard.active,
+          dut.guard_return_data[1],dut.guard_return_metadata[1],dut.guard_return_position[1],dut.guard_last_out[1]} !==
+         {original_inverse_ack.job_ready,original_inverse_ack.admission_capacity,
+          original_inverse_ack.mailbox_input_valid,original_inverse_ack.mailbox_private_valid,
+          original_inverse_ack.mailbox_commit_valid,original_inverse_ack.owner_ack_accept,
+          original_inverse_ack.fault_reasons,original_inverse_ack.active,
+          original_inverse_ack.mailbox_input_data,original_inverse_ack.mailbox_input_metadata,
+          original_inverse_ack.mailbox_input_position,original_inverse_ack.mailbox_input_last})
+        $fatal(1,"private ACK public/diagnostic outputs differ");
+      if(dut.owners[1].result_guard.awaiting_ack!==original_inverse_ack.awaiting_ack) begin
+        if(dut.owners[1].result_guard.awaiting_ack!==0 || original_inverse_ack.awaiting_ack!==1 ||
+           dut.owners[1].result_guard.protocol_fault!==1 || original_inverse_ack.protocol_fault!==1 ||
+           dut.owners[1].result_guard.job_ready!==0 || dut.owners[1].result_guard.owner_ack_accept!==0)
+          $fatal(1,"private ACK occupancy difference not quarantined");
+        private_ack_quarantine_cycles=private_ack_quarantine_cycles+1;
+      end
+      private_ack_checks=private_ack_checks+1;
+    end
+  end
   reg [35:0] forwards[0:1535],products[0:1535],inverses[0:1535];
   reg [4:0] fe[0:2],ie[0:2];
   integer mode=0,fast_cycles=0,slow_cycles=0,reads=0,jobs=0,publications=0,releases=0;
@@ -482,6 +538,46 @@ module tb;
       repeat(10)@(negedge fft_clk);
       if(fault || stress_releases!=1)$fatal(1,"staged input fresh recovery failed");
       $display("STAGED_INPUT_IDENTITY_CASE_PASS boundary=%0d stale_reads=0 publications=0 fresh_reads=512 fresh_releases=1",boundary);
+    end
+  endtask
+  task automatic private_ack_boundary(input integer boundary);
+    reg request_before;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);stress_drain=1;
+      while(!dut.output_released_valid || !dut.owners[1].result_guard.awaiting_ack) @(negedge fft_clk);
+      if(stress_reads!=512 || stress_releases!=0 || dut.output_request!==dut.output_ack_sync)
+        $fatal(1,"private ACK test lacks actual reader acknowledgment");
+      request_before=dut.output_request;
+      if(boundary<5) begin
+        stress_fault_expected=1;
+        if(boundary==0) force dut.event_last_missing=1'b1;
+        else if(boundary==1) force dut.core_output_valid=1'b1;
+        else if(boundary==2) force dut.core_status_valid=1'b1;
+        else if(boundary==3) fft_resetn=0;
+        else resetn=0;
+        #0.001;
+        if(dut.guard_ack[1]!==0 || dut.reader_release!==0) $fatal(1,"faulted ACK granted public release");
+        @(posedge fft_clk);#0.002;
+        if(boundary<3 && (dut.owners[1].result_guard.awaiting_ack!==0 ||
+           original_inverse_ack.awaiting_ack!==1 || dut.owners[1].result_guard.protocol_fault!==1))
+          $fatal(1,"missing private ACK fault-edge divergence/quarantine");
+        @(negedge fft_clk);release dut.event_last_missing;release dut.core_output_valid;release dut.core_status_valid;
+        if(boundary>=3) begin
+          repeat(10) @(negedge fft_clk);resetn=1;fft_resetn=1;request_before=dut.output_request;
+        end
+        repeat(100) begin
+          @(negedge fft_clk);
+          if(dut.output_request!==request_before || dut.output_published_valid || dut.reader_release ||
+             dut.job_accept || dut.config_valid || dut.core_input_valid || output_valid)
+            $fatal(1,"private ACK cancellation escaped quarantine");
+        end
+        if(stress_releases!=0 || (boundary<3 && !fault)) $fatal(1,"private ACK cancellation evidence missing");
+        stress_reset;stress_fixture=0;send_block(0);stress_drain=1;
+      end
+      while(stress_reads!=512 || !dut.retained_reusable) @(negedge fft_clk);
+      repeat(10) @(negedge fft_clk);
+      if(fault || stress_releases!=1) $fatal(1,"private ACK fresh recovery failed");
+      $display("STAGED_PRIVATEACK_CASE_PASS boundary=%0d fresh_reads=512 fresh_releases=1",boundary);
     end
   endtask
   task automatic engine_capture_boundary(input integer boundary);
@@ -1048,6 +1144,14 @@ module tb;
     $readmemh("forward_exponents.mem",fe);$readmemh("inverse_exponents.mem",ie);
     log_file=$fopen("staged_words.csv","w");
     $fdisplay(log_file,"context,stream,job,position,data,exponent");
+    if(ACK_ONLY) begin
+      stress=1;
+      for(mode=0;mode<6;mode=mode+1)private_ack_boundary(mode);
+      if(private_ack_checks<1000 || private_ack_quarantine_cycles<300)
+        $fatal(1,"combined private ACK auxiliary coverage missing");
+      $display("STAGED_ACKCOMBINED_AUX_PASS cases=6 checks=%0d quarantined=%0d public_exact=1 fresh_recovery=1",private_ack_checks,private_ack_quarantine_cycles);
+      $fclose(log_file);$finish;
+    end
     for(mode=0;mode<6;mode=mode+1) begin
       @(negedge fft_clk);resetn=0;fft_resetn=0;input_valid=0;
       repeat(10) @(negedge fft_clk);
@@ -1128,7 +1232,13 @@ module tb;
     $display("STAGED_ENGINE_CAPTURE_PASS checks=%0d private_differences=%0d owned_exact=1 cases=6",engine_capture_checks,engine_private_differences);
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
+    if(private_ack_checks<1000)$fatal(1,"combined ACK main witness coverage missing");
+    $display("STAGED_ACKCOMBINED_MAIN_PASS checks=%0d public_exact=1",private_ack_checks);
     $finish;
   end
   initial begin #3000000;$fatal(1,"staged FFT absolute deadline");end
+endmodule
+
+module tb_ack_only;
+  tb #(.ACK_ONLY(1)) isolated();
 endmodule
