@@ -35,8 +35,10 @@ module tb;
   integer handover_admissions=0,handover_completions=0,slow_edges=0;
   reg previous_admission=0,previous_completion=0;
   integer capture_load_checks=0,capture_hold_checks=0,capture_accept_checks=0;
+  integer final_private_rewrites=0;
   reg [177:0] capture_before,capture_inputs;
   reg capture_was_open,capture_was_accept,capture_was_release;
+  reg [7:0] late_status_data;
   // Clock-by-clock payload contract in every healthy numerical context. Fault
   // injection below deliberately corrupts held registers, so has its own checks.
   always @(posedge fft_clk) begin
@@ -163,10 +165,21 @@ module tb;
         product_words=product_words+1;
       end
       if(dut.guard_private_out[1] && dut.output_bank_ready) begin
-        if(dut.guard_return_data[1]!==inverses[inverse_words] || dut.guard_return_position[1]!==9'(inverse_words%512))
-          $fatal(1,"private inverse mismatch");
-        log_word("privateI",inverse_words/512,inverse_words%512,{12'b0,dut.guard_return_data[1]},dut.guard_return_metadata[1][9:0]);
-        inverse_words=inverse_words+1;
+        if(inverse_words>0 && inverse_words%512==0 && dut.guard_return_position[1]==511) begin
+          // One held-final rewrite while the registered close is consumed.
+          // It must be the identical prior word/descriptor, not another sample.
+          if(!dut.output_complete_accept || !dut.guard_last_out[1] ||
+             dut.guard_return_data[1]!==inverses[inverse_words-1] ||
+             dut.guard_return_metadata[1]!=={1'b1,64'(context_start_base+((inverse_words-1)/512)*447),
+                                           fe[(inverse_words-1)/512],ie[(inverse_words-1)/512]})
+            $fatal(1,"extra private final write was not the held completion word");
+          final_private_rewrites=final_private_rewrites+1;
+        end else begin
+          if(dut.guard_return_data[1]!==inverses[inverse_words] || dut.guard_return_position[1]!==9'(inverse_words%512))
+            $fatal(1,"private inverse mismatch");
+          log_word("privateI",inverse_words/512,inverse_words%512,{12'b0,dut.guard_return_data[1]},dut.guard_return_metadata[1][9:0]);
+          inverse_words=inverse_words+1;
+        end
       end
       if(dut.output_request!==old_request) begin
         old_request=dut.output_request;publications=publications+1;publication_cycle=fast_cycles;
@@ -189,6 +202,12 @@ module tb;
         $fatal(1,"completion sampled private lookup without held ownership");
       if(dut.output_complete_accept && dut.output_descriptor_capture!==1'b1)
         $fatal(1,"completion missed its private descriptor capture");
+      if(dut.owners[1].result_guard.private_final_offer &&
+         (((&dut.owners[1].result_guard.private_final_good)===1'b1)!==(dut.guard_commit_out[1]===1'b1)))
+        $fatal(1,"private final checks differ from original final predicate");
+      if(dut.output_complete_accept && (!dut.owners[1].result_guard.staged_final.certificate.snapshot_valid ||
+         !dut.owners[1].result_guard.private_final_permit))
+        $fatal(1,"inverse completion bypassed clocked final validation");
       if(dut.output_descriptor_pending && !dut.output_descriptor_locked)
         $fatal(1,"pending descriptor was not frozen");
       if(dut.output_descriptor_pending && (dut.output_descriptor_valid || dut.output_replay_accept || dut.output_complete_accept))
@@ -376,12 +395,12 @@ module tb;
         force dut.event_last_missing=1'b1;
         force dut.output_lookup_descriptor=70'b0;
         #0.001;
-        if(!dut.output_descriptor_capture || dut.output_complete_accept || dut.output_replay_accept)
-          $fatal(1,"fault-edge private load was not separated from authorization");
+        if(!dut.output_descriptor_capture || !dut.output_complete_accept || dut.guard_commit_out[1] || dut.output_replay_accept)
+          $fatal(1,"fault-edge private completion was not separated from authorization");
         @(posedge fft_clk);#0.001;
-        if(dut.output_descriptor_payload[74:5]!==70'b0 || dut.output_descriptor_pending ||
-           dut.output_descriptor_locked || dut.output_descriptor_valid)
-          $fatal(1,"fault-edge capture acquired authority");
+        if(dut.output_descriptor_payload[74:5]!==70'b0 || !dut.output_descriptor_pending ||
+           !dut.output_descriptor_locked || dut.output_descriptor_valid)
+          $fatal(1,"fault-edge private completion bypassed pending validation");
         @(negedge fft_clk);release dut.event_last_missing;release dut.output_lookup_descriptor;
         repeat(100) begin
           @(negedge fft_clk);
@@ -425,6 +444,84 @@ module tb;
           $fatal(1,"private capture recovery/real release missing");
       end
       $display("STAGED_CAPTURE_CASE_PASS boundary=%0d reads=%0d releases=%0d",boundary,stress_reads,stress_releases);
+    end
+  endtask
+  task automatic final_boundary(input integer boundary);
+    reg request_before;
+    integer n;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      if(boundary==6) begin
+        while(!dut.job_accept || !dut.next_inverse) @(negedge fft_clk);
+        force dut.core_status_valid=1'b0;
+        while(!dut.owners[1].result_guard.return_valid || !dut.owners[1].result_guard.return_last)
+          @(negedge fft_clk);
+        repeat(8) begin
+          @(negedge fft_clk);
+          if(dut.owners[1].result_guard.private_final_offer || dut.output_complete_accept || dut.output_descriptor_pending)
+            $fatal(1,"final validation did not wait for late legal status");
+        end
+        late_status_data={3'b0,ie[0]};force dut.core_status_data=late_status_data;
+        force dut.core_status_valid=1'b1;
+        @(posedge fft_clk);#0.001;
+        @(negedge fft_clk);release dut.core_status_valid;release dut.core_status_data;
+      end else if(boundary==0 || boundary==2 || boundary==3) begin
+        while(!dut.owners[1].result_guard.private_final_offer ||
+              dut.owners[1].result_guard.staged_final.certificate.snapshot_valid) @(negedge fft_clk);
+      end else while(!dut.output_complete_accept) @(negedge fft_clk);
+      request_before=dut.output_request;
+      if(boundary>=6) begin
+        if(boundary==7) begin
+          force dut.output_complete_ready=1'b0;
+          for(n=0;n<16;n=n+1) begin
+            @(posedge fft_clk);#0.001;
+            if(!dut.owners[1].result_guard.private_final_permit || dut.output_descriptor_pending ||
+               dut.output_request!==request_before || dut.output_control.publication_busy)
+              $fatal(1,"stalled final validation was consumed or lost");
+            @(negedge fft_clk);
+          end
+          release dut.output_complete_ready;
+        end
+        // Observe the actual handshake edge. After releasing forced READY,
+        // combinational accept may settle later in this same negedge; polling
+        // at the next negedge can miss its already-consumed one-cycle pulse.
+        n=0;@(posedge fft_clk);
+        while(!dut.output_complete_accept && n<32) begin n=n+1;@(posedge fft_clk);end
+        if(!dut.output_complete_accept) $fatal(1,"final completion did not resume within 32 clocks");
+        #0.001;
+        if(!dut.output_descriptor_pending || !dut.output_descriptor_locked) $fatal(1,"healthy final receipt missing");
+        stress_drain=1;
+        while(stress_reads!=512 || !dut.retained_reusable) @(negedge fft_clk);
+        repeat(10) @(negedge fft_clk);
+        if(fault || stress_releases!=1) $fatal(1,"late/stalled final completion failed real release");
+      end else begin
+        stress_fault_expected=1;
+        if(boundary==2) fft_resetn=0;
+        else if(boundary==3) resetn=0;
+        else if(boundary==4) force dut.core_output_valid=1'b1;
+        else if(boundary==5) force dut.core_status_valid=1'b1;
+        else force dut.event_last_missing=1'b1;
+        #0.001;
+        if((boundary==1 || boundary>=4) && (!dut.output_complete_accept || dut.guard_commit_out[1] || dut.output_replay_accept))
+          $fatal(1,"final consumption edge did not retain separate publication veto");
+        @(posedge fft_clk);#0.001;
+        if((boundary==1 || boundary>=4) && (!dut.output_descriptor_pending || !dut.output_descriptor_locked))
+          $fatal(1,"missing fault-edge private close observation");
+        @(negedge fft_clk);release dut.core_output_valid;release dut.core_status_valid;release dut.event_last_missing;
+        if(boundary==2 || boundary==3) begin
+          repeat(10) @(negedge fft_clk);resetn=1;fft_resetn=1;request_before=dut.output_request;
+        end
+        repeat(100) begin
+          @(negedge fft_clk);
+          if(dut.output_request!==request_before || dut.output_published_valid || dut.output_released_valid ||
+             dut.output_replay_valid || dut.job_accept || dut.config_valid || dut.core_input_valid)
+            $fatal(1,"cancelled final validation escaped to publication/reuse");
+        end
+        if(stress_reads!=0 || stress_releases!=0 || ((boundary!=2 && boundary!=3) && !fault))
+          $fatal(1,"missing final validation cancellation evidence");
+      end
+      $display("STAGED_FINAL_CASE_PASS boundary=%0d private_consume=%0d reads=%0d releases=%0d",
+        boundary,boundary==1 || boundary>=4,stress_reads,stress_releases);
     end
   endtask
   task automatic writer_boundary(input integer boundary);
@@ -563,6 +660,8 @@ module tb;
       if(mode>=4) $display("STAGED_TIMESTAMP_PASS mode=%0d base=%016h words=1536",mode,context_start_base);
     end
     $fclose(log_file);$display("STAGED_FFT_PASS contexts=6 no_continuous_or_physical_claim");
+    if(final_private_rewrites!=18) $fatal(1,"wrong staged-final private rewrite count");
+    $display("STAGED_FINAL_REWRITES_PASS words=18 no_extra_samples=1");
     if(capture_load_checks<1000 || capture_hold_checks<1000 || capture_accept_checks!=18)
       $fatal(1,"missing private descriptor cycle coverage");
     $display("STAGED_CAPTURE_CYCLES_PASS loads=%0d holds=%0d accepts=%0d",capture_load_checks,capture_hold_checks,capture_accept_checks);
@@ -578,6 +677,8 @@ module tb;
     $display("STAGED_WRITER_PASS cases=4 pending_fenced=1");
     for(mode=0;mode<3;mode=mode+1) capture_boundary(mode);
     $display("STAGED_CAPTURE_PASS cases=3 private_load_checked=1 held_until_release=1");
+    for(mode=0;mode<8;mode=mode+1) final_boundary(mode);
+    $display("STAGED_FINAL_PASS cases=8 partition_checked=1 fault_consume_checked=1");
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     $finish;

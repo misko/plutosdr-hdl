@@ -308,6 +308,7 @@ module starlink_pss_fft_staged_output_impl #(
     (|cutover_reasons) || retained_fault_now || (|retained_reasons);
   wire [1:0] guard_ready, guard_capacity, guard_busy, guard_commit, guard_fault, guard_ack, guard_current_fault, guard_forward_retire;
   wire [1:0] guard_valid_out, guard_private_out, guard_commit_out, guard_last_out;
+  wire [1:0] guard_private_commit_out;
   wire [35:0] guard_return_data [0:1];
   wire [8:0] guard_return_position [0:1];
   wire [74:0] guard_return_metadata [0:1];
@@ -393,6 +394,7 @@ module starlink_pss_fft_staged_output_impl #(
     .USE_PRIVATE_DESCRIPTOR_OFFER(PRIVATE_DESCRIPTOR_OFFER),
     .ENABLE_OFFERED_FAULT_SUMMARY(INPUT_OFFER_FAULT_SUMMARY),
     .REQUIRE_KNOWN_COMPLETED_INPUT(CLOSED_INPUT_CUTOVER),
+    .STAGED_PRIVATE_FINAL(OWNER == 1),
     .USE_PREFLIGHT_REASON_ONLY(REGISTERED_SCHEDULING),
     .USE_FORWARD_RETIREMENT(REGISTERED_SCHEDULING)) result_guard (
     .clk(fft_clk), .resetn(fast_running),
@@ -417,6 +419,7 @@ module starlink_pss_fft_staged_output_impl #(
     .core_status_tdata(core_status_data), .core_status_tvalid(core_status_valid && this_raw_owner),
     .mailbox_input_valid(guard_valid_out[OWNER]), .mailbox_private_valid(guard_private_out[OWNER]),
     .mailbox_commit_valid(guard_commit_out[OWNER]),
+    .mailbox_private_commit_valid(guard_private_commit_out[OWNER]),
     .mailbox_input_ready(OWNER == 1 ? inverse_guard_ready :
       (forward_committed ? product_bank_valid : (kernel_ready && product_bank_ready))),
     .mailbox_input_fault(output_bank_fault || output_bank_framing_fault_now),
@@ -454,7 +457,10 @@ module starlink_pss_fft_staged_output_impl #(
   // The guard closes its producer on qualified completion, not on raw TLAST.
   // It must then see READY low until the actual reader ACK and ledger release.
   assign inverse_guard_ready = (output_bank_ready && output_complete_ready) || output_released_valid;
-  wire output_complete_valid = guard_commit_out[1] && output_bank_ready;
+  // A clocked PRIVATE final-validation certificate closes the producer. The
+  // adapter cannot publish until descriptor validation and the independent
+  // current-fault bank authorization below. Registered faults abort it first.
+  wire output_complete_valid = guard_private_commit_out[1] && output_bank_ready;
   wire output_complete_accept = output_complete_valid && output_complete_ready;
   // Private payload may follow the owned producer before completion. The
   // acceptance edge freezes it through validation, publication and real reader

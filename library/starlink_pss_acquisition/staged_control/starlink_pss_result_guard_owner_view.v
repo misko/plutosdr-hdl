@@ -26,6 +26,11 @@ module starlink_pss_result_guard_owner_view #(
   // same-edge registered fault before core start. Only private occupancy may
   // advance on a new fault edge; public output/ACK checks are unchanged.
   parameter integer CERTIFIED_PRIVATE_ADMISSION = 0,
+  // Only for an inverse caller whose downstream bank separately vetoes every
+  // current fault and whose epoch abort cancels before actual publication.
+  // The final word stays owned while clocked validation is pending. This
+  // private completion is NOT the legacy same-edge publication permission.
+  parameter integer STAGED_PRIVATE_FINAL = 0,
   parameter integer USE_PRIVATE_DESCRIPTOR_OFFER = 0,
   parameter integer ENABLE_OFFERED_FAULT_SUMMARY = 0,
   parameter integer REQUIRE_KNOWN_COMPLETED_INPUT = 0,
@@ -84,6 +89,7 @@ module starlink_pss_result_guard_owner_view #(
   // Separate final-only authorization for explicit-commit mailboxes. Ordinary
   // mailbox_input_valid remains unchanged for nonfinal result retirement.
   output wire mailbox_commit_valid,
+  output wire mailbox_private_commit_valid,
   input wire mailbox_input_ready,
   input wire mailbox_input_fault,
   input wire inverse_phase,
@@ -101,6 +107,8 @@ module starlink_pss_result_guard_owner_view #(
 );
   localparam integer AGE_WIDTH = $clog2(WATCHDOG_CYCLES);
   initial begin
+    if (STAGED_PRIVATE_FINAL !== 0 && STAGED_PRIVATE_FINAL !== 1)
+      $fatal(1, "staged private final must be known zero or one");
     if (CERTIFIED_PRIVATE_ADMISSION !== 0 && CERTIFIED_PRIVATE_ADMISSION !== 1)
       $fatal(1, "certified private admission must be known zero or one");
     if (ENABLE_OFFERED_FAULT_SUMMARY !== 0 && ENABLE_OFFERED_FAULT_SUMMARY !== 1)
@@ -293,7 +301,30 @@ module starlink_pss_result_guard_owner_view #(
   // onto final occupancy/ACK controls. No publication condition is omitted.
   assign mailbox_commit_valid = resetn && active && !protocol_fault && return_valid &&
     return_phase_allowed && return_last && final_qualified && !final_public_fault;
-  wire final_commit = mailbox_commit_valid && mailbox_input_ready;
+  // Capture independent veto facts only once the held final word has every
+  // structural qualification. A first/late legal status can therefore arrive
+  // before this request without freezing an incomplete certificate. The job,
+  // final word and descriptor remain owned until consumption or epoch reset.
+  wire private_final_offer = resetn && active && return_valid && return_last &&
+    return_phase_allowed && final_qualified && inverse_phase;
+  wire [6:0] private_final_good = {
+    !(USE_COMPLETED_INPUT_FAULT ? completed_input_fault_now : phase_input_fault),
+    !mailbox_input_fault, output_bank_reserved,
+    !core_event_frame_started, !core_status_tvalid, !core_output_tvalid, !watchdog_error};
+  wire private_final_permit;
+  generate if (STAGED_PRIVATE_FINAL) begin: staged_final
+    starlink_pss_admission_certificate #(.CHECKS(7)) certificate (
+      .clk(clk), .resetn(resetn), .request(private_final_offer),
+      .quarantine(protocol_fault),
+      .consume(mailbox_private_commit_valid && mailbox_input_ready),
+      .checks_good(private_final_good), .permit(private_final_permit),
+      .snapshot_valid(), .snapshot_good());
+  end else begin: immediate_final
+    assign private_final_permit=1'b0;
+  end endgenerate
+  assign mailbox_private_commit_valid = STAGED_PRIVATE_FINAL && private_final_permit;
+  wire final_commit = (STAGED_PRIVATE_FINAL && inverse_phase ?
+    mailbox_private_commit_valid : mailbox_commit_valid) && mailbox_input_ready;
 
   // BEGIN FORWARD_RETIREMENT: existing public outputs/state stay literal.
   // The inverse mailbox's CURRENT framing fault is structurally impossible
@@ -406,8 +437,10 @@ module starlink_pss_result_guard_owner_view #(
           exponent_seen <= 1;
         end
       end
-      // job_accept is already qualified while idle. final_commit is already
-      // qualified by the unchanged same-edge final publication fence. A new
+      // job_accept is already qualified while idle. Default final_commit uses
+      // the unchanged same-edge publication fence. The opt-in inverse private
+      // commit consumes clocked checks and relies on the caller's separate
+      // current-fault bank veto/epoch abort before publication. A new
       // fault clears effective active/return_valid through fault_reasons on
       // this edge; clearing these hidden occupancy bits can wait until next.
       if (protocol_fault) active_private <= 0;
