@@ -24,7 +24,8 @@ module starlink_pss_fft_staged_output_impl #(
   parameter integer REPLAY_QUIET_PUBLICATION = 0,
   parameter integer PRIVATE_QUARANTINE_OFFER = 0,
   parameter integer SPLIT_PREFLIGHT_IDENTITY = 0,
-  parameter integer MONOTONIC_OUTER_RESET = 0
+  parameter integer MONOTONIC_OUTER_RESET = 0,
+  parameter integer PARALLEL_KERNEL_READY = 0
 ) (
   input wire clk, resetn, fft_clk, fft_resetn,
   input wire input_valid,
@@ -727,10 +728,25 @@ module starlink_pss_fft_staged_output_impl #(
   );
   // Nonfinal checked results may compute privately before independent status.
   // The final result is admitted ONLY on the original guard's qualified commit.
+  // BEGIN PARALLEL KERNEL CAPACITY
+  initial begin
+    if (PARALLEL_KERNEL_READY !== 0 && PARALLEL_KERNEL_READY !== 1)
+      $fatal(1,"parallel kernel ready requires a known mode");
+    if (PARALLEL_KERNEL_READY === 1 && (REGISTERED_SCHEDULING !== 1 || REGISTER_OPERANDS !== 1))
+      $fatal(1,"parallel kernel ready requires registered pipeline");
+  end
+  wire product_pipeline_full, product_identity_idle;
+  // Same live private-slot capacity and final-slot restriction as the actual
+  // product stage. This is lookahead for READY, never publication authority.
+  (* keep = "true" *) wire forward_parallel_capacity = !product_pipeline_full ||
+    (!product_stage_fault && (product_identity_idle ||
+      ((staged_product_last === 1'b0) && (product_bank_ready === 1'b1) && (fast_fault === 1'b0))) && !fast_fault);
+  // END PARALLEL KERNEL CAPACITY
   starlink_pss_forward_kernel_join #(.KERNEL_ROM_FILE(KERNEL_ROM_FILE), .DATA_WIDTH(18),
     .PRIVATE_PAYLOAD_BUBBLES(REGISTERED_SCHEDULING),
     .PRIVATE_SEQUENCE_ADVANCE(REGISTERED_SCHEDULING),
-    .BALANCED_BLOCK_IDENTITY_EQ(REGISTERED_SCHEDULING)) joiner (
+    .BALANCED_BLOCK_IDENTITY_EQ(REGISTERED_SCHEDULING),
+    .PARALLEL_INPUT_CAPACITY(PARALLEL_KERNEL_READY)) joiner (
     .clk(fft_clk), .resetn(fast_running), .flush(1'b0),
     // Match the guard's exact retirement event, including a held final word.
     // An owned bank should remain ready, but a readiness fault/stall must never
@@ -743,6 +759,7 @@ module starlink_pss_fft_staged_output_impl #(
     .input_bin_index(return_position), .input_block_exponent(return_metadata[4:0]),
     .input_last(return_last), .input_block_start_index(return_metadata[73:10]),
     .output_valid(joined_valid), .output_ready(joined_ready),
+    .downstream_capacity(forward_parallel_capacity), // PARALLEL READY INPUT
     .output_i(joined_i), .output_q(joined_q), .output_kernel_i(kernel_i), .output_kernel_q(kernel_q),
     .output_bin_index(joined_position), .output_block_exponent(joined_exponent),
     .output_last(joined_last), .output_block_start_index(joined_start),
@@ -758,6 +775,7 @@ module starlink_pss_fft_staged_output_impl #(
     .input_bin_index(joined_position), .input_block_exponent(joined_exponent),
     .input_last(joined_last), .input_block_start_index(joined_start),
     .output_valid(product_valid), .output_ready(product_stage_ready && !fast_fault),
+    .pipeline_full(product_pipeline_full), // PARALLEL READY OCCUPANCY
     .output_i(product_i), .output_q(product_q), .output_bin_index(product_position),
     .output_block_exponent(product_exponent), .output_last(product_last),
     .output_block_start_index(product_start), .output_overflow(product_overflow), .overflow_pulse()
@@ -781,7 +799,7 @@ module starlink_pss_fft_staged_output_impl #(
     .refill_capacity((product_bank_ready === 1'b1) && (fast_fault === 1'b0)),
     .output_data(staged_product_data), .output_position(staged_product_position),
     .output_last(staged_product_last), .output_identity_good(staged_product_identity_good),
-    .output_metadata(staged_product_metadata), .idle(), .fault(product_stage_fault)
+    .output_metadata(staged_product_metadata), .idle(product_identity_idle), .fault(product_stage_fault)
   );
   // END PRODUCT IDENTITY STAGE
   starlink_pss_product_mailbox_staged_identity #(.RESET_RELEASE_EXTERNAL(1), .EXPLICIT_COMMIT(1)) product_bank (

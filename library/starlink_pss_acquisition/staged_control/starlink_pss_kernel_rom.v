@@ -18,7 +18,8 @@ module starlink_pss_kernel_rom #(
   // private/public divergence MUST quarantine the caller until common flush.
   // Final offers must wait for the original final-word qualification.
   parameter integer PRIVATE_SEQUENCE_ADVANCE = 0,
-  parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0
+  parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0,
+  parameter integer PARALLEL_INPUT_CAPACITY = 0
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -34,6 +35,7 @@ module starlink_pss_kernel_rom #(
 
   output reg                     output_valid,
   input  wire                    output_ready,
+  input  wire                    downstream_capacity, // PARALLEL READY INPUT
   output wire signed [DATA_WIDTH-1:0] output_kernel_i,
   output wire signed [DATA_WIDTH-1:0] output_kernel_q,
   output reg [8:0]               output_bin_index,
@@ -102,8 +104,20 @@ module starlink_pss_kernel_rom #(
   end
 
   assign output_stage_ready = !output_valid || output_ready;
+  // BEGIN PARALLEL KERNEL READY
+  initial if (PARALLEL_INPUT_CAPACITY !== 0 && PARALLEL_INPUT_CAPACITY !== 1)
+    $fatal(1,"parallel input capacity requires a known mode");
+  // Caller certifies current downstream capacity for a known active epoch.
+  // Keep the original unknown-reset behavior and all output-stage enables.
+  (* keep = "true" *) wire parallel_input_room = !output_valid || downstream_capacity;
+  generate if (PARALLEL_INPUT_CAPACITY === 1) begin : parallel_ready
+    assign input_ready = resetn && !flush && !protocol_fault &&
+      (resetn === 1'b1 ? parallel_input_room : output_stage_ready);
+  end else begin : original_ready
   assign input_ready = resetn && !flush && !protocol_fault &&
                        output_stage_ready;
+  end endgenerate
+  // END PARALLEL KERNEL READY
   assign input_accept = input_valid && input_ready;
   assign output_kernel_i = output_kernel_word[DATA_WIDTH-1:0];
   assign output_kernel_q = output_kernel_word[DATA_WIDTH +: DATA_WIDTH];

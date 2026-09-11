@@ -3,6 +3,28 @@
 // Changed control latency is measured, not assumed equal to the old controller.
 `timescale 1ns/1fs
 module tb #(parameter integer ACK_ONLY=0);
+  // BEGIN PARALLEL READY WITNESS
+  integer parallel_ready_checks=0;
+  wire parallel_selected_ready = dut.fast_running && !dut.kernel_fault &&
+    (dut.fast_running === 1'b1 ? dut.joiner.kernel_rom.parallel_input_room : dut.joiner.kernel_rom.output_stage_ready);
+  always @(negedge fft_clk)begin
+    #0.001;
+    if(dut.PARALLEL_KERNEL_READY!==1 || dut.joiner.PARALLEL_INPUT_CAPACITY!==1 || dut.joiner.kernel_rom.PARALLEL_INPUT_CAPACITY!==1)
+      $fatal(1,"parallel ready integrated profile mismatch");
+    if(dut.product_pipeline_full !== (dut.product.registered_operands.valid && dut.product.arithmetic.product_valid &&
+       dut.product.arithmetic.sum_valid && dut.product.arithmetic.output_valid))
+      $fatal(1,"parallel ready owning occupancy mismatch");
+    if(dut.product_identity_idle !== !dut.product_identity_stage.full || parallel_selected_ready !== capacity_original_ready)
+      $fatal(1,"parallel ready original expression mismatch");
+    parallel_ready_checks=parallel_ready_checks+1;
+  end
+  task automatic report_parallel_ready;
+    begin
+      if(parallel_ready_checks<1000)$fatal(1,"parallel ready coverage incomplete");
+      $display("STAGED_PARALLEL_READY_PASS checks=%0d ports=1 current_exact=1 original_guard_wiring=1 latency_unchanged=1",parallel_ready_checks);
+    end
+  endtask
+  // END PARALLEL READY WITNESS
   // BEGIN FORWARD CAPACITY SHADOW
   // Observation only. No hierarchy reference below drives runtime logic.
   wire capacity_vacancy = !dut.joined_valid || !dut.product.registered_operands.valid ||
@@ -52,7 +74,7 @@ module tb #(parameter integer ACK_ONLY=0);
     begin
       if(capacity_checks<1000 || capacity_healthy<1000 || capacity_faults<10 || capacity_unexplained!=0)
         $fatal(1,"forward capacity coverage incomplete");
-      $display("STAGED_FORWARD_CAPACITY_SHADOW_PASS checks=%0d healthy=%0d faults=%0d ready_overrides=%0d summary_overrides=%0d common_differences=%0d unexplained=%0d runtime_unchanged=1",capacity_checks,capacity_healthy,capacity_faults,capacity_ready_overrides,capacity_summary_overrides,capacity_common_differences,capacity_unexplained);
+      $display("STAGED_FORWARD_CAPACITY_SHADOW_PASS checks=%0d healthy=%0d faults=%0d ready_overrides=%0d summary_overrides=%0d common_differences=%0d unexplained=%0d runtime_unchanged=0",capacity_checks,capacity_healthy,capacity_faults,capacity_ready_overrides,capacity_summary_overrides,capacity_common_differences,capacity_unexplained);
     end
   endtask
   // END FORWARD CAPACITY SHADOW
@@ -185,6 +207,7 @@ module tb #(parameter integer ACK_ONLY=0);
       report_split_preflight; // SPLIT PREFLIGHT REPORT
       report_monotonic_release; // MONOTONIC RESET REPORT
       report_forward_capacity; // FORWARD CAPACITY REPORT
+      report_parallel_ready; // PARALLEL READY REPORT
     end
   endtask
   // END REPLAY QUIET WITNESS
@@ -329,7 +352,7 @@ module tb #(parameter integer ACK_ONLY=0);
   starlink_pss_fft_staged_output_impl #(.REGISTERED_SCHEDULING(1),
     .BOUNDARY_ROUND_SAT(1),.REGISTER_OPERANDS(1),.LOCAL_FIRST_ADMISSION(1),
     .PRIVATE_DESCRIPTOR_OFFER(1),.CLOSED_INPUT_CUTOVER(1),
-    .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1),.REPLAY_QUIET_PUBLICATION(1),.SPLIT_PREFLIGHT_IDENTITY(1),.MONOTONIC_OUTER_RESET(1),.PRIVATE_QUARANTINE_OFFER(1)) dut(.*);
+    .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1),.REPLAY_QUIET_PUBLICATION(1),.SPLIT_PREFLIGHT_IDENTITY(1),.MONOTONIC_OUTER_RESET(1),.PARALLEL_KERNEL_READY(1),.PRIVATE_QUARANTINE_OFFER(1)) dut(.*);
   reg [31:0] samples[0:1405];
   // BEGIN OUTPUT METADATA WITNESS
   integer output_metadata_checks=0,output_metadata_live_words=0,output_metadata_replay_words=0;

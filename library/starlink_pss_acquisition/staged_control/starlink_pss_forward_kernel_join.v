@@ -13,7 +13,8 @@ module starlink_pss_forward_kernel_join #(
   parameter integer DATA_WIDTH = 24,
   parameter integer PRIVATE_PAYLOAD_BUBBLES = 0,
   parameter integer PRIVATE_SEQUENCE_ADVANCE = 0,
-  parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0
+  parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0,
+  parameter integer PARALLEL_INPUT_CAPACITY = 0
 ) (
   input  wire                    clk,
   input  wire                    resetn,
@@ -31,6 +32,7 @@ module starlink_pss_forward_kernel_join #(
 
   output wire                    output_valid,
   input  wire                    output_ready,
+  input  wire                    downstream_capacity, // PARALLEL READY INPUT
   output wire signed [DATA_WIDTH-1:0] output_i,
   output wire signed [DATA_WIDTH-1:0] output_q,
   output wire signed [DATA_WIDTH-1:0] output_kernel_i,
@@ -67,7 +69,8 @@ module starlink_pss_forward_kernel_join #(
     .DATA_WIDTH(DATA_WIDTH),
     .PRIVATE_PAYLOAD_BUBBLES(PRIVATE_PAYLOAD_BUBBLES),
     .PRIVATE_SEQUENCE_ADVANCE(PRIVATE_SEQUENCE_ADVANCE),
-    .BALANCED_BLOCK_IDENTITY_EQ(BALANCED_BLOCK_IDENTITY_EQ)
+    .BALANCED_BLOCK_IDENTITY_EQ(BALANCED_BLOCK_IDENTITY_EQ),
+    .PARALLEL_INPUT_CAPACITY(PARALLEL_INPUT_CAPACITY)
   ) kernel_rom (
     .clk                       (clk),
     .resetn                    (resetn),
@@ -81,6 +84,7 @@ module starlink_pss_forward_kernel_join #(
     .input_block_start_index   (input_block_start_index),
     .output_valid              (output_valid),
     .output_ready              (output_ready),
+    .downstream_capacity       (downstream_capacity), // PARALLEL READY INPUT
     .output_kernel_i           (output_kernel_i),
     .output_kernel_q           (output_kernel_q),
     .output_bin_index          (output_bin_index),
