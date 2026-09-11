@@ -83,23 +83,36 @@ module starlink_pss_forward_return_bank #(
   always @(posedge clk)
     if (read_enable) read_data <= payload[read_count[ADDRESS_WIDTH-1:0]];
 
+  // BEGIN PRIVATE CAPTURE PROGRESS
+  // Match the already-private RAM write, even on a newly rejected word.
+  // fault_q and state quarantine on that same edge; current fault still
+  // suppresses replay immediately. Counter/exponent values are not valid
+  // evidence after rejection and cannot be reused before common reset.
+  always @(posedge clk or negedge resetn) begin
+    if (!resetn) begin write_count<=0;exponent<=0;end
+    else if (reserve_valid && reserve_ready) write_count<=0;
+    else if (capture_take) begin
+      write_count<=write_count+1'b1;
+      if (write_count==0) exponent<=capture_exponent;
+    end
+  end
+  // END PRIVATE CAPTURE PROGRESS
+
   always @(posedge clk or negedge resetn) begin
     if (!resetn) begin
-      state<=IDLE;fault_q<=0;replay_valid<=0;write_count<=0;read_count<=0;
-      descriptor<=0;exponent<=0;output_position<=0;done_pulse<=0;
+      state<=IDLE;fault_q<=0;replay_valid<=0;read_count<=0;
+      descriptor<=0;output_position<=0;done_pulse<=0;
     end else begin
       done_pulse<=0;
       if (fault_q || fault_now) begin
         state<=IDLE;fault_q<=1;replay_valid<=0;
       end else case (state)
         IDLE: if (reserve_valid && reserve_ready) begin
-          descriptor<=reserve_descriptor;state<=CAPTURE;write_count<=0;
+          descriptor<=reserve_descriptor;state<=CAPTURE;
           read_count<=0;replay_valid<=0;
         end
         CAPTURE: begin
           if (capture_take) begin
-            write_count<=write_count+1'b1;
-            if (write_count==0) exponent<=capture_exponent;
             if (capture_final) state<=WAIT_SEAL;
           end
           if (seal_valid && capture_final) state<=REPLAY;
