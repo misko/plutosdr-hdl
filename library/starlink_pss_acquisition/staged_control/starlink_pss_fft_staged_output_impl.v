@@ -305,8 +305,26 @@ module starlink_pss_fft_staged_output_impl #(
   wire cutover_offered_fault_now;
   wire [1:0] guard_offered_local_fault;
   wire vendor_fault_now = event_last_unexpected || event_last_missing || event_input_halt;
-  wire forward_handoff_identity = product_bank_metadata ==
+  // BEGIN BALANCED HANDOFF IDENTITY
+  // Preserve the complete current 70-bit equality, including four-state
+  // behavior. Keep small parallel leaves to avoid a long inferred carry chain.
+  // No sampled certificate, extra latency or delayed publication veto.
+  wire [69:0] handoff_expected_metadata =
     {1'b1, engine_metadata[68:5], return_metadata[4:0]};
+  (* keep = "true" *) wire [23:0] handoff_leaf_equal;
+  (* keep = "true" *) wire [3:0] handoff_group_equal;
+  generate
+    for (genvar leaf = 0; leaf < 24; leaf = leaf + 1) begin : handoff_leaves
+      localparam integer BITS = leaf == 23 ? 1 : 3;
+      assign handoff_leaf_equal[leaf] = product_bank_metadata[3*leaf +: BITS] ==
+        handoff_expected_metadata[3*leaf +: BITS];
+    end
+    for (genvar group_index = 0; group_index < 4; group_index = group_index + 1) begin : handoff_groups
+      assign handoff_group_equal[group_index] = &handoff_leaf_equal[6*group_index +: 6];
+    end
+  endgenerate
+  wire forward_handoff_identity = &handoff_group_equal;
+  // END BALANCED HANDOFF IDENTITY
   // The return exponent register is immutable after the forward guard commit.
   // A bank claiming ownership with the wrong descriptor cannot ACK that guard.
   wire handoff_fault_now = !next_inverse && forward_committed && product_bank_valid &&

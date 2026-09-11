@@ -3,6 +3,35 @@
 // Changed control latency is measured, not assumed equal to the old controller.
 `timescale 1ns/1fs
 module tb #(parameter integer ACK_ONLY=0);
+  // BEGIN BALANCED HANDOFF WITNESS
+  integer handoff_checks=0, handoff_owned_checks=0;
+  always @(negedge fft_clk) begin : settled_handoff_monitor
+    reg before_identity, before_reference;
+    before_identity=dut.forward_handoff_identity;
+    before_reference=(dut.product_bank_metadata ==
+      {1'b1,dut.engine_metadata[68:5],dut.return_metadata[4:0]});
+    // Existing negative-edge fault drivers use force/release. Let their
+    // combinational delta cycles settle; remain far before the sampling edge.
+    #0.001;
+    if (dut.fast_running === 1'b1) begin
+      if (dut.forward_handoff_identity !== (dut.product_bank_metadata ==
+          {1'b1,dut.engine_metadata[68:5],dut.return_metadata[4:0]}))
+        $fatal(1,"balanced handoff differs from original current identity");
+      if(before_identity !== before_reference)
+        $display("STAGED_HANDOFF_SETTLED_DELTA time=%0t before=%b reference=%b settled=%b",$time,before_identity,before_reference,dut.forward_handoff_identity);
+      handoff_checks=handoff_checks+1;
+      if (dut.forward_committed && dut.product_bank_valid)
+        handoff_owned_checks=handoff_owned_checks+1;
+    end
+  end
+  task automatic report_balanced_handoff;
+    begin
+      if(handoff_checks<1000 || handoff_owned_checks<12)
+        $fatal(1,"incomplete actual handoff identity coverage");
+      $display("STAGED_BALANCED_HANDOFF_PASS checks=%0d owned=%0d exact_current=1",handoff_checks,handoff_owned_checks);
+    end
+  endtask
+  // END BALANCED HANDOFF WITNESS
   reg clk=0,fft_clk=0,resetn=0,fft_resetn=0,run_slow=1;
   always #2.857143 fft_clk=~fft_clk;
   initial begin #1.3;forever begin #5;if(run_slow)clk=~clk;end end
@@ -1473,6 +1502,7 @@ module tb #(parameter integer ACK_ONLY=0);
       report_final_capacity; // FINAL CAPACITY AUXILIARY
       report_split_capacity; // SPLIT CAPACITY AUXILIARY
       report_output_metadata; // OUTPUT METADATA AUXILIARY
+      report_balanced_handoff; // BALANCED HANDOFF AUXILIARY
       $fclose(log_file);$finish;
     end
     for(mode=0;mode<6;mode=mode+1) begin
@@ -1562,6 +1592,7 @@ module tb #(parameter integer ACK_ONLY=0);
     report_final_capacity; // FINAL CAPACITY MAIN
     report_split_capacity; // SPLIT CAPACITY MAIN
     report_output_metadata; // OUTPUT METADATA MAIN
+    report_balanced_handoff; // BALANCED HANDOFF MAIN
     $finish;
   end
   initial begin #3000000;$fatal(1,"staged FFT absolute deadline");end
