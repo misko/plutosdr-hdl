@@ -3,6 +3,51 @@
 // Changed control latency is measured, not assumed equal to the old controller.
 `timescale 1ns/1fs
 module tb #(parameter integer ACK_ONLY=0);
+  // BEGIN REPLAY QUIET WITNESS
+  // Diagnostic only: nothing here drives DUT authorization or state.
+  wire replay_quiet_context = dut.state==dut.ACK_DRAIN && dut.next_inverse && dut.routed_inverse &&
+    !dut.preparing && !dut.owners[0].result_guard.active && !dut.owners[1].result_guard.active;
+  wire replay_quiet_fault = dut.offered_external_fault_now || dut.result_fault ||
+    dut.output_bank_fault || dut.output_bank_framing_fault_now || dut.preparation_fault_now ||
+    dut.core_status_valid || dut.core_output_valid || dut.event_frame ||
+    dut.summary_offer_beat || dut.summary_offer_complete;
+  wire replay_quiet_accept = dut.output_replay_valid && dut.output_descriptor_valid &&
+    dut.output_bank_ready && replay_quiet_context && !replay_quiet_fault;
+  // Compare the original equation even when a test deliberately forces its
+  // output low; independently require that test's forced stall to remain low.
+  wire replay_original_predicate = dut.output_replay_valid && dut.output_descriptor_valid &&
+    dut.output_bank_ready && !dut.common_current_fault;
+  integer replay_quiet_checks=0,replay_quiet_offers=0,replay_quiet_accepts=0;
+  integer replay_quiet_paused=0;
+  integer replay_quiet_sweep=0;
+  reg [7:0] replay_probe_data=0;
+  task automatic check_replay_quiet;
+    begin
+      if(dut.fast_running)begin
+        if((replay_quiet_accept===1'b1)!==(replay_original_predicate===1'b1))
+          $fatal(1,"replay quiet publication decision differs");
+        if((dut.output_replay_accept===1'b1)!==(!publication_probe_paused && replay_original_predicate===1'b1))
+          $fatal(1,"replay quiet forced publication stall differs");
+        if(publication_probe_paused)replay_quiet_paused=replay_quiet_paused+1;
+        if(dut.output_replay_valid===1'b1)begin
+          if(replay_quiet_context!==1'b1)$fatal(1,"replay quiet ownership premise missing");
+          if(replay_quiet_fault!==dut.common_current_fault)$fatal(1,"replay quiet current fault differs");
+          replay_quiet_offers=replay_quiet_offers+1;
+        end
+        if(replay_quiet_accept===1'b1)replay_quiet_accepts=replay_quiet_accepts+1;
+        replay_quiet_checks=replay_quiet_checks+1;
+      end
+    end
+  endtask
+  always @(negedge fft_clk)begin #0.001;check_replay_quiet;end
+  task automatic report_replay_quiet;
+    begin
+      if(replay_quiet_checks<1000 || replay_quiet_offers<18 || replay_quiet_accepts<18)
+        $fatal(1,"replay quiet witness coverage short");
+      $display("STAGED_REPLAY_QUIET_PASS checks=%0d offers=%0d accepts=%0d sweep=%0d paused=%0d current_exact=1 runtime_unchanged=1",replay_quiet_checks,replay_quiet_offers,replay_quiet_accepts,replay_quiet_sweep,replay_quiet_paused);
+    end
+  endtask
+  // END REPLAY QUIET WITNESS
   // BEGIN COMPLETION MAILBOX WITNESS
   integer completion_slot_accepts=0, completion_slot_consumes=0, completion_slot_holds=0;
   reg completion_slot_held=0;
@@ -36,6 +81,62 @@ module tb #(parameter integer ACK_ONLY=0);
       end
     end
   end
+  // BEGIN REPLAY QUIET BOUNDARIES
+  task automatic replay_quiet_boundary(input integer boundary);
+    reg request_before;
+    integer n;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      while(dut.output_replay_valid!==1'b1)@(negedge fft_clk);
+      if(replay_quiet_context!==1'b1 || dut.output_replay_accept!==1'b1)
+        $fatal(1,"replay quiet boundary not initially publishable");
+      request_before=dut.output_request;stress_fault_expected=1;
+      if(boundary==0)begin
+        force dut.core_status_data=replay_probe_data;
+        force dut.core_status_valid=1'b0;
+        for(n=0;n<256;n=n+1)begin
+          replay_probe_data=n;#0.002;check_replay_quiet;
+          if(dut.output_replay_accept!==1'b1)$fatal(1,"invalid status payload affected replay");
+          replay_quiet_sweep=replay_quiet_sweep+1;
+        end
+        force dut.core_status_valid=1'b1;
+        for(n=0;n<256;n=n+1)begin
+          replay_probe_data=n;#0.002;check_replay_quiet;
+          if(dut.output_replay_accept!==1'b0)$fatal(1,"late status payload authorized replay");
+          replay_quiet_sweep=replay_quiet_sweep+1;
+        end
+      end
+      if(boundary<8)begin
+        case(boundary)
+          0:replay_probe_data=8'h00;1:replay_probe_data=8'hff;
+          2:replay_probe_data=8'h1f;3:replay_probe_data=8'h20;
+          4:replay_probe_data=8'h80;5:replay_probe_data=8'hxx;
+          6:replay_probe_data=8'hzz;7:replay_probe_data=8'h01;
+        endcase
+        force dut.core_status_data=replay_probe_data;force dut.core_status_valid=1'b1;
+      end else if(boundary==8)force dut.core_output_valid=1'b1;
+      else force dut.event_frame=1'b1;
+      #0.002;check_replay_quiet;
+      if(dut.output_replay_accept!==1'b0 || replay_quiet_accept!==1'b0)
+        $fatal(1,"late event not rejected on publication edge");
+      @(posedge fft_clk);#0.001;
+      if(dut.output_request!==request_before)$fatal(1,"late event published payload");
+      @(negedge fft_clk);
+      release dut.core_status_data;release dut.core_status_valid;release dut.core_output_valid;
+      release dut.event_frame;release dut.summary_offer_beat;release dut.summary_offer_complete;
+      repeat(100)begin
+        @(negedge fft_clk);
+        if(dut.output_request!==request_before || dut.output_released_valid || output_valid)
+          $fatal(1,"late replay event escaped quarantine");
+      end
+      if(fault!==1'b1 || stress_reads!=0 || stress_releases!=0)$fatal(1,"late replay fault not recorded");
+      stress_reset;stress_fixture=0;send_block(0);stress_drain=1;
+      while(stress_reads!=512 || !dut.retained_reusable)@(negedge fft_clk);
+      if(fault || stress_releases!=1)$fatal(1,"replay quiet fresh recovery failed");
+      $display("STAGED_REPLAY_QUIET_CASE_PASS boundary=%0d blocked_publication=1 fresh_reads=512 fresh_releases=1",boundary);
+    end
+  endtask
+  // END REPLAY QUIET BOUNDARIES
   task automatic report_completion_slot;
     begin
       if(completion_slot_accepts<18 || completion_slot_consumes<18 || completion_slot_holds<1000)
@@ -1590,6 +1691,9 @@ module tb #(parameter integer ACK_ONLY=0);
     $fdisplay(log_file,"context,stream,job,position,data,exponent");
     if(ACK_ONLY) begin
       stress=1;
+      // BEGIN REPLAY QUIET AUXILIARY
+      for(mode=0;mode<10;mode=mode+1)replay_quiet_boundary(mode);
+      // END REPLAY QUIET AUXILIARY
       // BEGIN COMPLETION MAILBOX AUXILIARY
       for(mode=0;mode<3;mode=mode+1)completion_slot_boundary(mode);
       // END COMPLETION MAILBOX AUXILIARY
@@ -1614,6 +1718,7 @@ module tb #(parameter integer ACK_ONLY=0);
       report_balanced_handoff; // BALANCED HANDOFF AUXILIARY
       report_completion_slot; // COMPLETION MAILBOX AUXILIARY
       report_private_admission_facts; // PRIVATE ADMISSION FACTS AUXILIARY
+      report_replay_quiet; // REPLAY QUIET AUXILIARY
       $fclose(log_file);$finish;
     end
     for(mode=0;mode<6;mode=mode+1) begin
@@ -1706,6 +1811,7 @@ module tb #(parameter integer ACK_ONLY=0);
     report_balanced_handoff; // BALANCED HANDOFF MAIN
     report_completion_slot; // COMPLETION MAILBOX MAIN
     report_private_admission_facts; // PRIVATE ADMISSION FACTS MAIN
+    report_replay_quiet; // REPLAY QUIET MAIN
     $finish;
   end
   initial begin #3000000;$fatal(1,"staged FFT absolute deadline");end
