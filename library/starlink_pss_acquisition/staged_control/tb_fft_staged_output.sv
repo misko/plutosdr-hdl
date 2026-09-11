@@ -3,6 +3,29 @@
 // Changed control latency is measured, not assumed equal to the old controller.
 `timescale 1ns/1fs
 module tb #(parameter integer ACK_ONLY=0);
+  // BEGIN SPLIT PREFLIGHT WITNESS
+  integer split_preflight_checks=0,split_preflight_source=0,split_preflight_product=0;
+  wire [69:0] original_preflight_metadata = dut.preflight_phase ? dut.product_bank_metadata : dut.source_metadata;
+  wire [1:0] original_preflight_equal = {dut.engine_metadata == dut.expected_product_metadata,
+    original_preflight_metadata == dut.engine_metadata};
+  always @(negedge fft_clk)begin
+    #0.001;
+    if(dut.fast_running)begin
+      if(dut.SPLIT_PREFLIGHT_IDENTITY!==1 || dut.preflight_identity_equal!==original_preflight_equal)
+        $fatal(1,"split preflight current identity mismatch");
+      split_preflight_checks=split_preflight_checks+1;
+      if(dut.preparing && !dut.preflight_phase)split_preflight_source=split_preflight_source+1;
+      if(dut.preparing && dut.preflight_phase)split_preflight_product=split_preflight_product+1;
+    end
+  end
+  task automatic report_split_preflight;
+    begin
+      if(split_preflight_checks<1000 || split_preflight_source<20 || split_preflight_product<20)
+        $fatal(1,"split preflight witness coverage missing");
+      $display("STAGED_SPLIT_PREFLIGHT_PASS checks=%0d source=%0d product=%0d current_exact=1 latency_unchanged=1",split_preflight_checks,split_preflight_source,split_preflight_product);
+    end
+  endtask
+  // END SPLIT PREFLIGHT WITNESS
   // BEGIN PRIVATE QUARANTINE WITNESS
   integer private_quarantine_checks=0,private_quarantine_differences=0;
   always @(negedge fft_clk) begin
@@ -82,6 +105,7 @@ module tb #(parameter integer ACK_ONLY=0);
       $display("STAGED_REPLAY_QUIET_PASS checks=%0d offers=%0d accepts=%0d sweep=%0d paused=%0d current_exact=1 runtime_unchanged=0",replay_quiet_checks,replay_quiet_offers,replay_quiet_accepts,replay_quiet_sweep,replay_quiet_paused);
       $display("STAGED_REPLAY_FENCE_PASS enabled=1 profile=1 independent_shadow=1 current_publication_exact=1"); // INTEGRATED REPLAY FENCE REPORT
       report_private_quarantine; // PRIVATE QUARANTINE REPORT
+      report_split_preflight; // SPLIT PREFLIGHT REPORT
     end
   endtask
   // END REPLAY QUIET WITNESS
@@ -226,7 +250,7 @@ module tb #(parameter integer ACK_ONLY=0);
   starlink_pss_fft_staged_output_impl #(.REGISTERED_SCHEDULING(1),
     .BOUNDARY_ROUND_SAT(1),.REGISTER_OPERANDS(1),.LOCAL_FIRST_ADMISSION(1),
     .PRIVATE_DESCRIPTOR_OFFER(1),.CLOSED_INPUT_CUTOVER(1),
-    .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1),.REPLAY_QUIET_PUBLICATION(1),.PRIVATE_QUARANTINE_OFFER(1)) dut(.*);
+    .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1),.REPLAY_QUIET_PUBLICATION(1),.SPLIT_PREFLIGHT_IDENTITY(1),.PRIVATE_QUARANTINE_OFFER(1)) dut(.*);
   reg [31:0] samples[0:1405];
   // BEGIN OUTPUT METADATA WITNESS
   integer output_metadata_checks=0,output_metadata_live_words=0,output_metadata_replay_words=0;

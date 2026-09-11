@@ -22,7 +22,8 @@ module starlink_pss_fft_staged_output_impl #(
   parameter integer INPUT_OFFER_FAULT_SUMMARY = 0,
   parameter integer CONTEXTUAL_DESTINATION_SUMMARY = 0,
   parameter integer REPLAY_QUIET_PUBLICATION = 0,
-  parameter integer PRIVATE_QUARANTINE_OFFER = 0
+  parameter integer PRIVATE_QUARANTINE_OFFER = 0,
+  parameter integer SPLIT_PREFLIGHT_IDENTITY = 0
 ) (
   input wire clk, resetn, fft_clk, fft_resetn,
   input wire input_valid,
@@ -40,6 +41,12 @@ module starlink_pss_fft_staged_output_impl #(
   output wire fault
 );
   initial begin
+    // BEGIN SPLIT PREFLIGHT PROFILE
+    if (SPLIT_PREFLIGHT_IDENTITY !== 0 && SPLIT_PREFLIGHT_IDENTITY !== 1)
+      $fatal(1,"split preflight requires a known mode");
+    if (SPLIT_PREFLIGHT_IDENTITY === 1 && REGISTERED_SCHEDULING !== 1)
+      $fatal(1,"split preflight requires registered scheduling");
+    // END SPLIT PREFLIGHT PROFILE
     // BEGIN PRIVATE QUARANTINE PROFILE
     if (PRIVATE_QUARANTINE_OFFER !== 0 && PRIVATE_QUARANTINE_OFFER !== 1)
       $fatal(1,"private quarantine offer requires a known mode");
@@ -211,7 +218,32 @@ module starlink_pss_fft_staged_output_impl #(
       for (genvar group_index = 0; group_index < 4; group_index = group_index + 1) begin : groups
         assign group_equal[group_index] = &leaf_equal[6*group_index +: 6];
       end
-      assign preflight_identity_equal[comparison] = &group_equal;
+      // BEGIN SPLIT PREFLIGHT COMPARISON
+      if (comparison == 0 && SPLIT_PREFLIGHT_IDENTITY === 1) begin : split_banks
+        wire [1:0] bank_equal;
+        for (genvar bank = 0; bank < 2; bank = bank + 1) begin : banks
+          wire [69:0] bank_metadata = bank == 0 ? source_metadata : product_bank_metadata;
+          (* keep = "true" *) wire [23:0] bank_leaf_equal;
+          (* keep = "true" *) wire [3:0] bank_group_equal;
+          for (genvar leaf = 0; leaf < 24; leaf = leaf + 1) begin : leaves
+            localparam integer BITS = leaf == 23 ? 1 : 3;
+            assign bank_leaf_equal[leaf] = bank_metadata[3*leaf +: BITS] == engine_metadata[3*leaf +: BITS];
+          end
+          for (genvar group_index = 0; group_index < 4; group_index = group_index + 1) begin : groups
+            assign bank_group_equal[group_index] = &bank_leaf_equal[6*group_index +: 6];
+          end
+          assign bank_equal[bank] = &bank_group_equal;
+        end
+        // Select only after comparison for known hardware phase. Four-state
+        // selection does not distribute through equality; preserve the exact
+        // original merged-vector expression for an unknown phase.
+        assign preflight_identity_equal[comparison] =
+          preflight_phase === 1'b0 ? bank_equal[0] :
+          preflight_phase === 1'b1 ? bank_equal[1] : &group_equal;
+      end else begin : original_comparison
+        assign preflight_identity_equal[comparison] = &group_equal;
+      end
+      // END SPLIT PREFLIGHT COMPARISON
     end
   end else begin : legacy_preflight
     assign preflight_identity_equal[0] = preflight_metadata == engine_metadata;
