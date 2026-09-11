@@ -68,6 +68,39 @@ module tb;
                 input [47:0] data,input [9:0] exponent);
     $fdisplay(log_file,"%0d,%s,%0d,%0d,%012h,%03h",mode,stream,block_id,position,data,exponent);
   endtask
+  reg [8:0] sequence_index_before;
+  reg [63:0] sequence_next_before,sequence_input_next;
+  reg sequence_previous_before,sequence_advance;
+  reg [7:0] sequence_late_status;
+  integer sequence_advances=0,sequence_holds=0,sequence_finals=0;
+  always @(posedge fft_clk) begin
+    if(dut.fast_running) begin
+      sequence_index_before=dut.joiner.kernel_rom.expected_bin_index;
+      sequence_next_before=dut.joiner.kernel_rom.expected_next_block_start;
+      sequence_previous_before=dut.joiner.kernel_rom.have_previous_block;
+      sequence_input_next=dut.joiner.kernel_rom.input_block_start_index+64'd447;
+      sequence_advance=dut.joiner.kernel_rom.private_sequence_accept;
+      if(sequence_advance!==1'b0 && sequence_advance!==1'b1) $fatal(1,"unknown private sequence handshake");
+      if(dut.joiner.input_accept && !sequence_advance) $fatal(1,"public kernel input lacked private offer");
+      if(!dut.common_current_fault && !dut.fast_fault && !dut.kernel_fault &&
+         sequence_advance!==dut.joiner.input_accept) $fatal(1,"healthy private/public sequence divergence");
+      #0.001;
+      if(dut.fast_running) begin
+        if(dut.joiner.kernel_rom.expected_bin_index !==
+           (sequence_advance ? 9'(sequence_index_before+1) : sequence_index_before))
+          $fatal(1,"private sequence index advance/hold");
+        if({dut.joiner.kernel_rom.have_previous_block,dut.joiner.kernel_rom.expected_next_block_start} !==
+           (sequence_advance && sequence_index_before==511 ? {1'b1,sequence_input_next} :
+            {sequence_previous_before,sequence_next_before})) $fatal(1,"private sequence next-block advance/hold");
+        if(!stress) begin
+          if(sequence_advance) begin
+            sequence_advances=sequence_advances+1;
+            if(sequence_index_before==511) sequence_finals=sequence_finals+1;
+          end else sequence_holds=sequence_holds+1;
+        end
+      end
+    end
+  end
   // Full campaign check: private adapter payload tracks only in EMPTY, while
   // every accepted/owned payload equals the original qualified capture.
   integer final_loads=0,final_holds=0,final_accepts=0,final_fault_loads=0;
@@ -389,6 +422,87 @@ module tb;
     end
   endtask
   integer block_index,word_index;
+  task automatic sequence_boundary(input integer boundary);
+    reg request_before;
+    reg [8:0] index_before;
+    reg [64:0] next_before;
+    reg [63:0] next_expected;
+    integer n;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      if(boundary==3) begin
+        while(!dut.job_accept || dut.next_inverse) @(negedge fft_clk);
+        force dut.core_status_valid=1'b0;
+        while(!dut.owners[0].result_guard.return_valid || !dut.owners[0].result_guard.return_last)
+          @(negedge fft_clk);
+        repeat(8) begin
+          @(negedge fft_clk);
+          if(dut.guard_forward_private_offer[0] || dut.forward_retirement_valid ||
+             dut.joiner.kernel_rom.private_sequence_accept || dut.joiner.kernel_rom.expected_bin_index!==511 ||
+             dut.joiner.kernel_rom.have_previous_block)
+            $fatal(1,"private sequence skipped final status qualification");
+        end
+        sequence_late_status={3'b0,fe[0]};force dut.core_status_data=sequence_late_status;
+        force dut.core_status_valid=1'b1;
+        @(posedge fft_clk);#0.001;
+        @(negedge fft_clk);release dut.core_status_valid;release dut.core_status_data;
+      end else if(boundary==4) begin
+        while(!dut.forward_retirement_valid || dut.return_position!=511) @(negedge fft_clk);
+        force dut.joiner.kernel_rom.input_ready=1'b0;
+        repeat(16) begin
+          @(posedge fft_clk);#0.001;
+          if(dut.kernel_ready || dut.joiner.input_accept || dut.joiner.kernel_rom.private_sequence_accept ||
+             dut.joiner.kernel_rom.expected_bin_index!==511 || dut.forward_committed ||
+             dut.joiner.kernel_rom.have_previous_block)
+            $fatal(1,"private sequence failed final backpressure freeze");
+          @(negedge fft_clk);
+        end
+        release dut.joiner.kernel_rom.input_ready;
+      end else while(!dut.joiner.input_accept || dut.return_position!=(boundary==5 ? 511 : 64))
+        @(negedge fft_clk);
+      request_before=dut.output_request;index_before=dut.joiner.kernel_rom.expected_bin_index;
+      next_before={dut.joiner.kernel_rom.have_previous_block,dut.joiner.kernel_rom.expected_next_block_start};
+      next_expected=dut.joiner.kernel_rom.input_block_start_index+64'd447;
+      if(boundary<3 || boundary==5) begin
+        stress_fault_expected=1;
+        if(boundary==0 || boundary==5) force dut.event_last_missing=1'b1;
+        else if(boundary==1) force dut.product_bank_framing_fault_now=1'b1;
+        else force dut.core_status_valid=1'b1;
+        #0.001;
+        if(!dut.joiner.kernel_rom.private_sequence_accept || dut.joiner.input_accept)
+          $fatal(1,"fault did not separate private sequence from public acceptance");
+        @(posedge fft_clk);#0.001;
+        if(dut.joiner.kernel_rom.expected_bin_index!==9'(index_before+1) || dut.joined_valid ||
+           dut.joiner.kernel_rom.accepted_pulse || dut.joiner.kernel_rom.input_block_complete_pulse ||
+           {dut.joiner.kernel_rom.have_previous_block,dut.joiner.kernel_rom.expected_next_block_start} !==
+             (boundary==5 ? {1'b1,next_expected} : next_before))
+          $fatal(1,"faulted private sequence state/authority");
+        @(negedge fft_clk);release dut.event_last_missing;release dut.product_bank_framing_fault_now;release dut.core_status_valid;
+        repeat(100) begin
+          @(negedge fft_clk);
+          if(dut.output_request!==request_before || dut.output_published_valid || dut.output_released_valid ||
+             dut.joiner.input_accept || dut.joiner.kernel_rom.private_sequence_accept || dut.job_accept ||
+             dut.config_valid || dut.core_input_valid)
+            $fatal(1,"private sequence escaped epoch quarantine");
+        end
+        if(!fault || stress_reads!=0 || stress_releases!=0) $fatal(1,"missing sequence veto evidence");
+      end else begin
+        n=0;@(posedge fft_clk);
+        while(!dut.joiner.input_accept && n<32) begin n=n+1;@(posedge fft_clk);end
+        if(!dut.joiner.input_accept || !dut.joiner.kernel_rom.private_sequence_accept ||
+           dut.joiner.kernel_rom.expected_bin_index!==511) $fatal(1,"final sequence did not resume");
+        #0.001;
+        if(dut.joiner.kernel_rom.expected_bin_index!==0 || !dut.joiner.kernel_rom.input_block_complete_pulse ||
+           !dut.joiner.kernel_rom.have_previous_block || dut.joiner.kernel_rom.expected_next_block_start!==1447)
+          $fatal(1,"final sequence wrap/stride/completion mismatch");
+        stress_drain=1;
+        while(stress_reads!=512 || !dut.retained_reusable) @(negedge fft_clk);
+        repeat(10) @(negedge fft_clk);
+        if(fault || stress_releases!=1) $fatal(1,"sequence recovery failed real release");
+      end
+      $display("STAGED_SEQUENCE_CASE_PASS boundary=%0d private_advance=1 final=%0d reads=%0d releases=%0d",boundary,boundary>=3,stress_reads,stress_releases);
+    end
+  endtask
   task automatic capture_boundary(input integer boundary);
     reg request_before;
     reg [177:0] held_descriptor;
@@ -596,6 +710,9 @@ module tb;
     if(capture_load_checks<1000 || capture_hold_checks<1000 || capture_accept_checks!=18)
       $fatal(1,"missing private descriptor cycle coverage");
     $display("STAGED_CAPTURE_CYCLES_PASS loads=%0d holds=%0d accepts=%0d",capture_load_checks,capture_hold_checks,capture_accept_checks);
+    if(sequence_advances!=9216 || sequence_holds<1000 || sequence_finals!=18)
+      $fatal(1,"healthy sequence coverage missing");
+    $display("STAGED_SEQUENCE_CYCLES_PASS advances=%0d holds=%0d finals=%0d",sequence_advances,sequence_holds,sequence_finals);
     stress=1;reset_stopped_reader(1);reset_stopped_reader(2);
     for(mode=0;mode<7;mode=mode+1) fault_boundary(mode);
     for(mode=0;mode<6;mode=mode+1) admission_boundary(mode);
@@ -611,6 +728,8 @@ module tb;
     if(final_loads<1000 || final_holds<1000 || final_accepts<18 || final_fault_loads<100)
       $fatal(1,"missing private final actual cycle coverage");
     $display("STAGED_FINALCAPTURE_PASS loads=%0d holds=%0d accepts=%0d fault_loads=%0d original_payload_checked=1",final_loads,final_holds,final_accepts,final_fault_loads);
+    for(mode=0;mode<6;mode=mode+1) sequence_boundary(mode);
+    $display("STAGED_SEQUENCE_PASS cases=6 public_acceptance_preserved=1 next_block_checked=1 quarantine_checked=1");
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     $finish;

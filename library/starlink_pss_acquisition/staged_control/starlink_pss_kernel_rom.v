@@ -13,6 +13,11 @@ module starlink_pss_kernel_rom #(
   parameter ROM_FILE = "upper_edge_pss_kernel_q23.mem",
   parameter integer DATA_WIDTH = 24,
   parameter integer PRIVATE_PAYLOAD_BUBBLES = 0,
+  // A caller-owned private offer may advance hidden sequence state during a
+  // current fault. Every accepted public input must also be offered. Any
+  // private/public divergence MUST quarantine the caller until common flush.
+  // Final offers must wait for the original final-word qualification.
+  parameter integer PRIVATE_SEQUENCE_ADVANCE = 0,
   parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0
 ) (
   input  wire                    clk,
@@ -20,6 +25,7 @@ module starlink_pss_kernel_rom #(
   input  wire                    flush,
 
   input  wire                    input_valid,
+  input  wire                    input_private_valid,
   output wire                    input_ready,
   input  wire [8:0]              input_bin_index,
   input  wire [4:0]              input_block_exponent,
@@ -56,6 +62,7 @@ module starlink_pss_kernel_rom #(
 
   wire output_stage_ready;
   wire input_accept;
+  wire private_sequence_accept = input_private_valid && input_ready;
   wire at_block_start;
   wire sequence_error_now;
   wire metadata_error_now;
@@ -83,6 +90,8 @@ module starlink_pss_kernel_rom #(
   end endgenerate
 
   initial begin
+    if (PRIVATE_SEQUENCE_ADVANCE !== 0 && PRIVATE_SEQUENCE_ADVANCE !== 1)
+      $fatal(1, "private sequence mode must be known zero or one");
     if (PRIVATE_PAYLOAD_BUBBLES !== 0 && PRIVATE_PAYLOAD_BUBBLES !== 1)
       $fatal(1, "private ROM payload mode must be known zero or one");
     if (BALANCED_BLOCK_IDENTITY_EQ != 0 && BALANCED_BLOCK_IDENTITY_EQ != 1)
@@ -138,6 +147,18 @@ module starlink_pss_kernel_rom #(
       if (output_stage_ready)
         output_valid <= 1'b0;
 
+      // The checker below consumes PRE-edge state and unchanged public-valid.
+      // Only private bookkeeping uses this shorter local offer. A malformed
+      // accepted input still latches the original local fault; an externally
+      // vetoed input requires caller quarantine before any reuse/publication.
+      if (PRIVATE_SEQUENCE_ADVANCE && private_sequence_accept) begin
+        expected_bin_index <= expected_bin_index + 1'b1;
+        if (expected_bin_index == 9'd511) begin
+          expected_next_block_start <= input_block_start_index + VALID_RESULTS_PER_BLOCK;
+          have_previous_block <= 1'b1;
+        end
+      end
+
       // Private payload/first-bin metadata may load on a capacity bubble.
       // A held output still freezes these registers. All public valid,
       // ordinal, error, next-block and completion decisions remain below.
@@ -174,12 +195,14 @@ module starlink_pss_kernel_rom #(
           end
 
           if (expected_bin_index == 9'd511) begin
+            if (!PRIVATE_SEQUENCE_ADVANCE) begin
             expected_bin_index <= 0;
             expected_next_block_start <= input_block_start_index +
                                          VALID_RESULTS_PER_BLOCK;
             have_previous_block <= 1'b1;
+            end
             input_block_complete_pulse <= 1'b1;
-          end else begin
+          end else if (!PRIVATE_SEQUENCE_ADVANCE) begin
             expected_bin_index <= expected_bin_index + 1'b1;
           end
         end

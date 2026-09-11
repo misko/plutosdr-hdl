@@ -308,6 +308,7 @@ module starlink_pss_fft_staged_output_impl #(
     (|cutover_reasons) || retained_fault_now || (|retained_reasons);
   wire [1:0] guard_ready, guard_capacity, guard_busy, guard_commit, guard_fault, guard_ack, guard_current_fault, guard_forward_retire;
   wire [1:0] guard_valid_out, guard_private_out, guard_commit_out, guard_last_out;
+  wire [1:0] guard_forward_private_offer;
   wire [35:0] guard_return_data [0:1];
   wire [8:0] guard_return_position [0:1];
   wire [74:0] guard_return_metadata [0:1];
@@ -422,6 +423,7 @@ module starlink_pss_fft_staged_output_impl #(
     .mailbox_input_fault(output_bank_fault || output_bank_framing_fault_now),
     .inverse_phase(OWNER == 1), .forward_mailbox_fault(output_bank_fault),
     .forward_retirement_valid(guard_forward_retire[OWNER]),
+    .forward_private_offer(guard_forward_private_offer[OWNER]),
     .mailbox_input_data(guard_return_data[OWNER]), .mailbox_input_position(guard_return_position[OWNER]),
     .mailbox_input_last(guard_last_out[OWNER]), .mailbox_input_metadata(guard_return_metadata[OWNER]),
     .busy(guard_busy[OWNER]), .commit_pulse(guard_commit[OWNER]),
@@ -581,6 +583,7 @@ module starlink_pss_fft_staged_output_impl #(
   // The final result is admitted ONLY on the original guard's qualified commit.
   starlink_pss_forward_kernel_join #(.KERNEL_ROM_FILE(KERNEL_ROM_FILE), .DATA_WIDTH(18),
     .PRIVATE_PAYLOAD_BUBBLES(REGISTERED_SCHEDULING),
+    .PRIVATE_SEQUENCE_ADVANCE(REGISTERED_SCHEDULING),
     .BALANCED_BLOCK_IDENTITY_EQ(REGISTERED_SCHEDULING)) joiner (
     .clk(fft_clk), .resetn(fast_running), .flush(1'b0),
     // Match the guard's exact retirement event, including a held final word.
@@ -588,6 +591,7 @@ module starlink_pss_fft_staged_output_impl #(
     // let the joiner consume a word that the guard has not retired.
     .input_valid((REGISTERED_SCHEDULING ? forward_retirement_valid :
       (return_valid && !next_inverse)) && !fast_fault && product_bank_ready),
+    .input_private_valid(guard_forward_private_offer[0] && !fast_fault && product_bank_ready),
     .input_ready(kernel_ready),
     .input_i(return_data[17:0]), .input_q(return_data[35:18]),
     .input_bin_index(return_position), .input_block_exponent(return_metadata[4:0]),
