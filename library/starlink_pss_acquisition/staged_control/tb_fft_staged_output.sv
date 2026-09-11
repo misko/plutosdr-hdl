@@ -157,6 +157,10 @@ module tb;
         $fatal(1,"partitioned admission facts differ from full current predicate");
       if(dut.output_complete_accept && dut.inverse_descriptor_live!==1'b1)
         $fatal(1,"completion sampled private lookup without held ownership");
+      if(dut.output_descriptor_pending && (dut.output_descriptor_valid || dut.output_replay_accept || dut.output_complete_accept))
+        $fatal(1,"writer validation pending was overwritten or authorized output");
+      if(dut.output_replay_accept!==(dut.output_replay_valid && dut.output_replay_private_ready && !dut.common_current_fault))
+        $fatal(1,"private replay replaced current publication authorization");
       if(dut.completion_request && (((&dut.completion_good)===1'b1)!==(dut.legacy_completion_accept===1'b1)))
         $fatal(1,"completion facts differ from original close validation");
       if(dut.completion_accept && (!dut.completion_gate.snapshot_valid || !dut.completion_permit))
@@ -298,8 +302,14 @@ module tb;
       end else if(boundary==6) force dut.output_lookup_descriptor=70'b0;
       else force dut.event_last_missing=1'b1;
       @(posedge fft_clk);#0.001;
-      if(boundary==6 && (!dut.output_descriptor_fault || dut.output_descriptor_valid))
-        $fatal(1,"writer descriptor mismatch did not cancel publication authority");
+      if(boundary==6) begin
+        if(!dut.output_descriptor_pending || dut.output_descriptor_valid || dut.output_request!==request_before)
+          $fatal(1,"writer capture did not hold publication closed");
+        @(negedge fft_clk);release dut.output_lookup_descriptor;
+        @(posedge fft_clk);#0.001;
+        if(!dut.output_descriptor_fault || dut.output_descriptor_valid)
+          $fatal(1,"captured writer mismatch did not cancel publication authority");
+      end
       @(negedge fft_clk);
       release dut.core_output_valid;release dut.core_status_valid;
       release dut.event_last_missing;release dut.output_lookup_descriptor;
@@ -315,6 +325,69 @@ module tb;
     end
   endtask
   integer block_index,word_index;
+  task automatic writer_boundary(input integer boundary);
+    reg request_before;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      while(!dut.output_descriptor_pending) @(negedge fft_clk);
+      request_before=dut.output_request;stress_fault_expected=1;
+      if(boundary==0) force dut.event_last_missing=1'b1;
+      else if(boundary==1) fft_resetn=0;
+      else if(boundary==2) resetn=0;
+      else force dut.output_descriptor_expected=70'b0;
+      @(posedge fft_clk);#0.001;
+      if(boundary==3 && (!dut.output_descriptor_fault || dut.output_descriptor_valid))
+        $fatal(1,"held writer identity corruption was not rejected");
+      @(negedge fft_clk);release dut.event_last_missing;release dut.output_descriptor_expected;
+      if(boundary==1 || boundary==2) begin
+        repeat(10) @(negedge fft_clk);
+        resetn=1;fft_resetn=1;request_before=dut.output_request;
+      end
+      repeat(100) begin
+        @(negedge fft_clk);
+        if(dut.output_request!==request_before || dut.output_published_valid || dut.output_released_valid || dut.reader_release ||
+           dut.output_replay_valid || dut.job_accept || dut.config_valid || dut.core_input_valid)
+          $fatal(1,"pending writer validation escaped cancellation boundary=%0d",boundary);
+      end
+      if(stress_reads!=0 || stress_releases!=0 || ((boundary==0 || boundary==3) && !fault))
+        $fatal(1,"writer cancellation evidence missing");
+      $display("STAGED_WRITER_CASE_PASS boundary=%0d publications=0 releases=0",boundary);
+    end
+  endtask
+  task automatic replay_boundary(input integer boundary);
+    reg request_before;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      while(!dut.output_replay_valid || !dut.output_replay_private_ready) @(negedge fft_clk);
+      request_before=dut.output_request;stress_fault_expected=1;
+      if(boundary==0) force dut.event_last_missing=1'b1;
+      else if(boundary==1) force dut.product_bank_framing_fault_now=1'b1;
+      else if(boundary==2) force dut.core_status_valid=1'b1;
+      else if(boundary==3) fft_resetn=0;
+      else resetn=0;
+      #0.001;
+      if(boundary<3 && (!dut.output_replay_valid || !dut.output_replay_private_ready || dut.output_replay_accept!==0))
+        $fatal(1,"fault did not separate private replay from bank authorization");
+      @(posedge fft_clk);#0.001;
+      if(boundary<3 && (dut.output_control.phase!=4 || dut.output_request!==request_before || dut.output_published_valid))
+        $fatal(1,"private replay step falsely became a publication");
+      @(negedge fft_clk);
+      release dut.event_last_missing;release dut.product_bank_framing_fault_now;release dut.core_status_valid;
+      if(boundary>=3) begin
+        repeat(10) @(negedge fft_clk);
+        resetn=1;fft_resetn=1;request_before=dut.output_request;
+      end
+      repeat(100) begin
+        @(negedge fft_clk);
+        if(dut.output_request!==request_before || dut.output_published_valid || dut.output_released_valid || dut.reader_release ||
+           dut.output_replay_valid || dut.job_accept || dut.config_valid || dut.core_input_valid)
+          $fatal(1,"cancelled replay escaped to publication/release/reuse boundary=%0d",boundary);
+      end
+      if(stress_reads!=0 || stress_releases!=0 || (boundary<3 && !fault))
+        $fatal(1,"replay cancellation evidence missing");
+      $display("STAGED_REPLAY_CASE_PASS boundary=%0d private_step=%0d publications=0 releases=0",boundary,boundary<3);
+    end
+  endtask
   task automatic completion_boundary(input integer boundary);
     integer wanted_phase,stage;
     reg request_before;
@@ -394,6 +467,10 @@ module tb;
     $display("STAGED_ADMISSION_PASS cases=6 partition_checked=1");
     for(mode=0;mode<10;mode=mode+1) completion_boundary(mode);
     $display("STAGED_COMPLETION_PASS cases=10 partition_checked=1");
+    for(mode=0;mode<5;mode=mode+1) replay_boundary(mode);
+    $display("STAGED_REPLAY_PASS cases=5 actual_authorization_checked=1");
+    for(mode=0;mode<4;mode=mode+1) writer_boundary(mode);
+    $display("STAGED_WRITER_PASS cases=4 pending_fenced=1");
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     $finish;

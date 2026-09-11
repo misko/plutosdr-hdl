@@ -437,6 +437,8 @@ module starlink_pss_fft_staged_output_impl #(
   reg [31:0] output_descriptor_tag;
   reg [74:0] output_descriptor_payload;
   reg output_descriptor_valid, output_descriptor_fault;
+  reg output_descriptor_pending, output_descriptor_lookup_ok;
+  reg [69:0] output_descriptor_expected;
   wire output_allocate_ready, output_allocated_valid;
   wire [31:0] output_allocated_tag;
   wire output_complete_ready, output_replay_valid, output_publication_busy;
@@ -453,6 +455,11 @@ module starlink_pss_fft_staged_output_impl #(
   assign inverse_guard_ready = (output_bank_ready && output_complete_ready) || output_released_valid;
   wire output_complete_valid = guard_commit_out[1] && output_bank_ready;
   wire output_complete_accept = output_complete_valid && output_complete_ready;
+  // Private replay consumption is not publication. A new current fault still
+  // vetoes bank authorization below, and its registered epoch abort cancels
+  // the adapter before any notification/release. The adapter independently
+  // rejects P_ACK if the real bank request did not transition.
+  wire output_replay_private_ready = output_bank_ready && output_descriptor_valid;
   wire output_replay_accept = output_replay_valid && output_descriptor_valid && output_bank_ready && !common_current_fault;
   starlink_pss_staged_mailbox_control output_control (
     .clk(fft_clk), .resetn(fast_running), .abort_epoch(fast_fault),
@@ -462,7 +469,7 @@ module starlink_pss_fft_staged_output_impl #(
     .complete_valid(output_complete_valid), .complete_ready(output_complete_ready),
     .complete_tag(inverse_tag), .complete_final_data(guard_return_data[1]),
     .replay_valid(output_replay_valid),
-    .replay_ready(output_bank_ready && output_descriptor_valid && !common_current_fault),
+    .replay_ready(output_replay_private_ready),
     .replay_tag(output_replay_tag), .replay_data(output_replay_data),
     .bank_request(output_request), .bank_ack_sync(output_ack_sync), .bank_fault(output_bank_fault),
     .publication_busy(output_publication_busy), .published_valid(output_published_valid),
@@ -511,6 +518,7 @@ module starlink_pss_fft_staged_output_impl #(
     if (!fast_running) begin
       inverse_descriptor_live<=0;inverse_allocation_pending<=0;inverse_tag<=0;
       output_descriptor_tag<=0;output_descriptor_payload<=0;output_descriptor_valid<=0;output_descriptor_fault<=0;
+      output_descriptor_pending<=0;output_descriptor_lookup_ok<=0;output_descriptor_expected<=0;
       retained_published<=0;producer_transfer_receipt<=0;
     end else begin
       if (output_allocate_valid && output_allocate_ready) inverse_allocation_pending<=1;
@@ -518,14 +526,19 @@ module starlink_pss_fft_staged_output_impl #(
         inverse_descriptor_live<=1;inverse_allocation_pending<=0;inverse_tag<=output_allocated_tag;
       end
       if (output_complete_accept) begin
-        // Full metadata check terminates at these registers, several clocks
-        // before staged COMMIT can authorize final-word publication.
+        // Capture lookup and expected descriptor first. Public authorization
+        // stays closed until the next-edge comparison of these held registers.
         output_descriptor_tag<=inverse_tag;
         output_descriptor_payload<={output_lookup_descriptor,guard_return_metadata[1][4:0]};
-        output_descriptor_valid<=output_lookup_found===1'b1 && output_lookup_committed===1'b0 &&
-          output_lookup_descriptor===guard_return_metadata[1][74:5];
-        if (output_lookup_found!==1'b1 || output_lookup_committed!==1'b0 ||
-            output_lookup_descriptor!==guard_return_metadata[1][74:5]) output_descriptor_fault<=1;
+        output_descriptor_expected<=guard_return_metadata[1][74:5];
+        output_descriptor_lookup_ok<=output_lookup_found===1'b1 && output_lookup_committed===1'b0;
+        output_descriptor_valid<=0;output_descriptor_pending<=1;
+      end else if (output_descriptor_pending) begin
+        output_descriptor_pending<=0;
+        output_descriptor_valid<=output_descriptor_lookup_ok &&
+          output_descriptor_payload[74:5]===output_descriptor_expected;
+        if (!output_descriptor_lookup_ok || output_descriptor_payload[74:5]!==output_descriptor_expected)
+          output_descriptor_fault<=1;
       end
       if (output_published_valid) begin retained_published<=1;producer_transfer_receipt<=1;end
       if (completion_accept && next_inverse) producer_transfer_receipt<=0;

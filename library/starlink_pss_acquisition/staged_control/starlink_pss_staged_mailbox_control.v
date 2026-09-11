@@ -4,7 +4,10 @@
 // complete_* MUST describe an independently validated, fully privately written
 // block, including its exact saved final word. No other writer may touch that
 // bank from complete acceptance until publication_busy falls after release.
-// replay_* exclusively drives that bank's final position/TLAST/authorization.
+// replay_* exclusively drives that bank's final position/TLAST. replay_ready
+// may indicate PRIVATE consumption if the caller separately gates actual
+// authorization with current faults and aborts the epoch on a veto. The real
+// bank request transition, never this private receipt, proves publication.
 // bank_request/ack must be that bank's writer-domain ownership observations.
 // All tag holders and both bank clock domains MUST share coordinated reset.
 `timescale 1ns/1ps
@@ -107,7 +110,8 @@ module starlink_pss_staged_mailbox_control #(
         initial_request<=bank_request;phase<=P_COMMIT;publication_seen<=0;
       end
       if (phase==P_REPLAY && replay_ready) phase<=P_ACK;
-      // Reaching P_ACK proves a real authorized final-word transfer occurred.
+      // P_ACK is an observation boundary, not proof of publication. Reject a
+      // missing actual request transition before notification or RELEASE.
       // Equality while idle, or merely a successful COMMIT response, is NOT ACK.
       if (phase==P_ACK) begin
         if (bank_request !== !initial_request ||
