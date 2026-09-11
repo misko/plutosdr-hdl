@@ -225,23 +225,50 @@ module starlink_pss_fft_staged_output_impl #(
   wire [23:0] core_output_user;
   wire [7:0] core_status_data;
   wire core_status_valid, event_frame, event_last_unexpected, event_last_missing, event_input_halt;
-  assign source_read_ready = !selected_phase && transport_ready && engine_input_enable;
-  assign product_bank_read_ready = selected_phase && transport_ready && engine_input_enable;
-  starlink_pss_realtime_input_guard_local_admission #(.CHECK_INPUT_BLOCK_IDENTITY(1),
+  // BEGIN REGISTERED INPUT IDENTITY
+  // Bank retirement means capture into this private slot, NOT FFT delivery.
+  // Do not prefetch another bank after capturing LAST. The admitted descriptor
+  // and checked completion reservation survive the buffered final word.
+  wire staged_input_ready, staged_input_valid, staged_input_last, staged_identity_good;
+  wire staged_input_fault, staged_input_idle, checked_fault_now;
+  wire [35:0] staged_input_data;
+  wire [8:0] staged_input_position;
+  reg staged_input_closed;
+  wire staged_input_offer = engine_input_enable && !staged_input_closed && guard_valid;
+  wire staged_bank_ready = engine_input_enable && !staged_input_closed && staged_input_ready;
+  assign source_read_ready = !selected_phase && staged_bank_ready;
+  assign product_bank_read_ready = selected_phase && staged_bank_ready;
+  always @(posedge fft_clk or negedge core_aresetn)
+    if (!core_aresetn) staged_input_closed<=0;
+    else if (staged_input_offer && staged_input_ready && guard_last) staged_input_closed<=1;
+  starlink_pss_input_identity_stage input_stage (
+    .clk(fft_clk), .resetn(core_aresetn), .abort_epoch(fast_fault),
+    .input_valid(staged_input_offer), .input_ready(staged_input_ready),
+    .input_data(guard_data), .input_position(guard_position), .input_last(guard_last),
+    .input_metadata(guard_metadata), .job_descriptor(engine_metadata),
+    .output_valid(staged_input_valid), .output_ready(transport_ready),
+    .output_data(staged_input_data), .output_position(staged_input_position),
+    .output_last(staged_input_last), .output_identity_good(staged_identity_good),
+    .idle(staged_input_idle), .fault(staged_input_fault)
+  );
+  assign input_fault_now = checked_fault_now || staged_input_fault;
+  starlink_pss_realtime_input_guard_staged_identity #(.CHECK_INPUT_BLOCK_IDENTITY(1),
     .BALANCED_IDENTITY_EQ(REGISTERED_SCHEDULING),
     .LOCAL_FIRST_ADMISSION(LOCAL_FIRST_ADMISSION)) input_guard (
     .clk(fft_clk), .resetn(core_aresetn), .job_start(input_job_start),
     .job_descriptor(engine_metadata), .input_enable(engine_input_enable),
-    .input_valid(guard_valid), .input_ready(), .input_transport_ready(transport_ready),
-    .input_data(guard_data), .input_position(guard_position), .input_last(guard_last),
+    .input_valid(staged_input_valid), .input_ready(), .input_transport_ready(transport_ready),
+    .input_data(staged_input_data), .input_position(staged_input_position), .input_last(staged_input_last),
+    .input_identity_good(staged_identity_good),
     .input_metadata(guard_metadata), .core_input_tdata(core_input_data),
     .core_input_tvalid(core_input_valid), .core_input_tready(core_input_ready),
     .core_input_tlast(core_input_last), .certified_input_beat(certified_input_beat),
     .certified_input_complete(certified_input_complete), .input_complete(checked_input_complete),
-    .fault_now(input_fault_now), .duplicate_start_fault_now(duplicate_start_fault_now),
+    .fault_now(checked_fault_now), .duplicate_start_fault_now(duplicate_start_fault_now),
     .fault_events_now(input_fault_events_now),
     .protocol_fault(input_guard_fault), .fault_reasons()
   );
+  // END REGISTERED INPUT IDENTITY
 
   wire return_valid, return_private_valid, return_commit_valid, return_last;
   wire forward_retirement_valid;
@@ -262,8 +289,8 @@ module starlink_pss_fft_staged_output_impl #(
   wire output_bank_ready, output_bank_fault, output_bank_framing_fault_now;
   // Offered events are summary-only. They NEVER drive delivery or counters.
   // Caller premise: input_fault_now===0 implies offers case-equal certificates.
-  wire summary_offer_beat = guard_valid && transport_ready;
-  wire summary_offer_complete = summary_offer_beat && guard_last;
+  wire summary_offer_beat = staged_input_valid && transport_ready;
+  wire summary_offer_complete = summary_offer_beat && staged_input_last;
   wire cutover_offered_fault_now;
   wire [1:0] guard_offered_local_fault;
   wire vendor_fault_now = event_last_unexpected || event_last_missing || event_input_halt;
@@ -301,7 +328,7 @@ module starlink_pss_fft_staged_output_impl #(
   // An occupied return also excludes forward_committed: final commit clears
   // active on the same edge that sets that token. The full handoff comparator
   // remains on publication/ACK/quarantine; it cannot fault an occupied return.
-  wire completed_input_fault_now = duplicate_start_fault_now || input_guard_fault ||
+  wire completed_input_fault_now = staged_input_fault || duplicate_start_fault_now || input_guard_fault ||
     slow_faults_fast || vendor_fault_now || fast_fault || kernel_fault ||
     product_overflow || product_bank_fault || product_bank_framing_fault_now ||
     (CLOSED_INPUT_CUTOVER ? cutover_closed_input_fault_now : cutover_fault_now) ||

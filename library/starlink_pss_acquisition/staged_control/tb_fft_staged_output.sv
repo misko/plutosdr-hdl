@@ -32,6 +32,41 @@ module tb;
   integer log_file;
   integer publication_phase_checks=0,replay_phase_checks=0,preflight_unread_checks=0;
   integer stalled_publication_checks=0;
+  // Independent private-slot scoreboard across the actual FFT/core resets.
+  integer input_stage_pushes=0,input_stage_pops=0,input_stage_checks=0,input_stage_final_holds=0;
+  reg input_stage_owned=0;
+  reg [35:0] input_stage_saved_data;
+  reg [8:0] input_stage_saved_position;
+  reg input_stage_saved_last,input_stage_saved_good;
+  always @(posedge fft_clk) begin
+    if(!dut.core_aresetn || dut.staged_input_fault) input_stage_owned=0;
+    else begin
+      if(dut.staged_input_valid!==input_stage_owned)
+        $fatal(1,"actual FFT private input-stage occupancy mismatch");
+      if(dut.staged_input_valid) begin
+        input_stage_checks=input_stage_checks+1;
+        if({dut.staged_input_data,dut.staged_input_position,dut.staged_input_last,dut.staged_identity_good} !==
+           {input_stage_saved_data,input_stage_saved_position,input_stage_saved_last,input_stage_saved_good})
+          $fatal(1,"actual FFT staged payload/identity changed");
+        if(dut.staged_input_last && !dut.checked_input_complete) begin
+          input_stage_final_holds=input_stage_final_holds+1;
+          if(!dut.engine_input_reserved || !dut.staged_input_closed)
+            $fatal(1,"buffered final word lost admitted ownership");
+        end
+      end
+      if(dut.staged_input_valid && dut.transport_ready) begin
+        input_stage_owned=0;input_stage_pops=input_stage_pops+1;
+      end
+      if(dut.staged_input_offer && dut.staged_input_ready) begin
+        if(input_stage_owned || dut.staged_input_closed || dut.engine_metadata!==dut.input_guard.descriptor)
+          $fatal(1,"input-stage overwrite/next-job descriptor capture");
+        input_stage_owned=1;input_stage_pushes=input_stage_pushes+1;
+        input_stage_saved_data=dut.guard_data;input_stage_saved_position=dut.guard_position;
+        input_stage_saved_last=dut.guard_last;
+        input_stage_saved_good=(dut.guard_metadata==dut.input_guard.descriptor)===1'b1;
+      end
+    end
+  end
   reg publication_probe_paused=0;
   // Reachable-phase evidence, not an arbitrary-input combinational identity.
   // FFT producer reuse is publication-gated, not reader-release-gated.
@@ -380,6 +415,53 @@ module tb;
       stress_reads=0;stress_prefix=0;stress_releases=0;stress_fault_expected=0;
       resetn=1;fft_resetn=1;
       while(!dut.fast_running) @(negedge fft_clk);
+    end
+  endtask
+  task automatic input_stage_boundary(input integer boundary);
+    reg request_before;
+    integer owner,bad_position;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      owner=boundary%2;bad_position=(boundary==1 || boundary==2)?511:7;
+      if(boundary<4) begin
+        while(!dut.staged_input_offer || !dut.staged_input_ready ||
+              dut.routed_inverse!=owner || dut.guard_position!=bad_position) @(negedge fft_clk);
+        request_before=dut.output_request;stress_fault_expected=1;
+        if(boundary>=2) force dut.guard_metadata[69]=1'bx;
+        else if(owner==0) force dut.guard_metadata[69]=1'b1;
+        else force dut.guard_metadata[69]=1'b0;
+        @(posedge fft_clk);#0.001;
+        if(dut.staged_identity_good!==0 || dut.checked_fault_now!==1 ||
+           dut.certified_input_beat!==0 || dut.core_input_valid!==0 ||
+           dut.checked_input_complete!==0 || dut.input_guard.expected_position!==9'(bad_position))
+          $fatal(1,"bad captured identity reached FFT or completion boundary=%0d",boundary);
+        @(posedge fft_clk);#0.001;
+        if(dut.fast_fault!==1)$fatal(1,"staged identity did not latch epoch quarantine");
+        @(negedge fft_clk);release dut.guard_metadata[69];
+      end else begin
+        while(!dut.staged_input_valid || !dut.staged_input_last || dut.routed_inverse!==1'b1)
+          @(negedge fft_clk);
+        request_before=dut.output_request;stress_fault_expected=1;
+        if(dut.checked_input_complete || !dut.engine_input_reserved || !dut.staged_input_closed)
+          $fatal(1,"reset target did not own buffered final inverse word");
+        if(boundary==4) fft_resetn=0;else resetn=0;
+        repeat(10)@(negedge fft_clk);
+        resetn=1;fft_resetn=1;request_before=dut.output_request;
+      end
+      repeat(100)begin
+        @(negedge fft_clk);
+        if(dut.output_request!==request_before || dut.output_published_valid ||
+           dut.output_released_valid || dut.reader_release || dut.core_input_valid ||
+           dut.job_accept || dut.config_valid || dut.staged_input_valid)
+          $fatal(1,"staged input cancellation escaped epoch boundary=%0d",boundary);
+      end
+      if(stress_reads || stress_releases || (boundary<4 && !fault))
+        $fatal(1,"staged identity cancellation missing evidence");
+      stress_reset;stress_fixture=0;send_block(0);stress_drain=1;
+      while(stress_reads!=512 || !dut.retained_reusable)@(negedge fft_clk);
+      repeat(10)@(negedge fft_clk);
+      if(fault || stress_releases!=1)$fatal(1,"staged input fresh recovery failed");
+      $display("STAGED_INPUT_IDENTITY_CASE_PASS boundary=%0d stale_reads=0 publications=0 fresh_reads=512 fresh_releases=1",boundary);
     end
   endtask
   task automatic guardfacts_boundary(input integer gate,input integer owner,input integer fact);
@@ -972,6 +1054,10 @@ module tb;
     if(publication_phase_checks<1000 || replay_phase_checks<384 || preflight_unread_checks<2)
       $fatal(1,"publication/preflight phase coverage missing");
     $display("STAGED_PREFLIGHT_PUBLICATION_PASS cases=3 checks=%0d replay=%0d unread=%0d phase_exact=1",publication_phase_checks,replay_phase_checks,preflight_unread_checks);
+    for(integer boundary=0;boundary<6;boundary=boundary+1) input_stage_boundary(boundary);
+    if(input_stage_pushes<18432 || input_stage_pops<18432 || input_stage_checks<18432 || input_stage_final_holds<36)
+      $fatal(1,"actual staged input coverage missing");
+    $display("STAGED_INPUT_IDENTITY_PASS pushes=%0d pops=%0d checks=%0d final_holds=%0d exact_payload=1 admitted_descriptor=1",input_stage_pushes,input_stage_pops,input_stage_checks,input_stage_final_holds);
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     $finish;
