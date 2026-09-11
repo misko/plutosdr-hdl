@@ -66,7 +66,7 @@ module starlink_pss_fft_staged_output_impl #(
   wire source_writer_idle, source_reader_idle, product_writer_idle, product_reader_idle;
   wire reader_descriptor_idle;
   wire output_writer_idle, output_reader_idle, output_request, output_ack_sync;
-  starlink_pss_retained_epoch_barrier epoch_barrier (
+  starlink_pss_reset_receipt_barrier epoch_barrier (
     .slow_clk(clk), .fast_clk(fft_clk), .resetn(resetn), .fft_resetn(fft_resetn),
     .outer_slow_running(outer_slow_running), .outer_fast_running(outer_fast_running),
     .slow_mailboxes_reset_idle(source_writer_idle && output_reader_idle && reader_descriptor_idle),
@@ -77,7 +77,7 @@ module starlink_pss_fft_staged_output_impl #(
   wire [35:0] source_data;
   wire [8:0] source_position;
   wire [69:0] source_metadata;
-  starlink_pss_mailbox_owner_view #(.RESET_RELEASE_EXTERNAL(1)) source_bank (
+  starlink_pss_mailbox_reset_receipt #(.RESET_RELEASE_EXTERNAL(1)) source_bank (
     .input_clk(clk), .input_resetn(slow_running),
     .input_valid(input_valid && !fault), .input_ready(source_ready),
     .input_data(input_data), .input_position(input_position), .input_last(input_last),
@@ -708,7 +708,7 @@ module starlink_pss_fft_staged_output_impl #(
     .reader_reset_idle(product_reader_idle)
   );
   assign output_valid = slow_running && slow_output_valid && slow_metadata_valid && !fault;
-  starlink_pss_mailbox_split_metadata_view #(.METADATA_WIDTH(37), .RESET_RELEASE_EXTERNAL(1),
+  starlink_pss_output_reset_receipt #(.METADATA_WIDTH(37), .RESET_RELEASE_EXTERNAL(1),
       .EXPLICIT_COMMIT(1)) output_bank (
     .input_clk(fft_clk), .input_resetn(fast_running),
     // Payload selection follows registered private ownership, not a fault-
