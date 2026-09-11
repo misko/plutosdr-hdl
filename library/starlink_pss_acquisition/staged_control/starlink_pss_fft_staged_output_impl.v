@@ -260,7 +260,8 @@ module starlink_pss_fft_staged_output_impl #(
   wire [63:0] product_start;
   wire product_bank_ready, product_bank_fault, product_bank_framing_fault_now;
   wire output_bank_ready, output_bank_fault, output_bank_framing_fault_now;
-  // Offered events are summary-only. They NEVER drive delivery or counters.
+  // Offered events never drive delivery. An opted-in inverse guard may observe
+  // them privately; current input faults quarantine any uncertified difference.
   // Caller premise: input_fault_now===0 implies offers case-equal certificates.
   wire summary_offer_beat = guard_valid && transport_ready;
   wire summary_offer_complete = summary_offer_beat && guard_last;
@@ -398,6 +399,7 @@ module starlink_pss_fft_staged_output_impl #(
   starlink_pss_result_guard_owner_view #(.USE_COMPLETED_INPUT_FAULT(1),
     .CERTIFIED_PRIVATE_ADMISSION(CERTIFIED_ADMISSION),
     .PRIVATE_ACK_RETIREMENT(CERTIFIED_ADMISSION && OWNER==1),
+    .PRIVATE_INPUT_OBSERVATIONS(CERTIFIED_ADMISSION && OWNER==1),
     .USE_PRIVATE_DESCRIPTOR_OFFER(PRIVATE_DESCRIPTOR_OFFER),
     .ENABLE_OFFERED_FAULT_SUMMARY(INPUT_OFFER_FAULT_SUMMARY),
     .REQUIRE_KNOWN_COMPLETED_INPUT(CLOSED_INPUT_CUTOVER),
@@ -414,6 +416,7 @@ module starlink_pss_fft_staged_output_impl #(
     .certified_input_complete(certified_input_complete && this_raw_owner),
     .offered_input_beat(summary_offer_beat && this_raw_owner),
     .offered_input_complete(summary_offer_complete && this_raw_owner),
+    .private_input_fault_now(input_fault_now),
     .offered_local_fault_now(guard_offered_local_fault[OWNER]),
     .offered_local_faults_now(guard_offered_local_faults[OWNER]),
     .final_fence_certified(final_fence), .external_fault_now(external_fault_now),

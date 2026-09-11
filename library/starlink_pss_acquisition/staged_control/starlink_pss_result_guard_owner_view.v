@@ -27,6 +27,7 @@ module starlink_pss_result_guard_owner_view #(
   // advance on a new fault edge; public output/ACK checks are unchanged.
   parameter integer CERTIFIED_PRIVATE_ADMISSION = 0,
   parameter integer PRIVATE_ACK_RETIREMENT = 0,
+  parameter integer PRIVATE_INPUT_OBSERVATIONS = 0,
   parameter integer USE_PRIVATE_DESCRIPTOR_OFFER = 0,
   parameter integer ENABLE_OFFERED_FAULT_SUMMARY = 0,
   parameter integer REQUIRE_KNOWN_COMPLETED_INPUT = 0,
@@ -66,6 +67,7 @@ module starlink_pss_result_guard_owner_view #(
   input wire certified_input_beat,
   input wire certified_input_complete,
   input wire offered_input_beat, offered_input_complete,
+  input wire private_input_fault_now,
   output wire offered_local_fault_now,
   output wire [7:0] offered_local_faults_now,
   input wire final_fence_certified,
@@ -143,6 +145,22 @@ module starlink_pss_result_guard_owner_view #(
   reg [35:0] return_data;
   reg [8:0] return_position;
   reg [4:0] return_exponent;
+  // BEGIN PRIVATE INPUT OBSERVATIONS
+  // Caller proves: a known-zero input fault makes offers equal certificates;
+  // a known-one input fault is included in external_fault_now on this edge.
+  // Only private observations use the offer. Current delivery/error/publication
+  // equations below retain their certified events and pre-edge count values.
+  // Unknown source fault falls back to the original observation update.
+  initial begin
+    if (PRIVATE_INPUT_OBSERVATIONS !== 0 && PRIVATE_INPUT_OBSERVATIONS !== 1)
+      $fatal(1,"private input observation mode must be known zero or one");
+  end
+  wire private_input_known = private_input_fault_now === 1'b0 || private_input_fault_now === 1'b1;
+  wire observed_input_beat = PRIVATE_INPUT_OBSERVATIONS && private_input_known ?
+    offered_input_beat : certified_input_beat;
+  wire observed_input_complete = PRIVATE_INPUT_OBSERVATIONS && private_input_known ?
+    offered_input_complete : certified_input_complete;
+  // END PRIVATE INPUT OBSERVATIONS
 
   // Exact equality after a possible delivered beat; no wide increment is
   // needed just to decide whether the effective count is 512. This does not
@@ -422,8 +440,8 @@ module starlink_pss_result_guard_owner_view #(
       // authorizing publication or a new job before the common epoch reset.
       // Once inactive, raw events are errors regardless of these private values.
       if (active && !protocol_fault) begin
-        if (certified_input_beat) input_count <= input_count + 1'b1;
-        if (certified_input_complete) input_complete_seen <= 1;
+        if (observed_input_beat) input_count <= input_count + 1'b1;
+        if (observed_input_complete) input_complete_seen <= 1;
         if (core_event_frame_started) frame_seen <= 1;
         if (core_status_tvalid) begin
           status_seen <= 1;

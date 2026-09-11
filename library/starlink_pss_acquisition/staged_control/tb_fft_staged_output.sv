@@ -51,6 +51,25 @@ module tb;
     .mailbox_input_last(),.mailbox_input_metadata(),.busy(),.commit_pulse(),.protocol_fault(),.fault_reasons(),
     .owner_active(),.owner_awaiting_ack(),.owner_fault_now(),.owner_ack_accept());
   integer private_ack_checks=0,private_ack_quarantine_cycles=0;
+  integer private_input_checks=0,private_input_differences=0;
+  always @(posedge fft_clk) begin
+    if(dut.fast_running && dut.input_fault_now===1'b0 &&
+       {dut.summary_offer_beat,dut.summary_offer_complete} !==
+       {dut.certified_input_beat,dut.certified_input_complete})
+      $fatal(1,"private input offer/certificate premise violated");
+    #0.001;
+    if(dut.fast_running) begin
+      if({dut.owners[1].result_guard.input_count,dut.owners[1].result_guard.input_complete_seen} !==
+         {original_inverse_ack.input_count,original_inverse_ack.input_complete_seen}) begin
+        if(dut.owners[1].result_guard.protocol_fault!==1 || original_inverse_ack.protocol_fault!==1 ||
+           dut.owners[1].result_guard.mailbox_input_valid!==0 || dut.owners[1].result_guard.mailbox_commit_valid!==0 ||
+           dut.owners[1].result_guard.job_ready!==0 || dut.owners[1].result_guard.owner_ack_accept!==0)
+          $fatal(1,"private input observation difference escaped known quarantine");
+        private_input_differences=private_input_differences+1;
+      end
+      private_input_checks=private_input_checks+1;
+    end
+  end
   always @(posedge fft_clk) begin
     #0.001;
     if(dut.fast_running) begin
@@ -485,6 +504,51 @@ module tb;
       stress_reads=0;stress_prefix=0;stress_releases=0;stress_fault_expected=0;
       resetn=1;fft_resetn=1;
       while(!dut.fast_running) @(negedge fft_clk);
+    end
+  endtask
+  task automatic private_input_boundary(input integer boundary);
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      while(!dut.routed_inverse || !dut.summary_offer_beat || dut.input_guard.expected_position!=32)
+        @(negedge fft_clk);
+      if(dut.owners[1].result_guard.input_count!==32 || original_inverse_ack.input_count!==32)
+        $fatal(1,"private input test lacks matching active prefix");
+      stress_fault_expected=1;
+      if(boundary==0) force dut.guard_position=9'd7;
+      else if(boundary==1) force dut.guard_metadata=70'b0;
+      else if(boundary==2) force dut.guard_last=1'b1;
+      else if(boundary==3) force dut.input_job_start=1'b1;
+      else force dut.guard_metadata={70{1'bx}};
+      #0.001;
+      if(boundary<4 && (dut.input_fault_now!==1 || dut.certified_input_beat!==0 ||
+          dut.owners[1].result_guard.observed_input_beat!==1))
+        $fatal(1,"private input fault does not separate offer from certificate");
+      if(boundary==4 && (dut.input_fault_now!==1'bx || dut.owners[1].result_guard.private_input_known!==0))
+        $fatal(1,"unknown input did not select original observation behavior");
+      @(posedge fft_clk);#0.002;
+      if(boundary<4 && (dut.owners[1].result_guard.input_count!==33 ||
+          original_inverse_ack.input_count!==32 || dut.owners[1].result_guard.protocol_fault!==1))
+        $fatal(1,"private input count divergence not recorded/quarantined");
+      if(boundary==2 && (dut.owners[1].result_guard.input_complete_seen!==1 || original_inverse_ack.input_complete_seen!==0))
+        $fatal(1,"private completion observation was not covered");
+      if(boundary==4 && {dut.owners[1].result_guard.input_count,dut.owners[1].result_guard.input_complete_seen} !==
+          {original_inverse_ack.input_count,original_inverse_ack.input_complete_seen})
+        $fatal(1,"unknown observation changed original counter state");
+      @(negedge fft_clk);release dut.guard_position;release dut.guard_metadata;
+      release dut.guard_last;release dut.input_job_start;
+      repeat(4) @(negedge fft_clk);
+      repeat(100) begin
+        @(negedge fft_clk);
+        if(dut.output_request!==0 || dut.output_published_valid || dut.reader_release ||
+           dut.job_accept || dut.config_valid || dut.core_input_valid || output_valid)
+          $fatal(1,"private input cancellation escaped quarantine");
+      end
+      if(stress_reads!=0 || stress_releases!=0 || !fault) $fatal(1,"private input cancellation evidence missing");
+      stress_reset;stress_fixture=0;send_block(0);stress_drain=1;
+      while(stress_reads!=512 || !dut.retained_reusable) @(negedge fft_clk);
+      repeat(10) @(negedge fft_clk);
+      if(fault || stress_releases!=1) $fatal(1,"private input fresh recovery failed");
+      $display("STAGED_PRIVATEINPUT_CASE_PASS boundary=%0d fresh_reads=512 fresh_releases=1",boundary);
     end
   endtask
   task automatic private_ack_boundary(input integer boundary);
@@ -1121,6 +1185,9 @@ module tb;
     for(mode=0;mode<6;mode=mode+1) private_ack_boundary(mode);
     if(private_ack_checks<1000 || private_ack_quarantine_cycles<300) $fatal(1,"private ACK coverage missing");
     $display("STAGED_PRIVATEACK_PASS cases=6 checks=%0d quarantined=%0d public_exact=1 fresh_recovery=1",private_ack_checks,private_ack_quarantine_cycles);
+    for(mode=0;mode<5;mode=mode+1) private_input_boundary(mode);
+    if(private_input_checks<1000 || private_input_differences<400) $fatal(1,"private input coverage missing");
+    $display("STAGED_PRIVATEINPUT_PASS cases=5 checks=%0d quarantined=%0d public_exact=1 unknown_exact=1",private_input_checks,private_input_differences);
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     if(held_metadata_checks<1000 || held_metadata_firsts<18 || held_metadata_finals<36 ||
