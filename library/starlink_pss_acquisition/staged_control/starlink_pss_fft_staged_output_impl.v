@@ -8,7 +8,7 @@
 // ACK still requires all 512 slow output reads before output-bank reuse.
 // Staged inverse-output ownership candidate; not a receiver runtime path.
 // Forward path and all FFT numerical/status/input validators are retained.
-// This first integration does NOT yet replace the forward/cutover controller.
+// Cutover consumes registered ownership receipts; forward arithmetic is unchanged.
 `timescale 1ns/1ps
 `default_nettype none
 module starlink_pss_fft_staged_output_impl #(
@@ -64,11 +64,12 @@ module starlink_pss_fft_staged_output_impl #(
   wire outer_slow_running = slow_reset_slow[1] && fast_reset_slow[1];
   wire fast_running, slow_running;
   wire source_writer_idle, source_reader_idle, product_writer_idle, product_reader_idle;
+  wire reader_descriptor_idle;
   wire output_writer_idle, output_reader_idle, output_request, output_ack_sync;
   starlink_pss_retained_epoch_barrier epoch_barrier (
     .slow_clk(clk), .fast_clk(fft_clk), .resetn(resetn), .fft_resetn(fft_resetn),
     .outer_slow_running(outer_slow_running), .outer_fast_running(outer_fast_running),
-    .slow_mailboxes_reset_idle(source_writer_idle && output_reader_idle),
+    .slow_mailboxes_reset_idle(source_writer_idle && output_reader_idle && reader_descriptor_idle),
     .fast_mailboxes_reset_idle(source_reader_idle && product_writer_idle && product_reader_idle && output_writer_idle),
     .slow_running(slow_running), .fast_running(fast_running)
   );
@@ -88,15 +89,25 @@ module starlink_pss_fft_staged_output_impl #(
     .output_metadata(source_metadata), .owner_request(), .owner_ack_sync(),
     .writer_reset_idle(source_writer_idle), .reader_reset_idle(source_reader_idle)
   );
-  (* ASYNC_REG = "TRUE" *) reg [1:0] source_fault_fast, fast_fault_slow;
+  (* ASYNC_REG = "TRUE" *) reg [1:0] source_fault_fast, lookup_fault_fast, fast_fault_slow;
   reg fast_fault;
+  reg slow_lookup_fault;
+  reg [1:0] reader_descriptor_phase;
+  localparam [1:0] RD_EMPTY=0, RD_CHECK=1, RD_VALID=2, RD_FAULT=3;
+  wire slow_metadata_valid = reader_descriptor_phase==RD_VALID;
+  reg [74:0] slow_output_metadata;
+  reg [31:0] reader_descriptor_tag;
+  wire slow_faults_fast = source_fault_fast[1] || lookup_fault_fast[1];
   always @(posedge fft_clk)
     if (!fast_running) source_fault_fast <= 0;
     else source_fault_fast <= {source_fault_fast[0], source_fault};
+  always @(posedge fft_clk)
+    if (!fast_running) lookup_fault_fast <= 0;
+    else lookup_fault_fast <= {lookup_fault_fast[0], slow_lookup_fault};
   always @(posedge clk)
     if (!slow_running) fast_fault_slow <= 0;
     else fast_fault_slow <= {fast_fault_slow[0], fast_fault};
-  assign fault = source_fault || fast_fault_slow[1];
+  assign fault = source_fault || slow_lookup_fault || fast_fault_slow[1];
   assign input_ready = slow_running && source_ready && !fault;
 
   localparam [3:0] RESET0=0, RESET1=1, WAIT_BANK=2, INPUT_ADMIT=3,
@@ -259,13 +270,13 @@ module starlink_pss_fft_staged_output_impl #(
   // A bank claiming ownership with the wrong descriptor cannot ACK that guard.
   wire handoff_fault_now = !next_inverse && forward_committed && product_bank_valid &&
     (!forward_handoff_identity || product_bank_position != 0 || product_bank_last);
-  wire external_fault_now = input_fault_now || input_guard_fault || source_fault_fast[1] ||
+  wire external_fault_now = input_fault_now || input_guard_fault || slow_faults_fast ||
     vendor_fault_now || fast_fault || kernel_fault || product_overflow || product_bank_fault ||
     product_bank_framing_fault_now || handoff_fault_now || cutover_fault_now ||
     (|cutover_reasons) || retained_fault_now || (|retained_reasons);
   // Direct unknown input fault is explicitly fail-closed in this opt-in summary.
   // All original full diagnostic/current predicates remain above and in guards.
-  wire offered_external_fault_now = (input_fault_now !== 1'b0) || input_guard_fault || source_fault_fast[1] ||
+  wire offered_external_fault_now = (input_fault_now !== 1'b0) || input_guard_fault || slow_faults_fast ||
     vendor_fault_now || fast_fault || kernel_fault || product_overflow || product_bank_fault ||
     product_bank_framing_fault_now || handoff_fault_now || cutover_offered_fault_now ||
     (|cutover_reasons) || retained_fault_now || (|retained_reasons);
@@ -288,7 +299,7 @@ module starlink_pss_fft_staged_output_impl #(
   // active on the same edge that sets that token. The full handoff comparator
   // remains on publication/ACK/quarantine; it cannot fault an occupied return.
   wire completed_input_fault_now = duplicate_start_fault_now || input_guard_fault ||
-    source_fault_fast[1] || vendor_fault_now || fast_fault || kernel_fault ||
+    slow_faults_fast || vendor_fault_now || fast_fault || kernel_fault ||
     product_overflow || product_bank_fault || product_bank_framing_fault_now ||
     (CLOSED_INPUT_CUTOVER ? cutover_closed_input_fault_now : cutover_fault_now) ||
     (|cutover_reasons) || retained_fault_now || (|retained_reasons);
@@ -384,7 +395,9 @@ module starlink_pss_fft_staged_output_impl #(
   // Allocate before inverse admission; keep descriptor identity through the
   // actual reader ACK. Allocation return storage cannot block COMMIT/RELEASE.
   reg [31:0] inverse_tag;
-  reg [4:0] inverse_result_exponent;
+  reg [31:0] output_descriptor_tag;
+  reg [74:0] output_descriptor_payload;
+  reg output_descriptor_valid, output_descriptor_fault;
   wire output_allocate_ready, output_allocated_valid;
   wire [31:0] output_allocated_tag;
   wire output_complete_ready, output_replay_valid, output_publication_busy;
@@ -401,7 +414,7 @@ module starlink_pss_fft_staged_output_impl #(
   assign inverse_guard_ready = (output_bank_ready && output_complete_ready) || output_released_valid;
   wire output_complete_valid = guard_commit_out[1] && output_bank_ready;
   wire output_complete_accept = output_complete_valid && output_complete_ready;
-  wire output_replay_accept = output_replay_valid && output_bank_ready && !common_current_fault;
+  wire output_replay_accept = output_replay_valid && output_descriptor_valid && output_bank_ready && !common_current_fault;
   starlink_pss_staged_mailbox_control output_control (
     .clk(fft_clk), .resetn(fast_running), .abort_epoch(fast_fault),
     .allocate_valid(output_allocate_valid), .allocate_ready(output_allocate_ready),
@@ -410,12 +423,12 @@ module starlink_pss_fft_staged_output_impl #(
     .complete_valid(output_complete_valid), .complete_ready(output_complete_ready),
     .complete_tag(inverse_tag), .complete_final_data(guard_return_data[1]),
     .replay_valid(output_replay_valid),
-    .replay_ready(output_bank_ready && !common_current_fault),
+    .replay_ready(output_bank_ready && output_descriptor_valid && !common_current_fault),
     .replay_tag(output_replay_tag), .replay_data(output_replay_data),
     .bank_request(output_request), .bank_ack_sync(output_ack_sync), .bank_fault(output_bank_fault),
     .publication_busy(output_publication_busy), .published_valid(output_published_valid),
     .released_valid(output_released_valid), .released_tag(),
-    .lookup_valid(slow_output_valid), .lookup_tag(output_bank_metadata[36:5]),
+    .lookup_valid(output_complete_valid), .lookup_tag(inverse_tag),
     .lookup_found(output_lookup_found), .lookup_committed(output_lookup_committed),
     .lookup_descriptor(output_lookup_descriptor),
     .occupied(), .committed(), .tags_exhausted(), .fault(output_control_fault)
@@ -425,22 +438,54 @@ module starlink_pss_fft_staged_output_impl #(
     !output_control_fault;
   assign retained_reserved = inverse_descriptor_live;
   assign retained_reserved_known = 1'b1;
-  assign retained_fault_now = output_control_fault;
+  assign retained_fault_now = output_control_fault || output_descriptor_fault;
   assign retained_reasons = 8'b0;
   assign reader_release = output_released_valid && guard_ack[1];
-  // Bundled descriptor lookup stays immutable until the actual final read.
-  // Its physical clock crossing is still an explicit qualification requirement.
-  assign output_metadata = {output_lookup_descriptor,output_bank_metadata[4:0]};
+  // Writer-domain lookup/validation precedes publication. Only held registers
+  // cross to this receiver, under the real bank's synchronized ownership event.
+  // Capture first, then compare captured tag/exponent in the READER domain.
+  // No live lookup result or fast-domain comparator drives a reader enable.
+  assign output_metadata = slow_output_metadata;
+  assign reader_descriptor_idle = reader_descriptor_phase==RD_EMPTY && !slow_lookup_fault;
+  always @(posedge clk) begin
+    if (!slow_running) begin
+      reader_descriptor_phase<=RD_EMPTY;slow_output_metadata<=0;reader_descriptor_tag<=0;slow_lookup_fault<=0;
+    end else begin
+      if (slow_output_valid && reader_descriptor_phase==RD_EMPTY && !fault) begin
+        slow_output_metadata<=output_descriptor_payload;reader_descriptor_tag<=output_descriptor_tag;
+        reader_descriptor_phase<=RD_CHECK;
+      end
+      if (reader_descriptor_phase==RD_CHECK && !fault) begin
+        if (slow_output_valid!==1'b1 || output_position!==9'b0 || output_last!==1'b0 ||
+            reader_descriptor_tag!==output_bank_metadata[36:5] ||
+            slow_output_metadata[4:0]!==output_bank_metadata[4:0]) begin
+          slow_lookup_fault<=1;reader_descriptor_phase<=RD_FAULT;
+        end
+        else reader_descriptor_phase<=RD_VALID;
+      end
+      if (output_valid && output_ready && output_last) reader_descriptor_phase<=RD_EMPTY;
+    end
+  end
   always @(posedge fft_clk) begin
     if (!fast_running) begin
       inverse_descriptor_live<=0;inverse_allocation_pending<=0;inverse_tag<=0;
-      inverse_result_exponent<=0;retained_published<=0;producer_transfer_receipt<=0;
+      output_descriptor_tag<=0;output_descriptor_payload<=0;output_descriptor_valid<=0;output_descriptor_fault<=0;
+      retained_published<=0;producer_transfer_receipt<=0;
     end else begin
       if (output_allocate_valid && output_allocate_ready) inverse_allocation_pending<=1;
       if (output_allocated_valid) begin
         inverse_descriptor_live<=1;inverse_allocation_pending<=0;inverse_tag<=output_allocated_tag;
       end
-      if (output_complete_accept) inverse_result_exponent<=guard_return_metadata[1][4:0];
+      if (output_complete_accept) begin
+        // Full metadata check terminates at these registers, several clocks
+        // before staged COMMIT can authorize final-word publication.
+        output_descriptor_tag<=inverse_tag;
+        output_descriptor_payload<={output_lookup_descriptor,guard_return_metadata[1][4:0]};
+        output_descriptor_valid<=output_lookup_found===1'b1 && output_lookup_committed===1'b0 &&
+          output_lookup_descriptor===guard_return_metadata[1][74:5];
+        if (output_lookup_found!==1'b1 || output_lookup_committed!==1'b0 ||
+            output_lookup_descriptor!==guard_return_metadata[1][74:5]) output_descriptor_fault<=1;
+      end
       if (output_published_valid) begin retained_published<=1;producer_transfer_receipt<=1;end
       if (completion_accept && next_inverse) producer_transfer_receipt<=0;
       if (output_released_valid) begin inverse_descriptor_live<=0;retained_published<=0;end
@@ -449,7 +494,12 @@ module starlink_pss_fft_staged_output_impl #(
   starlink_pss_core_job_cutover #(.ENABLE_CLOSED_INPUT_VIEW(CLOSED_INPUT_CUTOVER),
     .ENABLE_OFFERED_FAULT_SUMMARY(INPUT_OFFER_FAULT_SUMMARY)) cutover (
     .clk(fft_clk), .resetn(fast_running), .core_resetn(core_aresetn),
-    .job_accept(job_accept), .job_inverse(next_inverse), .producer_closed(completion_accept),
+    // Validation terminates at the existing receipt registers. The scheduler
+    // applies the same receipt on this edge, preserving reset/config ordering.
+    // A current fault may advance private state, but publication is still
+    // vetoed on that edge and registered quarantine prevents any new job.
+    .job_accept(fast_running && admission_receipt && !registered_quarantine), .job_inverse(held_phase),
+    .producer_closed(fast_running && completion_receipt && !registered_quarantine),
     .config_accept(config_valid && config_ready), .input_beat(certified_input_beat),
     .input_complete(certified_input_complete), .raw_frame(event_frame),
     .offered_input_beat(summary_offer_beat), .offered_input_complete(summary_offer_complete),
@@ -510,20 +560,23 @@ module starlink_pss_fft_staged_output_impl #(
     .owner_request(), .owner_ack_sync(), .writer_reset_idle(product_writer_idle),
     .reader_reset_idle(product_reader_idle)
   );
-  assign output_valid = slow_running && slow_output_valid && !fault;
+  assign output_valid = slow_running && slow_output_valid && slow_metadata_valid && !fault;
   starlink_pss_mailbox_owner_view #(.METADATA_WIDTH(37), .RESET_RELEASE_EXTERNAL(1),
       .EXPLICIT_COMMIT(1)) output_bank (
     .input_clk(fft_clk), .input_resetn(fast_running),
-    .input_valid(output_replay_valid ? 1'b1 : guard_private_out[1]),
+    // Payload selection follows registered private ownership, not a fault-
+    // gated public-valid signal. A fault must not switch the metadata mux and
+    // then traverse a wide framing comparator back into global control.
+    .input_valid(output_publication_busy ? output_replay_valid : guard_private_out[1]),
     .input_commit_authorized(output_replay_accept), .input_ready(output_bank_ready),
-    .input_data(output_replay_valid ? output_replay_data : guard_return_data[1]),
-    .input_position(output_replay_valid ? 9'd511 : guard_return_position[1]),
-    .input_last(output_replay_valid ? 1'b1 : guard_last_out[1]),
-    .input_metadata(output_replay_valid ? {output_replay_tag,inverse_result_exponent} :
+    .input_data(output_publication_busy ? output_replay_data : guard_return_data[1]),
+    .input_position(output_publication_busy ? 9'd511 : guard_return_position[1]),
+    .input_last(output_publication_busy ? 1'b1 : guard_last_out[1]),
+    .input_metadata(output_publication_busy ? {output_replay_tag,output_descriptor_payload[4:0]} :
       {inverse_tag,guard_return_metadata[1][4:0]}), .input_fault(output_bank_fault),
     .input_framing_fault_now(output_bank_framing_fault_now),
     .output_clk(clk), .output_resetn(slow_running),
-    .output_valid(slow_output_valid), .output_ready(output_ready && !fault),
+    .output_valid(slow_output_valid), .output_ready(output_ready && slow_metadata_valid && !fault),
     .output_data(output_data), .output_position(output_position), .output_last(output_last),
     .output_metadata(output_bank_metadata), .owner_request(output_request), .owner_ack_sync(output_ack_sync),
     .writer_reset_idle(output_writer_idle), .reader_reset_idle(output_reader_idle)

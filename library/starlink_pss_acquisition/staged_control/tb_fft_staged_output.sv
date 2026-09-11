@@ -3,13 +3,14 @@
 // Changed control latency is measured, not assumed equal to the old controller.
 `timescale 1ns/1fs
 module tb;
-  reg clk=0,fft_clk=0,resetn=0,fft_resetn=0;
+  reg clk=0,fft_clk=0,resetn=0,fft_resetn=0,run_slow=1;
   always #2.857143 fft_clk=~fft_clk;
-  initial begin #1.3;forever #5 clk=~clk;end
+  initial begin #1.3;forever begin #5;if(run_slow)clk=~clk;end end
   reg input_valid=0,input_last=0,output_ready=0;
   reg [35:0] input_data=0;
   reg [8:0] input_position=0;
   reg [63:0] input_block_start=0;
+  reg [63:0] context_start_base=1000;
   wire input_ready,output_valid,output_last,fault;
   wire [35:0] output_data;
   wire [8:0] output_position;
@@ -29,35 +30,50 @@ module tb;
   reg [120:0] held_output;
   reg [35:0] expected;
   integer log_file;
+  reg stress=0,stress_drain=0,stress_fault_expected=0;
+  integer stress_reads=0,stress_fixture=0,stress_prefix=0,stress_releases=0;
+  integer handover_admissions=0,handover_completions=0,slow_edges=0;
+  reg previous_admission=0,previous_completion=0;
   task automatic log_word(input string stream,input integer block_id,input integer position,
                 input [47:0] data,input [9:0] exponent);
     $fdisplay(log_file,"%0d,%s,%0d,%0d,%012h,%03h",mode,stream,block_id,position,data,exponent);
   endtask
   always @(negedge clk) begin
     slow_cycles=slow_cycles+1;
-    output_ready=mode==0 ? 1 : mode==1 ? slow_cycles%17<13 :
-      (dut.retained_published && fast_cycles-publication_cycle>(mode==2 ? 2200 : 9000));
+    output_ready=stress ? stress_drain : mode==0 ? 1 : mode==1 ? slow_cycles%17<13 :
+      mode==5 ? (!output_last || reads>=1024 || dut.forward_committed) :
+      (dut.retained_published && fast_cycles-publication_cycle>(mode==2 ? 2200 : mode==4 ? 500 : 9000));
   end
   always @(posedge clk) begin
-    if(resetn && fft_resetn) begin
+    slow_edges=slow_edges+1;
+    if(resetn && fft_resetn && !stress) begin
       if(stalled && output_valid && held_output!=={output_data,output_position,output_last,output_metadata})
         $fatal(1,"stalled output changed");
       stalled=output_valid && !output_ready;held_output={output_data,output_position,output_last,output_metadata};
       if(output_valid && output_ready) begin
         if(reads>=1536 || output_position!==9'(reads%512) || output_last!==(reads%512==511) ||
            output_data!==inverses[reads] ||
-           output_metadata!=={1'b1,64'(1000+(reads/512)*447),fe[reads/512],ie[reads/512]} ||
-           !dut.output_lookup_found || !dut.output_lookup_committed)
+           output_metadata!=={1'b1,64'(context_start_base+(reads/512)*447),fe[reads/512],ie[reads/512]} ||
+           (^dut.output_control.committed===1'bx) || dut.output_control.committed==0 ||
+           dut.reader_descriptor_tag!==dut.output_bank_metadata[36:5])
           $fatal(1,"native numerical/metadata output mismatch read=%0d",reads);
         log_word("read",reads/512,reads%512,{12'b0,output_data},output_metadata[9:0]);
         if(!dut.routed_inverse && dut.cutover.owner_open) overlap_reads=overlap_reads+1;
         reads=reads+1;
       end
     end else stalled=0;
+    if(stress && resetn && fft_resetn && output_valid && output_ready) begin
+      if(stress_reads>=512 || output_position!==9'(stress_reads) || output_last!==(stress_reads==511) ||
+         output_data!==inverses[stress_fixture*512+stress_reads] ||
+         output_metadata!=={1'b1,64'(1000+stress_fixture*447),fe[stress_fixture],ie[stress_fixture]})
+        $fatal(1,"stress fresh output/descriptor mismatch");
+      stress_reads=stress_reads+1;
+    end
+    if(output_valid && !dut.slow_metadata_valid) $fatal(1,"reader escaped metadata register boundary");
   end
   always @(posedge fft_clk) begin
     fast_cycles=fast_cycles+1;
-    if(dut.fast_running) begin
+    if(dut.fast_running && !stress) begin
       if(mode==0 && fast_cycles>=2748 && fast_cycles<=2760)
         $display("STAGED_TRACE cycle=%0d state=%0d known=%b job=%b config=%b close=%b common=%b ready=%b inverse_ready=%b live=%b pending=%b ctlphase=%0d ctlcmd=%0d guardfault=%b preflight=%h",
           fast_cycles,dut.state,dut.cutover.known,dut.job_accept,dut.cutover.config_accept,dut.completion_accept,
@@ -69,9 +85,9 @@ module tb;
           mode,fast_cycles,dut.state,dut.cutover_reasons,dut.owners[0].result_guard.faults_now,
           dut.owners[1].result_guard.faults_now,dut.output_control_fault,dut.preflight_events_now);
       if(dut.job_accept) begin
-        if(dut.engine_metadata[68:5]<1000 || (dut.engine_metadata[68:5]-1000)%447!=0)
+        if(dut.engine_metadata[68:5]<context_start_base || (dut.engine_metadata[68:5]-context_start_base)%447!=0)
           $fatal(1,"admission timestamp mismatch");
-        fixture=(dut.engine_metadata[68:5]-1000)/447;phase=dut.next_inverse;
+        fixture=(dut.engine_metadata[68:5]-context_start_base)/447;phase=dut.next_inverse;
         if(fixture>2 || phase!==jobs[0]) $fatal(1,"job order mismatch");
         jobs=jobs+1;raw_position=0;input_count=0;
         if(!phase) begin
@@ -133,6 +149,130 @@ module tb;
       end
     end
   end
+  // Receipt timing and physical core reset ordering, across all contexts.
+  always @(posedge fft_clk) begin
+    if(!dut.fast_running) begin previous_admission=0;previous_completion=0;end
+    else begin
+      if(dut.admission_receipt!==previous_admission || dut.completion_receipt!==previous_completion)
+        $fatal(1,"handover receipt is not previous-edge validation");
+      if(dut.cutover.job_accept!==(dut.admission_receipt && !dut.registered_quarantine) ||
+         dut.cutover.producer_closed!==(dut.completion_receipt && !dut.registered_quarantine))
+        $fatal(1,"raw validation bypassed registered handover");
+      if(dut.cutover.job_accept) begin
+        if(dut.core_aresetn!==0 || (!stress_fault_expected && dut.cutover_admission_allowed!==1))
+          $fatal(1,"handover admitted before reset flush");
+        handover_admissions=handover_admissions+1;
+      end
+      if(dut.cutover.producer_closed) begin
+        if(dut.state!=7 || dut.core_aresetn!==1) $fatal(1,"handover closed outside owned producer");
+        handover_completions=handover_completions+1;
+      end
+      previous_admission=dut.job_accept;previous_completion=dut.completion_accept;
+      if(stress) begin
+        if(!stress_fault_expected && (fault!==0 || dut.any_fast_fault!==0)) $fatal(1,"healthy reset stress fault");
+        if(dut.core_input_valid && dut.core_input_ready && !dut.routed_inverse && dut.engine_metadata[68:5]==1447)
+          stress_prefix=stress_prefix+1;
+        if(dut.reader_release) stress_releases=stress_releases+1;
+      end
+    end
+  end
+  task automatic stress_reset;
+    begin
+      @(negedge fft_clk);resetn=0;fft_resetn=0;input_valid=0;stress_drain=0;
+      repeat(10) @(negedge fft_clk);
+      stress_reads=0;stress_prefix=0;stress_releases=0;stress_fault_expected=0;
+      resetn=1;fft_resetn=1;
+      while(!dut.fast_running) @(negedge fft_clk);
+    end
+  endtask
+  task automatic send_block(input integer number);
+    integer position;
+    begin
+      for(position=0;position<512;position=position+1) begin
+        @(negedge clk);input_valid=1;input_position=position;input_last=position==511;
+        input_block_start=1000+number*447;
+        input_data={samples[number*447+position][31:16],2'b0,samples[number*447+position][15:0],2'b0};
+        @(posedge clk);while(input_ready!==1) @(posedge clk);
+        #0.001;
+      end
+      @(negedge clk);input_valid=0;
+    end
+  endtask
+  task automatic reset_stopped_reader(input integer side);
+    integer resume_edge,prefix,purge_edges;
+    begin
+      stress_reset;stress_fixture=0;
+      send_block(0);send_block(1);
+      while(!dut.retained_published || dut.routed_inverse || stress_prefix<64) @(negedge fft_clk);
+      @(negedge clk);run_slow=0;prefix=stress_prefix;
+      if(stress_reads!=0 || output_valid!==1 || dut.source_valid!==1) $fatal(1,"paused-reader reset premise");
+      @(negedge fft_clk);if(side==1) resetn=0;else fft_resetn=0;
+      #0.001;
+      if(dut.fast_running!==0 || output_valid!==0 || dut.cutover.job_accept!==0 || dut.cutover.producer_closed!==0)
+        $fatal(1,"asynchronous reset did not fence queued handover");
+      repeat(4) @(negedge fft_clk);resetn=1;fft_resetn=1;
+      repeat(20) begin
+        @(negedge fft_clk);
+        if(dut.fast_running!==0 || dut.job_accept!==0 || output_valid!==0) $fatal(1,"stopped reader permitted stale restart");
+      end
+      resume_edge=slow_edges;run_slow=1;
+      while(!dut.fast_running) @(negedge fft_clk);
+      purge_edges=slow_edges-resume_edge;
+      if(purge_edges<4 || dut.slow_metadata_valid!==0 || dut.source_valid!==0 ||
+         output_valid!==0 || dut.output_control.occupied!==0) $fatal(1,"reset did not purge reader/descriptor state");
+      stress_fixture=2;stress_reads=0;stress_drain=1;
+      send_block(2);
+      while(stress_reads!=512 || !dut.retained_reusable) @(negedge fft_clk);
+      repeat(10) @(negedge fft_clk);
+      if(stress_releases!=1) $fatal(1,"fresh reset result did not release once");
+      $display("STAGED_RESET_PASS side=%0d old_unread=512 aborted_forward_prefix=%0d fresh_reads=512 slow_purge_edges=%0d",side,prefix,purge_edges);
+    end
+  endtask
+  task automatic fault_boundary(input integer boundary);
+    reg request_before;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      case(boundary)
+        0: while(!dut.admission_receipt) @(negedge fft_clk);
+        1: while(!dut.completion_receipt) @(negedge fft_clk);
+        2: while(!(dut.output_control.ledger.pending && dut.output_control.command_opcode==1)) @(negedge fft_clk);
+        3: while(!dut.output_replay_valid) @(negedge fft_clk);
+        4: while(!dut.slow_output_valid || dut.reader_descriptor_phase!=0) @(negedge fft_clk);
+        5: begin
+          stress_drain=1;
+          while(!output_valid || output_position!=511) @(negedge clk);
+        end
+        6: while(!dut.output_complete_valid || !dut.output_complete_ready) @(negedge fft_clk);
+      endcase
+      request_before=dut.output_request;stress_fault_expected=1;
+      if(boundary==0) force dut.core_output_valid=1'b1;
+      else if(boundary==1) force dut.core_status_valid=1'b1;
+      else if(boundary==4) begin
+        force dut.output_descriptor_tag=32'hffffffff;stress_drain=1;
+        @(posedge clk);#0.001;
+        if(dut.reader_descriptor_phase!=1 || output_valid) $fatal(1,"descriptor capture was bypassed");
+        release dut.output_descriptor_tag;
+        @(posedge clk);#0.001;
+        if(!dut.slow_lookup_fault || output_valid) $fatal(1,"missing metadata escaped first-word boundary");
+      end else if(boundary==6) force dut.output_lookup_descriptor=70'b0;
+      else force dut.event_last_missing=1'b1;
+      @(posedge fft_clk);#0.001;
+      if(boundary==6 && (!dut.output_descriptor_fault || dut.output_descriptor_valid))
+        $fatal(1,"writer descriptor mismatch did not cancel publication authority");
+      @(negedge fft_clk);
+      release dut.core_output_valid;release dut.core_status_valid;
+      release dut.event_last_missing;release dut.output_lookup_descriptor;
+      repeat(80) begin
+        @(negedge fft_clk);
+        if(dut.output_request!==request_before || dut.output_released_valid || dut.reader_release)
+          $fatal(1,"fault allowed publication or descriptor release");
+      end
+      if(!fault || !dut.fast_fault || stress_releases!=0 ||
+         (boundary!=5 && stress_reads!=0) || (boundary==5 && stress_reads!=512))
+        $fatal(1,"fault quarantine/evidence mismatch boundary=%0d reads=%0d",boundary,stress_reads);
+      $display("STAGED_FAULT_PASS boundary=%0d no_late_publication=1 releases=0 reads=%0d",boundary,stress_reads);
+    end
+  endtask
   integer block_index,word_index;
   initial begin
     $readmemh("samples_ci16.mem",samples);$readmemh("forward_q17.mem",forwards);
@@ -140,17 +280,18 @@ module tb;
     $readmemh("forward_exponents.mem",fe);$readmemh("inverse_exponents.mem",ie);
     log_file=$fopen("staged_words.csv","w");
     $fdisplay(log_file,"context,stream,job,position,data,exponent");
-    for(mode=0;mode<4;mode=mode+1) begin
+    for(mode=0;mode<6;mode=mode+1) begin
       @(negedge fft_clk);resetn=0;fft_resetn=0;input_valid=0;
       repeat(10) @(negedge fft_clk);
       jobs=0;reads=0;publications=0;releases=0;inputs=0;raws=0;statuses=0;frames=0;
       forward_words=0;product_words=0;inverse_words=0;old_request=0;
       overlap_inputs=0;overlap_reads=0;last_forward=-1;max_service=0;
+      context_start_base=mode==4 ? 64'ha5a5a5a5a5a5a000 : mode==5 ? 64'h5a5a5a5a5a5a5000 : 64'd1000;
       resetn=1;fft_resetn=1;
       for(block_index=0;block_index<3;block_index=block_index+1) begin
         for(word_index=0;word_index<512;word_index=word_index+1) begin
           @(negedge clk);input_valid=1;input_position=word_index;input_last=word_index==511;
-          input_block_start=1000+block_index*447;
+          input_block_start=context_start_base+block_index*447;
           input_data={samples[block_index*447+word_index][31:16],2'b0,samples[block_index*447+word_index][15:0],2'b0};
           @(posedge clk);while(input_ready!==1) @(posedge clk);
           #0.001;
@@ -163,10 +304,16 @@ module tb;
          forward_words!=1536 || product_words!=1536 || inverse_words!=1536 ||
          publications!=3 || releases!=3 || overlap_inputs==0 || (mode<2 && overlap_reads==0))
         $fatal(1,"complete staged FFT inventory mismatch");
-      if(mode<=2 && max_service>5215) $fatal(1,"175 MHz coarse service deadline");
+      if(mode!=3 && max_service>5215) $fatal(1,"175 MHz coarse service deadline");
       $display("STAGED_FFT_CONTEXT_PASS mode=%0d reads=1536 inputs=3072 raw=3072 status=6 publications=3 releases=3 max_service=%0d overlap_inputs=%0d overlap_reads=%0d",mode,max_service,overlap_inputs,overlap_reads);
+      if(mode>=4) $display("STAGED_TIMESTAMP_PASS mode=%0d base=%016h words=1536",mode,context_start_base);
     end
-    $fclose(log_file);$display("STAGED_FFT_PASS contexts=4 no_continuous_or_physical_claim");$finish;
+    $fclose(log_file);$display("STAGED_FFT_PASS contexts=6 no_continuous_or_physical_claim");
+    stress=1;reset_stopped_reader(1);reset_stopped_reader(2);
+    for(mode=0;mode<7;mode=mode+1) fault_boundary(mode);
+    if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
+    $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
+    $finish;
   end
   initial begin #3000000;$fatal(1,"staged FFT absolute deadline");end
 endmodule
