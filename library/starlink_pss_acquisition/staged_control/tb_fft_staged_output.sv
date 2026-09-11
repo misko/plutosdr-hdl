@@ -20,6 +20,43 @@ module tb #(parameter integer ACK_ONLY=0);
     .PRIVATE_DESCRIPTOR_OFFER(1),.CLOSED_INPUT_CUTOVER(1),
     .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1)) dut(.*);
   reg [31:0] samples[0:1405];
+  // BEGIN FORWARD RECEIPT WITNESS
+  // Original immediate token, driven by actual qualified guard handshakes.
+  reg original_forward_committed=0;
+  integer forward_receipt_checks=0,forward_receipt_pending=0;
+  always @(posedge fft_clk) begin
+    if(!dut.fast_running) original_forward_committed<=0;
+    else begin
+      if(dut.return_commit_valid && dut.result_destination_ready && !dut.next_inverse)
+        original_forward_committed<=1;
+      if(!dut.registered_quarantine && dut.state==10 && dut.admission_receipt)
+        original_forward_committed<=0;
+    end
+    #0.004;
+    if(dut.fast_running===1'b1) begin
+      forward_receipt_checks=forward_receipt_checks+1;
+      if(dut.forward_receipt_wait!==original_forward_committed)
+        $fatal(1,"forward receipt changed actual ACK readiness phase");
+      if(dut.forward_committed!==original_forward_committed) begin
+        if(dut.forward_committed!==0 || original_forward_committed!==1 || dut.guard_commit[0]!==1)
+          $fatal(1,"forward token differs outside one-cycle qualified receipt");
+        forward_receipt_pending=forward_receipt_pending+1;
+      end
+      if(dut.guard_ack[0] && dut.product_bank_valid!==1)
+        $fatal(1,"forward ACK before actual product ownership");
+      if(dut.product_commit_authorized &&
+         (!original_forward_committed || dut.external_fault_now || dut.result_fault))
+        $fatal(1,"forward receipt expanded publication authority");
+    end
+  end
+  task automatic report_forward_receipt;
+    begin
+      if(forward_receipt_checks<1000 || forward_receipt_pending<10)
+        $fatal(1,"forward receipt witness coverage missing");
+      $display("STAGED_FORWARD_RECEIPT_PASS checks=%0d pending=%0d ack_exact=1 publication_subset=1",forward_receipt_checks,forward_receipt_pending);
+    end
+  endtask
+  // END FORWARD RECEIPT WITNESS
   // Original ACK-state update, same live inputs, no control authority.
   starlink_pss_result_guard_owner_view #(.USE_COMPLETED_INPUT_FAULT(1),
     .CERTIFIED_PRIVATE_ADMISSION(1),.PRIVATE_ACK_RETIREMENT(0),
@@ -540,6 +577,57 @@ module tb #(parameter integer ACK_ONLY=0);
       $display("STAGED_INPUT_IDENTITY_CASE_PASS boundary=%0d stale_reads=0 publications=0 fresh_reads=512 fresh_releases=1",boundary);
     end
   endtask
+  // BEGIN FORWARD RECEIPT BOUNDARIES
+  task automatic forward_receipt_boundary(input integer boundary);
+    integer stage,action;
+    reg request_before;
+    begin
+      stage=boundary/4;action=boundary%4;
+      stress_reset;stress_fixture=0;send_block(0);
+      if(stage==0)begin
+        while(!(dut.return_commit_valid && dut.result_destination_ready && !dut.next_inverse))
+          @(negedge fft_clk);
+      end else if(stage==1)begin
+        while(!dut.guard_commit[0]) @(negedge fft_clk);
+        if(dut.forward_committed!==0 || dut.forward_receipt_wait!==1)
+          $fatal(1,"qualified receipt window not exercised");
+      end else begin
+        while(!dut.forward_committed) @(negedge fft_clk);
+      end
+      request_before=dut.output_request;
+      if(action!=3)begin
+        stress_fault_expected=1;
+        if(action==0) force dut.event_last_missing=1'b1;
+        else if(action==1) fft_resetn=0;
+        else resetn=0;
+        #0.001;
+        if((action==0 && dut.product_commit_authorized!==0) || dut.guard_ack[0]!==0 ||
+           (action!=0 && dut.product_bank.in_running!==0))
+          $fatal(1,"forward receipt fault/reset did not veto authority");
+        @(posedge fft_clk);#0.001;@(negedge fft_clk);
+        release dut.event_last_missing;
+        if(action!=0)begin
+          repeat(10) @(negedge fft_clk);resetn=1;fft_resetn=1;
+          request_before=dut.output_request;
+        end
+        repeat(100)begin
+          @(negedge fft_clk);
+          if(dut.output_request!==request_before || dut.output_released_valid ||
+             dut.product_commit_authorized || dut.guard_ack[0])
+            $fatal(1,"stale forward receipt escaped quarantine/reset");
+        end
+        if(stress_reads!=0 || stress_releases!=0 || (action==0 && !fault))
+          $fatal(1,"forward receipt cancellation evidence missing");
+        stress_reset;stress_fixture=0;send_block(0);
+      end
+      stress_drain=1;
+      while(stress_reads!=512 || !dut.retained_reusable) @(negedge fft_clk);
+      repeat(10) @(negedge fft_clk);
+      if(fault || stress_releases!=1)$fatal(1,"forward receipt fresh recovery failed");
+      $display("STAGED_FORWARD_RECEIPT_CASE_PASS boundary=%0d fresh_reads=512 fresh_releases=1",boundary);
+    end
+  endtask
+  // END FORWARD RECEIPT BOUNDARIES
   task automatic private_ack_boundary(input integer boundary);
     reg request_before;
     begin
@@ -1150,6 +1238,10 @@ module tb #(parameter integer ACK_ONLY=0);
       if(private_ack_checks<1000 || private_ack_quarantine_cycles<300)
         $fatal(1,"combined private ACK auxiliary coverage missing");
       $display("STAGED_ACKCOMBINED_AUX_PASS cases=6 checks=%0d quarantined=%0d public_exact=1 fresh_recovery=1",private_ack_checks,private_ack_quarantine_cycles);
+      // BEGIN FORWARD RECEIPT AUXILIARY
+      for(mode=0;mode<12;mode=mode+1)forward_receipt_boundary(mode);
+      report_forward_receipt;
+      // END FORWARD RECEIPT AUXILIARY
       $fclose(log_file);$finish;
     end
     for(mode=0;mode<6;mode=mode+1) begin
@@ -1234,6 +1326,7 @@ module tb #(parameter integer ACK_ONLY=0);
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     if(private_ack_checks<1000)$fatal(1,"combined ACK main witness coverage missing");
     $display("STAGED_ACKCOMBINED_MAIN_PASS checks=%0d public_exact=1",private_ack_checks);
+    report_forward_receipt; // FORWARD RECEIPT MAIN
     $finish;
   end
   initial begin #3000000;$fatal(1,"staged FFT absolute deadline");end

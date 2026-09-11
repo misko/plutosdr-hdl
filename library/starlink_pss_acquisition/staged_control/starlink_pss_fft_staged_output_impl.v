@@ -313,8 +313,16 @@ module starlink_pss_fft_staged_output_impl #(
   wire forward_handoff_ack = forward_committed && product_bank_valid &&
     forward_handoff_identity && product_bank_position == 0 && !product_bank_last &&
     !external_fault_now && !result_fault;
+  // BEGIN FORWARD COMPLETION RECEIPT
+  // The guard registers the fully qualified final handshake. While that pulse
+  // moves into the persistent token, ACK must already wait for the actual
+  // product bank, never fall back to the kernel's input readiness. This pulse
+  // alone does not authorize product publication; the original current/sticky
+  // fault veto remains on product_commit_authorized below.
+  wire forward_receipt_wait = forward_committed || (CERTIFIED_ADMISSION && guard_commit[0]);
+  // END FORWARD COMPLETION RECEIPT
   wire result_destination_ready = next_inverse ? output_bank_ready :
-    (forward_committed ? product_bank_valid : (kernel_ready && product_bank_ready));
+    (forward_receipt_wait ? product_bank_valid : (kernel_ready && product_bank_ready));
   // Raw ownership readiness is not the certified forward ACK. While the
   // forward token is set the guard is inactive: its unchanged idle/current
   // faults veto ACK retirement. The controller independently requires the
@@ -454,7 +462,7 @@ module starlink_pss_fft_staged_output_impl #(
     .mailbox_input_valid(guard_valid_out[OWNER]), .mailbox_private_valid(guard_private_out[OWNER]),
     .mailbox_commit_valid(guard_commit_out[OWNER]),
     .mailbox_input_ready(OWNER == 1 ? inverse_guard_ready :
-      (forward_committed ? product_bank_valid : (kernel_ready && product_bank_ready))),
+      (forward_receipt_wait ? product_bank_valid : (kernel_ready && product_bank_ready))),
     .mailbox_input_fault(output_bank_fault || output_bank_framing_fault_now),
     .inverse_phase(OWNER == 1), .forward_mailbox_fault(output_bank_fault),
     .forward_retirement_valid(guard_forward_retire[OWNER]),
@@ -809,7 +817,8 @@ module starlink_pss_fft_staged_output_impl #(
         if (return_private_valid && !next_inverse && return_last)
           expected_product_metadata <= {1'b1, engine_metadata[68:5], return_metadata[4:0]};
         if (certified_input_complete) engine_input_reserved <= 0;
-        if (return_commit_valid && result_destination_ready && !next_inverse)
+        if (CERTIFIED_ADMISSION ? (guard_commit[0] && !next_inverse) :
+            (return_commit_valid && result_destination_ready && !next_inverse))
           forward_committed <= 1;
         if (registered_quarantine) begin
           state <= QUARANTINE; descriptor_certified <= 0;
