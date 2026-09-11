@@ -23,7 +23,8 @@ module starlink_pss_fft_staged_output_impl #(
   parameter integer CONTEXTUAL_DESTINATION_SUMMARY = 0,
   parameter integer REPLAY_QUIET_PUBLICATION = 0,
   parameter integer PRIVATE_QUARANTINE_OFFER = 0,
-  parameter integer SPLIT_PREFLIGHT_IDENTITY = 0
+  parameter integer SPLIT_PREFLIGHT_IDENTITY = 0,
+  parameter integer MONOTONIC_OUTER_RESET = 0
 ) (
   input wire clk, resetn, fft_clk, fft_resetn,
   input wire input_valid,
@@ -90,7 +91,7 @@ module starlink_pss_fft_staged_output_impl #(
   wire source_writer_idle, source_reader_idle, product_writer_idle, product_reader_idle;
   wire reader_descriptor_idle;
   wire output_writer_idle, output_reader_idle, output_request, output_ack_sync;
-  starlink_pss_reset_receipt_barrier epoch_barrier (
+  starlink_pss_reset_receipt_barrier #(.MONOTONIC_OUTER_RESET(MONOTONIC_OUTER_RESET)) epoch_barrier (
     .slow_clk(clk), .fast_clk(fft_clk), .resetn(resetn), .fft_resetn(fft_resetn),
     .outer_slow_running(outer_slow_running), .outer_fast_running(outer_fast_running),
     .slow_mailboxes_reset_idle(source_writer_idle && output_reader_idle && reader_descriptor_idle),

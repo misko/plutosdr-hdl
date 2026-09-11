@@ -3,6 +3,30 @@
 // Changed control latency is measured, not assumed equal to the old controller.
 `timescale 1ns/1fs
 module tb #(parameter integer ACK_ONLY=0);
+  // BEGIN MONOTONIC RESET WITNESS
+  integer monotonic_fast_checks=0,monotonic_slow_checks=0,monotonic_reset_checks=0;
+  wire monotonic_raw_ok = resetn === 1'b1 && fft_resetn === 1'b1;
+  wire original_fast_release = monotonic_raw_ok && dut.outer_fast_running && dut.epoch_barrier.fast_release;
+  wire original_slow_release = monotonic_raw_ok && dut.outer_slow_running && dut.epoch_barrier.fast_release_slow[1];
+  task automatic check_monotonic_release;
+    begin
+      if(dut.MONOTONIC_OUTER_RESET!==1 || dut.epoch_barrier.MONOTONIC_OUTER_RESET!==1)
+        $fatal(1,"monotonic reset profile mismatch");
+      if({dut.slow_running,dut.fast_running}!=={original_slow_release,original_fast_release})
+        $fatal(1,"monotonic reset release changed");
+    end
+  endtask
+  always @(negedge fft_clk)begin #0.001;check_monotonic_release;monotonic_fast_checks=monotonic_fast_checks+1;end
+  always @(negedge clk)begin #0.001;check_monotonic_release;monotonic_slow_checks=monotonic_slow_checks+1;end
+  always @(resetn or fft_resetn)begin #0.001;check_monotonic_release;monotonic_reset_checks=monotonic_reset_checks+1;end
+  task automatic report_monotonic_release;
+    begin
+      if(monotonic_fast_checks<1000 || monotonic_slow_checks<1000 || monotonic_reset_checks<4)
+        $fatal(1,"monotonic reset witness incomplete");
+      $display("STAGED_MONOTONIC_RESET_PASS fast=%0d slow=%0d resets=%0d current_exact=1 latency_unchanged=1",monotonic_fast_checks,monotonic_slow_checks,monotonic_reset_checks);
+    end
+  endtask
+  // END MONOTONIC RESET WITNESS
   // BEGIN SPLIT PREFLIGHT WITNESS
   integer split_preflight_checks=0,split_preflight_source=0,split_preflight_product=0;
   wire [69:0] original_preflight_metadata = dut.preflight_phase ? dut.product_bank_metadata : dut.source_metadata;
@@ -106,6 +130,7 @@ module tb #(parameter integer ACK_ONLY=0);
       $display("STAGED_REPLAY_FENCE_PASS enabled=1 profile=1 independent_shadow=1 current_publication_exact=1"); // INTEGRATED REPLAY FENCE REPORT
       report_private_quarantine; // PRIVATE QUARANTINE REPORT
       report_split_preflight; // SPLIT PREFLIGHT REPORT
+      report_monotonic_release; // MONOTONIC RESET REPORT
     end
   endtask
   // END REPLAY QUIET WITNESS
@@ -250,7 +275,7 @@ module tb #(parameter integer ACK_ONLY=0);
   starlink_pss_fft_staged_output_impl #(.REGISTERED_SCHEDULING(1),
     .BOUNDARY_ROUND_SAT(1),.REGISTER_OPERANDS(1),.LOCAL_FIRST_ADMISSION(1),
     .PRIVATE_DESCRIPTOR_OFFER(1),.CLOSED_INPUT_CUTOVER(1),
-    .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1),.REPLAY_QUIET_PUBLICATION(1),.SPLIT_PREFLIGHT_IDENTITY(1),.PRIVATE_QUARANTINE_OFFER(1)) dut(.*);
+    .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1),.REPLAY_QUIET_PUBLICATION(1),.SPLIT_PREFLIGHT_IDENTITY(1),.MONOTONIC_OUTER_RESET(1),.PRIVATE_QUARANTINE_OFFER(1)) dut(.*);
   reg [31:0] samples[0:1405];
   // BEGIN OUTPUT METADATA WITNESS
   integer output_metadata_checks=0,output_metadata_live_words=0,output_metadata_replay_words=0;
