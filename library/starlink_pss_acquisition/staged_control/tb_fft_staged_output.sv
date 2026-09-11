@@ -3,6 +3,27 @@
 // Changed control latency is measured, not assumed equal to the old controller.
 `timescale 1ns/1fs
 module tb #(parameter integer ACK_ONLY=0);
+  // BEGIN FORWARD FINAL COMMIT WITNESS
+  integer forward_final_checks=0, forward_final_accepts=0;
+  always @(negedge fft_clk)begin
+    #0.002;
+    if(dut.owners[0].result_guard.final_commit !==
+       (dut.owners[0].result_guard.mailbox_commit_valid && dut.owners[0].result_guard.mailbox_input_ready) ||
+       dut.owners[1].result_guard.final_commit !==
+       (dut.owners[1].result_guard.mailbox_commit_valid && dut.owners[1].result_guard.mailbox_input_ready))
+      $fatal(1,"forward final commit changed the original current handshake");
+    forward_final_checks=forward_final_checks+1;
+    if(dut.owners[0].result_guard.final_commit === 1'b1)
+      forward_final_accepts=forward_final_accepts+1;
+  end
+  task automatic report_forward_final;
+    begin
+      if(forward_final_checks<1000 || forward_final_accepts<18)
+        $fatal(1,"forward final commit coverage incomplete");
+      $display("STAGED_FORWARD_FINAL_PASS checks=%0d accepts=%0d exact_current=1 inverse_unchanged=1",forward_final_checks,forward_final_accepts);
+    end
+  endtask
+  // END FORWARD FINAL COMMIT WITNESS
   // BEGIN PARALLEL READY WITNESS
   integer parallel_ready_checks=0;
   wire parallel_selected_ready = dut.fast_running && !dut.kernel_fault &&
@@ -20,6 +41,7 @@ module tb #(parameter integer ACK_ONLY=0);
   end
   task automatic report_parallel_ready;
     begin
+      report_forward_final; // FORWARD FINAL REPORT
       if(parallel_ready_checks<1000)$fatal(1,"parallel ready coverage incomplete");
       $display("STAGED_PARALLEL_READY_PASS checks=%0d ports=1 current_exact=1 original_guard_wiring=1 latency_unchanged=1",parallel_ready_checks);
     end

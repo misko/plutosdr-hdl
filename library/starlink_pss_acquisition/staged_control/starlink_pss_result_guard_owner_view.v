@@ -325,7 +325,17 @@ module starlink_pss_result_guard_owner_view #(
   // onto final occupancy/ACK controls. No publication condition is omitted.
   assign mailbox_commit_valid = resetn && active && !protocol_fault && return_valid &&
     return_phase_allowed && return_last && final_qualified && !final_public_fault;
-  wire final_commit = mailbox_commit_valid && mailbox_input_ready;
+  // BEGIN FORWARD FINAL COMMIT
+  // Reuse the existing forward-retirement caller contract for this SAME-edge
+  // final handshake. In a known forward phase the inverse mailbox's current
+  // framing term is impossible; its sticky fault and every other veto remain.
+  // Keep the full public valid and diagnostic predicates unchanged. Unknown
+  // phase and callers without the contract retain the original expression.
+  wire final_commit = (USE_FORWARD_RETIREMENT && inverse_phase === 1'b0) ?
+    (resetn && active && !protocol_fault && return_valid && return_phase_allowed &&
+     return_last && final_qualified && !forward_final_fault && mailbox_input_ready) :
+    (mailbox_commit_valid && mailbox_input_ready);
+  // END FORWARD FINAL COMMIT
 
   // BEGIN FORWARD_RETIREMENT: existing public outputs/state stay literal.
   // The inverse mailbox's CURRENT framing fault is structurally impossible
