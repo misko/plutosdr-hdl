@@ -109,7 +109,7 @@ module starlink_pss_kernel_rom #(
     $fatal(1,"parallel input capacity requires a known mode");
   // Caller certifies current downstream capacity for a known active epoch.
   // Keep the original unknown-reset behavior and all output-stage enables.
-  (* keep = "true" *) wire parallel_input_room = !output_valid || downstream_capacity;
+  wire parallel_input_room = !output_valid || downstream_capacity;
   generate if (PARALLEL_INPUT_CAPACITY === 1) begin : parallel_ready
     assign input_ready = resetn && !flush && !protocol_fault &&
       (resetn === 1'b1 ? parallel_input_room : output_stage_ready);

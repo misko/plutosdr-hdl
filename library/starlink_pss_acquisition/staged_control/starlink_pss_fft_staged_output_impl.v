@@ -738,7 +738,7 @@ module starlink_pss_fft_staged_output_impl #(
   wire product_pipeline_full, product_identity_idle;
   // Same live private-slot capacity and final-slot restriction as the actual
   // product stage. This is lookahead for READY, never publication authority.
-  (* keep = "true" *) wire forward_parallel_capacity = !product_pipeline_full ||
+  wire forward_parallel_capacity = !product_pipeline_full ||
     (!product_stage_fault && (product_identity_idle ||
       ((staged_product_last === 1'b0) && (product_bank_ready === 1'b1) && (fast_fault === 1'b0))) && !fast_fault);
   // END PARALLEL KERNEL CAPACITY
