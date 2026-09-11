@@ -31,7 +31,11 @@ module starlink_pss_product_identity_stage (
   assign fault = resetn && (fault_q || control_fault);
   wire live = resetn && !fault;
   assign output_valid = live && full;
-  assign input_ready = live && (!full || output_ready);
+  // A held LAST cannot refill on its retirement edge. The next product block
+  // waits for actual bank ownership return, so upstream capacity need not
+  // depend on the current final-publication decision. Nonfinal refill remains
+  // continuous; output retirement and current fault/reset vetoes are unchanged.
+  assign input_ready = live && (!full || ((output_last === 1'b0) && output_ready));
   assign idle = !full;
   wire take_input = input_valid && input_ready;
   wire take_output = output_valid && output_ready;

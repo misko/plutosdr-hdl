@@ -20,6 +20,30 @@ module tb #(parameter integer ACK_ONLY=0);
     .PRIVATE_DESCRIPTOR_OFFER(1),.CLOSED_INPUT_CUTOVER(1),
     .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1)) dut(.*);
   reg [31:0] samples[0:1405];
+  // BEGIN FINAL CAPACITY WITNESS
+  integer final_capacity_checks=0,final_capacity_starts=0;
+  always @(posedge fft_clk)begin
+    if(dut.fast_running && !dut.product_stage_fault)begin
+      if(dut.staged_product_valid && dut.staged_product_last)begin
+        if(dut.product_stage_ready!==0)$fatal(1,"held LAST allowed same-edge refill");
+        if(!dut.common_current_fault && !dut.registered_quarantine && dut.product_valid)
+          $fatal(1,"a new product offer overlapped its predecessor LAST");
+        final_capacity_checks=final_capacity_checks+1;
+      end
+      if(dut.input_job_start && !dut.next_inverse && !dut.common_current_fault && !dut.registered_quarantine)begin
+        if(dut.staged_product_valid || dut.product_bank_ready!==1)
+          $fatal(1,"new forward block began before actual product-bank return");
+        final_capacity_starts=final_capacity_starts+1;
+      end
+    end
+  end
+  task automatic report_final_capacity;
+    begin
+      if(final_capacity_checks<12 || final_capacity_starts<12)$fatal(1,"final capacity coverage missing");
+      $display("STAGED_FINAL_CAPACITY_PASS finals=%0d starts=%0d no_refill=1 producer_quiet=1 actual_bank_return=1",final_capacity_checks,final_capacity_starts);
+    end
+  endtask
+  // END FINAL CAPACITY WITNESS
   // BEGIN ACTUAL PRODUCT STAGE WITNESS
   reg product_slot_owned=0;
   reg [116:0] product_slot_word;
@@ -1349,6 +1373,7 @@ module tb #(parameter integer ACK_ONLY=0);
       for(mode=0;mode<12;mode=mode+1)product_stage_boundary(mode);
       report_product_stage;
       // END ACTUAL PRODUCT STAGE AUXILIARY
+      report_final_capacity; // FINAL CAPACITY AUXILIARY
       $fclose(log_file);$finish;
     end
     for(mode=0;mode<6;mode=mode+1) begin
@@ -1435,6 +1460,7 @@ module tb #(parameter integer ACK_ONLY=0);
     $display("STAGED_ACKCOMBINED_MAIN_PASS checks=%0d public_exact=1",private_ack_checks);
     report_forward_receipt; // FORWARD RECEIPT MAIN
     report_product_stage; // ACTUAL PRODUCT STAGE MAIN
+    report_final_capacity; // FINAL CAPACITY MAIN
     $finish;
   end
   initial begin #3000000;$fatal(1,"staged FFT absolute deadline");end
