@@ -3,6 +3,59 @@
 // Changed control latency is measured, not assumed equal to the old controller.
 `timescale 1ns/1fs
 module tb #(parameter integer ACK_ONLY=0);
+  // BEGIN FORWARD CAPACITY SHADOW
+  // Observation only. No hierarchy reference below drives runtime logic.
+  wire capacity_vacancy = !dut.joined_valid || !dut.product.registered_operands.valid ||
+    !dut.product.arithmetic.product_valid || !dut.product.arithmetic.sum_valid || !dut.product.arithmetic.output_valid;
+  wire capacity_tail = !dut.product_identity_stage.fault &&
+    (!dut.product_identity_stage.full || ((dut.staged_product_last === 1'b0) && dut.product_identity_stage.refill_capacity)) && !dut.fast_fault;
+  wire capacity_parallel_ready = dut.fast_running && !dut.kernel_fault && (capacity_vacancy || capacity_tail);
+  // Compare the unforced RTL expression separately from artificial internal
+  // ready/summary force injections. Those remain mandatory fault tests below.
+  wire capacity_original_ready = dut.joiner.kernel_rom.resetn && !dut.joiner.kernel_rom.flush &&
+    !dut.joiner.kernel_rom.protocol_fault && (!dut.joiner.kernel_rom.output_valid || dut.joiner.kernel_rom.output_ready);
+  wire capacity_forward_ready = dut.forward_receipt_wait ? dut.product_bank_valid : (capacity_parallel_ready && dut.product_bank_ready);
+  wire capacity_slot_error = dut.owners[0].result_guard.active && dut.owners[0].result_guard.return_valid &&
+    ((!dut.owners[0].result_guard.return_last && !capacity_forward_ready) ||
+     (dut.owners[0].result_guard.core_output_tvalid && (dut.owners[0].result_guard.return_last || !capacity_forward_ready)));
+  wire capacity_common = dut.offered_external_fault_now ||
+    (|{dut.guard_offered_local_faults[0][7],dut.guard_offered_local_faults[0][5:0]}) || capacity_slot_error ||
+    dut.guard_offered_local_fault[1] || dut.output_bank_fault || dut.output_bank_framing_fault_now ||
+    ((dut.fast_running === 1'b1 && dut.retained_reserved_known) ? (|dut.summary_preflight_events) : dut.preparation_fault_now) || dut.result_fault;
+  integer capacity_checks=0,capacity_healthy=0,capacity_faults=0,capacity_ready_overrides=0;
+  integer capacity_summary_overrides=0,capacity_common_differences=0,capacity_unexplained=0;
+  always @(negedge fft_clk)begin
+    #0.001;
+    if(dut.INPUT_OFFER_FAULT_SUMMARY!==1 || dut.CONTEXTUAL_DESTINATION_SUMMARY!==1 || dut.REGISTER_OPERANDS!==1)
+      $fatal(1,"forward capacity shadow profile mismatch");
+    if(dut.fast_running === 1'b0 || dut.fast_running === 1'b1)begin
+      if(capacity_parallel_ready!==capacity_original_ready)$fatal(1,"parallel capacity equation mismatch");
+      capacity_checks=capacity_checks+1;
+    end
+    if(dut.fast_running === 1'b1)begin
+      if(dut.offered_external_fault_now===1'b0)capacity_healthy=capacity_healthy+1;
+      if(dut.offered_external_fault_now===1'b1)capacity_faults=capacity_faults+1;
+      if(dut.kernel_ready!==capacity_original_ready)capacity_ready_overrides=capacity_ready_overrides+1;
+      if(dut.guard_offered_local_faults[0][6]!==dut.owners[0].result_guard.summary_slot_error)
+        capacity_summary_overrides=capacity_summary_overrides+1;
+      if(capacity_common!==dut.common_current_fault)begin
+        capacity_common_differences=capacity_common_differences+1;
+        if(dut.kernel_ready===capacity_original_ready &&
+           dut.guard_offered_local_faults[0][6]===dut.owners[0].result_guard.summary_slot_error)begin
+          capacity_unexplained=capacity_unexplained+1;
+          $fatal(1,"unexplained forward capacity fault mismatch");
+        end
+      end
+    end
+  end
+  task automatic report_forward_capacity;
+    begin
+      if(capacity_checks<1000 || capacity_healthy<1000 || capacity_faults<10 || capacity_unexplained!=0)
+        $fatal(1,"forward capacity coverage incomplete");
+      $display("STAGED_FORWARD_CAPACITY_SHADOW_PASS checks=%0d healthy=%0d faults=%0d ready_overrides=%0d summary_overrides=%0d common_differences=%0d unexplained=%0d runtime_unchanged=1",capacity_checks,capacity_healthy,capacity_faults,capacity_ready_overrides,capacity_summary_overrides,capacity_common_differences,capacity_unexplained);
+    end
+  endtask
+  // END FORWARD CAPACITY SHADOW
   // BEGIN MONOTONIC RESET WITNESS
   integer monotonic_fast_checks=0,monotonic_slow_checks=0,monotonic_reset_checks=0;
   wire monotonic_raw_ok = resetn === 1'b1 && fft_resetn === 1'b1;
@@ -131,6 +184,7 @@ module tb #(parameter integer ACK_ONLY=0);
       report_private_quarantine; // PRIVATE QUARANTINE REPORT
       report_split_preflight; // SPLIT PREFLIGHT REPORT
       report_monotonic_release; // MONOTONIC RESET REPORT
+      report_forward_capacity; // FORWARD CAPACITY REPORT
     end
   endtask
   // END REPLAY QUIET WITNESS
