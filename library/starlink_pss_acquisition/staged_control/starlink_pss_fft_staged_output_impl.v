@@ -449,7 +449,7 @@ module starlink_pss_fft_staged_output_impl #(
   wire admission_request = CERTIFIED_ADMISSION && job_valid &&
     guard_capacity[next_inverse] && cutover_admission_capacity &&
     (!next_inverse || inverse_descriptor_live);
-  starlink_pss_admission_certificate #(.CHECKS(36)) admission_gate (
+  starlink_pss_admission_certificate #(.CHECKS(36),.PRIVATE_FACT_CAPTURE(1)) admission_gate (
     .clk(fft_clk), .resetn(fast_running),
     .request(admission_request), .quarantine(registered_quarantine),
     .consume(job_accept),

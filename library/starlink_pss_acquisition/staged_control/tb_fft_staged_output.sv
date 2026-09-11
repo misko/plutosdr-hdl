@@ -460,8 +460,9 @@ module tb #(parameter integer ACK_ONLY=0);
         $fatal(1,"actual expanded current predicates differ");
       #0.001;
       if(dut.fast_running) begin
-        if({dut.admission_permit,dut.admission_gate.snapshot_valid,dut.admission_gate.consumed,compressed_admission} !==
-           {legacy_admission_permit,legacy_admission.snapshot_valid,legacy_admission.consumed,legacy_admission.snapshot_good} ||
+        if({dut.admission_permit,dut.admission_gate.snapshot_valid,dut.admission_gate.consumed} !==
+           {legacy_admission_permit,legacy_admission.snapshot_valid,legacy_admission.consumed} ||
+           (dut.admission_gate.snapshot_valid && compressed_admission!==legacy_admission.snapshot_good) ||
            {dut.completion_permit,dut.completion_gate.snapshot_valid,dut.completion_gate.consumed,compressed_completion} !==
            {legacy_completion_permit,legacy_completion.snapshot_valid,legacy_completion.consumed,legacy_completion.snapshot_good})
           $fatal(1,"actual old/expanded certificate state differs");
@@ -470,6 +471,38 @@ module tb #(parameter integer ACK_ONLY=0);
     end
   end
   reg original_descriptor_certificate=0;
+  // BEGIN PRIVATE ADMISSION FACTS WITNESS
+  wire private_facts_reference_permit,private_facts_reference_valid;
+  wire [35:0] private_facts_reference_good;
+  starlink_pss_admission_certificate #(.CHECKS(36)) private_facts_reference (
+    .clk(fft_clk),.resetn(dut.fast_running),.request(dut.admission_request),
+    .quarantine(dut.registered_quarantine),.consume(dut.job_accept),
+    .checks_good(dut.admission_checks),.permit(private_facts_reference_permit),
+    .snapshot_valid(private_facts_reference_valid),.snapshot_good(private_facts_reference_good));
+  integer private_facts_checks=0,private_facts_owned=0,private_facts_differences=0;
+  always @(negedge fft_clk) begin
+    #0.001;
+    if(dut.fast_running)begin
+      if({dut.admission_permit,dut.admission_gate.snapshot_valid,dut.admission_gate.consumed} !==
+         {private_facts_reference_permit,private_facts_reference_valid,private_facts_reference.consumed})
+        $fatal(1,"private admission control differs");
+      private_facts_checks=private_facts_checks+1;
+      if(dut.admission_gate.snapshot_valid)begin
+        if(dut.admission_gate.snapshot_good!==private_facts_reference_good)
+          $fatal(1,"private admission owned facts differ");
+        private_facts_owned=private_facts_owned+1;
+      end else if(dut.admission_gate.snapshot_good!==private_facts_reference_good)
+        private_facts_differences=private_facts_differences+1;
+    end
+  end
+  task automatic report_private_admission_facts;
+    begin
+      if(private_facts_checks<1000 || private_facts_owned<10 || private_facts_differences<100)
+        $fatal(1,"private admission witness coverage short");
+      $display("STAGED_PRIVATE_FACTS_PASS checks=%0d owned=%0d invalid_differences=%0d permit_exact=1 owned_exact=1",private_facts_checks,private_facts_owned,private_facts_differences);
+    end
+  endtask
+  // END PRIVATE ADMISSION FACTS WITNESS
   integer certificate_checks=0,certificate_private_differences=0;
   always @(posedge fft_clk) begin
     if(!dut.fast_running) original_descriptor_certificate=0;
@@ -1580,6 +1613,7 @@ module tb #(parameter integer ACK_ONLY=0);
       report_output_metadata; // OUTPUT METADATA AUXILIARY
       report_balanced_handoff; // BALANCED HANDOFF AUXILIARY
       report_completion_slot; // COMPLETION MAILBOX AUXILIARY
+      report_private_admission_facts; // PRIVATE ADMISSION FACTS AUXILIARY
       $fclose(log_file);$finish;
     end
     for(mode=0;mode<6;mode=mode+1) begin
@@ -1671,6 +1705,7 @@ module tb #(parameter integer ACK_ONLY=0);
     report_output_metadata; // OUTPUT METADATA MAIN
     report_balanced_handoff; // BALANCED HANDOFF MAIN
     report_completion_slot; // COMPLETION MAILBOX MAIN
+    report_private_admission_facts; // PRIVATE ADMISSION FACTS MAIN
     $finish;
   end
   initial begin #3000000;$fatal(1,"staged FFT absolute deadline");end
