@@ -3,6 +3,33 @@
 // Changed control latency is measured, not assumed equal to the old controller.
 `timescale 1ns/1fs
 module tb #(parameter integer ACK_ONLY=0);
+  // BEGIN PRIVATE QUARANTINE WITNESS
+  integer private_quarantine_checks=0,private_quarantine_differences=0;
+  always @(negedge fft_clk) begin
+    #0.001;
+    if(dut.fast_running)begin
+      if(dut.PRIVATE_QUARANTINE_OFFER!==1 || dut.owners[1].result_guard.PRIVATE_QUARANTINE_OFFER!==1 ||
+         dut.owners[0].result_guard.PRIVATE_QUARANTINE_OFFER!==0)
+        $fatal(1,"private quarantine profile mismatch");
+      if(dut.guard_private_out[1]!==original_inverse_ack.mailbox_private_valid)begin
+        if(dut.result_fault!==1 || dut.owners[1].result_guard.protocol_fault!==1 ||
+           dut.guard_private_out[1]!==1 || original_inverse_ack.mailbox_private_valid!==0 ||
+           dut.guard_valid_out[1]!==0 || dut.guard_commit_out[1]!==0 ||
+           dut.output_replay_accept!==0 || dut.guard_ack[1]!==0 || dut.job_ready!==0)
+          $fatal(1,"private offer difference escaped quarantine");
+        private_quarantine_differences=private_quarantine_differences+1;
+      end
+      private_quarantine_checks=private_quarantine_checks+1;
+    end
+  end
+  task automatic report_private_quarantine;
+    begin
+      if(private_quarantine_checks<1000 || private_quarantine_differences==0)
+        $fatal(1,"private quarantine witness coverage missing");
+      $display("STAGED_PRIVATE_QUARANTINE_PASS checks=%0d differences=%0d public_fenced=1 healthy_exact=1",private_quarantine_checks,private_quarantine_differences);
+    end
+  endtask
+  // END PRIVATE QUARANTINE WITNESS
   // BEGIN REPLAY QUIET WITNESS
   // Diagnostic only: nothing here drives DUT authorization or state.
   wire replay_quiet_context = dut.state==dut.ACK_DRAIN && dut.next_inverse && dut.routed_inverse &&
@@ -54,6 +81,7 @@ module tb #(parameter integer ACK_ONLY=0);
         $fatal(1,"replay quiet witness coverage short");
       $display("STAGED_REPLAY_QUIET_PASS checks=%0d offers=%0d accepts=%0d sweep=%0d paused=%0d current_exact=1 runtime_unchanged=0",replay_quiet_checks,replay_quiet_offers,replay_quiet_accepts,replay_quiet_sweep,replay_quiet_paused);
       $display("STAGED_REPLAY_FENCE_PASS enabled=1 profile=1 independent_shadow=1 current_publication_exact=1"); // INTEGRATED REPLAY FENCE REPORT
+      report_private_quarantine; // PRIVATE QUARANTINE REPORT
     end
   endtask
   // END REPLAY QUIET WITNESS
@@ -198,7 +226,7 @@ module tb #(parameter integer ACK_ONLY=0);
   starlink_pss_fft_staged_output_impl #(.REGISTERED_SCHEDULING(1),
     .BOUNDARY_ROUND_SAT(1),.REGISTER_OPERANDS(1),.LOCAL_FIRST_ADMISSION(1),
     .PRIVATE_DESCRIPTOR_OFFER(1),.CLOSED_INPUT_CUTOVER(1),
-    .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1),.REPLAY_QUIET_PUBLICATION(1)) dut(.*);
+    .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1),.REPLAY_QUIET_PUBLICATION(1),.PRIVATE_QUARANTINE_OFFER(1)) dut(.*);
   reg [31:0] samples[0:1405];
   // BEGIN OUTPUT METADATA WITNESS
   integer output_metadata_checks=0,output_metadata_live_words=0,output_metadata_replay_words=0;
@@ -390,12 +418,12 @@ module tb #(parameter integer ACK_ONLY=0);
     #0.001;
     if(dut.fast_running) begin
       if({dut.owners[1].result_guard.job_ready,dut.owners[1].result_guard.admission_capacity,
-          dut.owners[1].result_guard.mailbox_input_valid,dut.owners[1].result_guard.mailbox_private_valid,
+          dut.owners[1].result_guard.mailbox_input_valid,
           dut.owners[1].result_guard.mailbox_commit_valid,dut.owners[1].result_guard.owner_ack_accept,
           dut.owners[1].result_guard.fault_reasons,dut.owners[1].result_guard.active,
           dut.guard_return_data[1],dut.guard_return_metadata[1],dut.guard_return_position[1],dut.guard_last_out[1]} !==
          {original_inverse_ack.job_ready,original_inverse_ack.admission_capacity,
-          original_inverse_ack.mailbox_input_valid,original_inverse_ack.mailbox_private_valid,
+          original_inverse_ack.mailbox_input_valid,
           original_inverse_ack.mailbox_commit_valid,original_inverse_ack.owner_ack_accept,
           original_inverse_ack.fault_reasons,original_inverse_ack.active,
           original_inverse_ack.mailbox_input_data,original_inverse_ack.mailbox_input_metadata,

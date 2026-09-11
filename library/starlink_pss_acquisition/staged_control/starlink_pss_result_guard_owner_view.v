@@ -27,6 +27,7 @@ module starlink_pss_result_guard_owner_view #(
   // advance on a new fault edge; public output/ACK checks are unchanged.
   parameter integer CERTIFIED_PRIVATE_ADMISSION = 0,
   parameter integer PRIVATE_ACK_RETIREMENT = 0,
+  parameter integer PRIVATE_QUARANTINE_OFFER = 0,
   parameter integer USE_PRIVATE_DESCRIPTOR_OFFER = 0,
   parameter integer ENABLE_OFFERED_FAULT_SUMMARY = 0,
   parameter integer REQUIRE_KNOWN_COMPLETED_INPUT = 0,
@@ -301,7 +302,17 @@ module starlink_pss_result_guard_owner_view #(
   // a simultaneous new fault. The full current fault still vetoes retirement
   // and publication above, clears return_valid below, and quarantines the
   // epoch. NEVER connect this signal to a legacy publish-on-final mailbox.
-  assign mailbox_private_valid = resetn && active && !protocol_fault && return_valid;
+  // BEGIN PRIVATE QUARANTINE OFFER
+  // Explicit-commit, exclusively owned RAM only. The hidden occupancy can
+  // survive one edge after sticky quarantine, never authorizing publication.
+  // The caller must fence public request/release with protocol_fault and purge
+  // the whole epoch before reuse. Public valid/commit and diagnostics stay exact.
+  initial if (PRIVATE_QUARANTINE_OFFER !== 0 && PRIVATE_QUARANTINE_OFFER !== 1)
+    $fatal(1,"private quarantine offer requires a known mode");
+  assign mailbox_private_valid = PRIVATE_QUARANTINE_OFFER ?
+    (resetn && active_private && return_occupied) :
+    (resetn && active && !protocol_fault && return_valid);
+  // END PRIVATE QUARANTINE OFFER
   assign mailbox_input_data = return_data;
   assign mailbox_input_position = return_position;
   assign mailbox_input_last = return_last;

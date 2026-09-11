@@ -21,7 +21,8 @@ module starlink_pss_fft_staged_output_impl #(
   parameter integer CLOSED_INPUT_CUTOVER = 0,
   parameter integer INPUT_OFFER_FAULT_SUMMARY = 0,
   parameter integer CONTEXTUAL_DESTINATION_SUMMARY = 0,
-  parameter integer REPLAY_QUIET_PUBLICATION = 0
+  parameter integer REPLAY_QUIET_PUBLICATION = 0,
+  parameter integer PRIVATE_QUARANTINE_OFFER = 0
 ) (
   input wire clk, resetn, fft_clk, fft_resetn,
   input wire input_valid,
@@ -39,6 +40,12 @@ module starlink_pss_fft_staged_output_impl #(
   output wire fault
 );
   initial begin
+    // BEGIN PRIVATE QUARANTINE PROFILE
+    if (PRIVATE_QUARANTINE_OFFER !== 0 && PRIVATE_QUARANTINE_OFFER !== 1)
+      $fatal(1,"private quarantine offer requires a known mode");
+    if (PRIVATE_QUARANTINE_OFFER === 1 && REPLAY_QUIET_PUBLICATION !== 1)
+      $fatal(1,"private quarantine offer requires fenced explicit publication");
+    // END PRIVATE QUARANTINE PROFILE
     // BEGIN REPLAY FENCE CONFIGURATION
     if (REPLAY_QUIET_PUBLICATION !== 0 && REPLAY_QUIET_PUBLICATION !== 1)
       $fatal(1, "replay publication mode must be known zero or one");
@@ -473,6 +480,7 @@ module starlink_pss_fft_staged_output_impl #(
   starlink_pss_result_guard_owner_view #(.USE_COMPLETED_INPUT_FAULT(1),
     .CERTIFIED_PRIVATE_ADMISSION(CERTIFIED_ADMISSION),
     .PRIVATE_ACK_RETIREMENT(CERTIFIED_ADMISSION && OWNER==1),
+    .PRIVATE_QUARANTINE_OFFER(PRIVATE_QUARANTINE_OFFER && OWNER==1),
     .USE_PRIVATE_DESCRIPTOR_OFFER(PRIVATE_DESCRIPTOR_OFFER),
     .ENABLE_OFFERED_FAULT_SUMMARY(INPUT_OFFER_FAULT_SUMMARY),
     .REQUIRE_KNOWN_COMPLETED_INPUT(CLOSED_INPUT_CUTOVER),
