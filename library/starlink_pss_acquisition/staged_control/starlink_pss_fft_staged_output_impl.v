@@ -708,7 +708,7 @@ module starlink_pss_fft_staged_output_impl #(
     .reader_reset_idle(product_reader_idle)
   );
   assign output_valid = slow_running && slow_output_valid && slow_metadata_valid && !fault;
-  starlink_pss_mailbox_owner_view #(.METADATA_WIDTH(37), .RESET_RELEASE_EXTERNAL(1),
+  starlink_pss_mailbox_split_metadata_view #(.METADATA_WIDTH(37), .RESET_RELEASE_EXTERNAL(1),
       .EXPLICIT_COMMIT(1)) output_bank (
     .input_clk(fft_clk), .input_resetn(fast_running),
     // Payload selection follows registered private ownership, not a fault-
@@ -719,8 +719,9 @@ module starlink_pss_fft_staged_output_impl #(
     .input_data(output_publication_busy ? output_replay_data : guard_return_data[1]),
     .input_position(output_publication_busy ? 9'd511 : guard_return_position[1]),
     .input_last(output_publication_busy ? 1'b1 : guard_last_out[1]),
-    .input_metadata(output_publication_busy ? {output_replay_tag,output_descriptor_payload[4:0]} :
-      {inverse_tag,guard_return_metadata[1][4:0]}), .input_fault(output_bank_fault),
+    .input_metadata_select(output_publication_busy),
+    .input_metadata_live({inverse_tag,guard_return_metadata[1][4:0]}),
+    .input_metadata_replay({output_replay_tag,output_descriptor_payload[4:0]}), .input_fault(output_bank_fault),
     .input_framing_fault_now(output_bank_framing_fault_now),
     .output_clk(clk), .output_resetn(slow_running),
     .output_valid(slow_output_valid), .output_ready(output_ready && slow_metadata_valid && !fault),

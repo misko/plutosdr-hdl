@@ -20,6 +20,27 @@ module tb #(parameter integer ACK_ONLY=0);
     .PRIVATE_DESCRIPTOR_OFFER(1),.CLOSED_INPUT_CUTOVER(1),
     .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1)) dut(.*);
   reg [31:0] samples[0:1405];
+  // BEGIN OUTPUT METADATA WITNESS
+  integer output_metadata_checks=0,output_metadata_live_words=0,output_metadata_replay_words=0;
+  reg [36:0] output_metadata_bad;
+  always @(posedge fft_clk)begin
+    if(dut.fast_running && dut.output_bank.input_accept)begin
+      if(dut.output_bank.metadata_matches !==
+         (dut.output_bank.input_metadata == dut.output_bank.metadata_in_hold))
+        $fatal(1,"output metadata current comparison differs from original");
+      output_metadata_checks=output_metadata_checks+1;
+      if(dut.output_publication_busy)output_metadata_replay_words=output_metadata_replay_words+1;
+      else output_metadata_live_words=output_metadata_live_words+1;
+    end
+  end
+  task automatic report_output_metadata;
+    begin
+      if(output_metadata_checks<6144 || output_metadata_live_words<6144 || output_metadata_replay_words<12)
+        $fatal(1,"output metadata actual branch coverage missing");
+      $display("STAGED_OUTPUT_METADATA_PASS checks=%0d live=%0d replay=%0d current_exact=1 unchanged_publication=1",output_metadata_checks,output_metadata_live_words,output_metadata_replay_words);
+    end
+  endtask
+  // END OUTPUT METADATA WITNESS
   // BEGIN SPLIT CAPACITY WITNESS
   integer split_capacity_checks=0,split_nonfinal_checks=0;
   wire original_product_capacity = (dut.fast_running && !dut.product_stage_fault) &&
@@ -780,6 +801,54 @@ module tb #(parameter integer ACK_ONLY=0);
     end
   endtask
   // END ACTUAL PRODUCT STAGE BOUNDARIES
+  // BEGIN OUTPUT METADATA BOUNDARIES
+  task automatic output_metadata_boundary(input integer boundary);
+    reg request_before;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      if(boundary<2)begin
+        while(!(dut.output_bank.input_accept && !dut.output_publication_busy &&
+                dut.output_bank.input_position==(boundary==0 ? 1 : 511)))@(negedge fft_clk);
+      end else while(!dut.output_replay_valid)@(negedge fft_clk);
+      request_before=dut.output_request;stress_fault_expected=1;
+      if(boundary<2)begin
+        force dut.inverse_tag=32'h80000000;
+      end else if(boundary<4)begin
+        if(boundary==2)force dut.output_replay_tag=32'h80000000;
+        else force dut.output_descriptor_payload[4:0]=5'h1f;
+      end else if(boundary==4)fft_resetn=0;
+      else resetn=0;
+      #0.001;
+      $display("OUTPUT_METADATA_INJECTION boundary=%0d valid=%b ready=%b position=%0d selected=%h held=%h live=%h replay=%h match=%b framing=%b replay_accept=%b common=%b fault=%b",
+        boundary,dut.output_bank.input_valid,dut.output_bank.input_ready,dut.output_bank.input_position,
+        dut.output_bank.input_metadata,dut.output_bank.metadata_in_hold,dut.output_bank.input_metadata_live,
+        dut.output_bank.input_metadata_replay,dut.output_bank.metadata_matches,dut.output_bank_framing_fault_now,
+        dut.output_replay_accept,dut.common_current_fault,fault);
+      if(boundary<4 && (dut.output_bank_framing_fault_now!==1 || dut.output_replay_accept!==0))
+        $fatal(1,"selected output metadata failed immediate framing/publication veto");
+      if(boundary<4 && dut.output_bank.input_metadata===dut.output_bank.metadata_in_hold)
+        $fatal(1,"output metadata injection did not reach selected branch");
+      @(posedge fft_clk);#0.001;@(negedge fft_clk);
+      release dut.inverse_tag;release dut.output_replay_tag;release dut.output_descriptor_payload[4:0];
+      if(boundary>=4)begin
+        repeat(10)@(negedge fft_clk);resetn=1;fft_resetn=1;request_before=dut.output_request;
+      end
+      repeat(100)begin
+        @(negedge fft_clk);
+        if(dut.output_request!==request_before || dut.output_published_valid || dut.output_released_valid ||
+           dut.output_replay_accept || output_valid)
+          $fatal(1,"output metadata cancellation escaped quarantine");
+      end
+      if(stress_reads!=0 || stress_releases!=0 || (boundary<4 && !fault))
+        $fatal(1,"missing actual output metadata cancellation evidence");
+      stress_reset;stress_fixture=0;send_block(0);stress_drain=1;
+      while(stress_reads!=512 || !dut.retained_reusable)@(negedge fft_clk);
+      repeat(10)@(negedge fft_clk);
+      if(fault || stress_releases!=1)$fatal(1,"output metadata fresh recovery failed");
+      $display("STAGED_OUTPUT_METADATA_CASE_PASS boundary=%0d fresh_reads=512 fresh_releases=1",boundary);
+    end
+  endtask
+  // END OUTPUT METADATA BOUNDARIES
   task automatic private_ack_boundary(input integer boundary);
     reg request_before;
     begin
@@ -1386,6 +1455,9 @@ module tb #(parameter integer ACK_ONLY=0);
     $fdisplay(log_file,"context,stream,job,position,data,exponent");
     if(ACK_ONLY) begin
       stress=1;
+      // BEGIN OUTPUT METADATA AUXILIARY
+      for(mode=0;mode<6;mode=mode+1)output_metadata_boundary(mode);
+      // END OUTPUT METADATA AUXILIARY
       for(mode=0;mode<6;mode=mode+1)private_ack_boundary(mode);
       if(private_ack_checks<1000 || private_ack_quarantine_cycles<300)
         $fatal(1,"combined private ACK auxiliary coverage missing");
@@ -1400,6 +1472,7 @@ module tb #(parameter integer ACK_ONLY=0);
       // END ACTUAL PRODUCT STAGE AUXILIARY
       report_final_capacity; // FINAL CAPACITY AUXILIARY
       report_split_capacity; // SPLIT CAPACITY AUXILIARY
+      report_output_metadata; // OUTPUT METADATA AUXILIARY
       $fclose(log_file);$finish;
     end
     for(mode=0;mode<6;mode=mode+1) begin
@@ -1488,6 +1561,7 @@ module tb #(parameter integer ACK_ONLY=0);
     report_product_stage; // ACTUAL PRODUCT STAGE MAIN
     report_final_capacity; // FINAL CAPACITY MAIN
     report_split_capacity; // SPLIT CAPACITY MAIN
+    report_output_metadata; // OUTPUT METADATA MAIN
     $finish;
   end
   initial begin #3000000;$fatal(1,"staged FFT absolute deadline");end
