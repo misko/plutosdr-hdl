@@ -13,6 +13,11 @@ module starlink_pss_kernel_rom #(
   parameter ROM_FILE = "upper_edge_pss_kernel_q23.mem",
   parameter integer DATA_WIDTH = 24,
   parameter integer PRIVATE_PAYLOAD_BUBBLES = 0,
+  // Caller supplies a held, structurally qualified private forward offer.
+  // It equals public input-valid unless this epoch is being faulted. Every
+  // accepted public beat MUST also be offered. A rejected private advance
+  // requires caller quarantine until common reset/flush; it grants no output.
+  parameter integer PRIVATE_ORDINAL_ADVANCE = 0,
   parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0
 ) (
   input  wire                    clk,
@@ -20,6 +25,7 @@ module starlink_pss_kernel_rom #(
   input  wire                    flush,
 
   input  wire                    input_valid,
+  input  wire                    input_private_valid,
   output wire                    input_ready,
   input  wire [8:0]              input_bin_index,
   input  wire [4:0]              input_block_exponent,
@@ -56,6 +62,7 @@ module starlink_pss_kernel_rom #(
 
   wire output_stage_ready;
   wire input_accept;
+  wire private_ordinal_accept = input_private_valid && input_ready;
   wire at_block_start;
   wire sequence_error_now;
   wire metadata_error_now;
@@ -83,6 +90,8 @@ module starlink_pss_kernel_rom #(
   end endgenerate
 
   initial begin
+    if (PRIVATE_ORDINAL_ADVANCE !== 0 && PRIVATE_ORDINAL_ADVANCE !== 1)
+      $fatal(1, "private ordinal mode must be known zero or one");
     if (PRIVATE_PAYLOAD_BUBBLES !== 0 && PRIVATE_PAYLOAD_BUBBLES !== 1)
       $fatal(1, "private ROM payload mode must be known zero or one");
     if (BALANCED_BLOCK_IDENTITY_EQ != 0 && BALANCED_BLOCK_IDENTITY_EQ != 1)
@@ -138,6 +147,14 @@ module starlink_pss_kernel_rom #(
       if (output_stage_ready)
         output_valid <= 1'b0;
 
+      // Only hidden ordinal state advances from the independent private offer.
+      // Local/public error decisions below still use the PRE-edge ordinal and
+      // unchanged qualified input_accept. A faulted advance cannot be reused
+      // before caller quarantine is cleared by the common epoch reset/flush.
+      // Nine-bit addition wraps exactly at 511 without a separate last mux.
+      if (PRIVATE_ORDINAL_ADVANCE && private_ordinal_accept)
+        expected_bin_index <= expected_bin_index + 1'b1;
+
       // Private payload/first-bin metadata may load on a capacity bubble.
       // A held output still freezes these registers. All public valid,
       // ordinal, error, next-block and completion decisions remain below.
@@ -174,12 +191,12 @@ module starlink_pss_kernel_rom #(
           end
 
           if (expected_bin_index == 9'd511) begin
-            expected_bin_index <= 0;
+            if (!PRIVATE_ORDINAL_ADVANCE) expected_bin_index <= 0;
             expected_next_block_start <= input_block_start_index +
                                          VALID_RESULTS_PER_BLOCK;
             have_previous_block <= 1'b1;
             input_block_complete_pulse <= 1'b1;
-          end else begin
+          end else if (!PRIVATE_ORDINAL_ADVANCE) begin
             expected_bin_index <= expected_bin_index + 1'b1;
           end
         end

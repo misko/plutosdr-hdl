@@ -12,6 +12,7 @@ module starlink_pss_forward_kernel_join #(
   parameter KERNEL_ROM_FILE = "upper_edge_pss_kernel_q23.mem",
   parameter integer DATA_WIDTH = 24,
   parameter integer PRIVATE_PAYLOAD_BUBBLES = 0,
+  parameter integer PRIVATE_ORDINAL_ADVANCE = 0,
   parameter integer BALANCED_BLOCK_IDENTITY_EQ = 0
 ) (
   input  wire                    clk,
@@ -19,6 +20,7 @@ module starlink_pss_forward_kernel_join #(
   input  wire                    flush,
 
   input  wire                    input_valid,
+  input  wire                    input_private_valid,
   output wire                    input_ready,
   input  wire signed [DATA_WIDTH-1:0] input_i,
   input  wire signed [DATA_WIDTH-1:0] input_q,
@@ -64,12 +66,14 @@ module starlink_pss_forward_kernel_join #(
     .ROM_FILE  (KERNEL_ROM_FILE),
     .DATA_WIDTH(DATA_WIDTH),
     .PRIVATE_PAYLOAD_BUBBLES(PRIVATE_PAYLOAD_BUBBLES),
+    .PRIVATE_ORDINAL_ADVANCE(PRIVATE_ORDINAL_ADVANCE),
     .BALANCED_BLOCK_IDENTITY_EQ(BALANCED_BLOCK_IDENTITY_EQ)
   ) kernel_rom (
     .clk                       (clk),
     .resetn                    (resetn),
     .flush                     (flush),
     .input_valid               (input_valid),
+    .input_private_valid       (input_private_valid),
     .input_ready               (input_ready),
     .input_bin_index           (input_bin_index),
     .input_block_exponent      (input_block_exponent),

@@ -37,6 +37,29 @@ module tb;
   integer capture_load_checks=0,capture_hold_checks=0,capture_accept_checks=0;
   reg [177:0] capture_before,capture_inputs;
   reg capture_was_open,capture_was_accept,capture_was_release;
+  reg [8:0] ordinal_before;
+  reg ordinal_advance;
+  reg [7:0] ordinal_late_status;
+  integer ordinal_advances=0,ordinal_holds=0;
+  always @(posedge fft_clk) begin
+    if(dut.fast_running) begin
+      ordinal_before=dut.joiner.kernel_rom.expected_bin_index;
+      ordinal_advance=dut.joiner.kernel_rom.private_ordinal_accept;
+      if(ordinal_advance!==1'b0 && ordinal_advance!==1'b1) $fatal(1,"unknown private ordinal handshake");
+      if(dut.joiner.input_accept && !ordinal_advance) $fatal(1,"public kernel beat lacked private offer");
+      if(!dut.common_current_fault && !dut.fast_fault && !dut.kernel_fault &&
+         ordinal_advance!==dut.joiner.input_accept) $fatal(1,"healthy kernel private/public handshake diverged");
+      #0.001;
+      if(dut.fast_running) begin
+        if(dut.joiner.kernel_rom.expected_bin_index !== (ordinal_advance ? 9'(ordinal_before+1) : ordinal_before))
+          $fatal(1,"private ordinal advance/freeze contract");
+        if(!stress) begin
+          if(ordinal_advance) ordinal_advances=ordinal_advances+1;
+          else ordinal_holds=ordinal_holds+1;
+        end
+      end
+    end
+  end
   // Clock-by-clock payload contract in every healthy numerical context. Fault
   // injection below deliberately corrupts held registers, so has its own checks.
   always @(posedge fft_clk) begin
@@ -359,6 +382,79 @@ module tb;
     end
   endtask
   integer block_index,word_index;
+  task automatic ordinal_boundary(input integer boundary);
+    reg request_before;
+    reg [8:0] index_before;
+    integer n;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      if(boundary==3) begin
+        while(!dut.job_accept || dut.next_inverse) @(negedge fft_clk);
+        force dut.core_status_valid=1'b0;
+        while(!dut.owners[0].result_guard.return_valid || !dut.owners[0].result_guard.return_last)
+          @(negedge fft_clk);
+        repeat(8) begin
+          @(negedge fft_clk);
+          if(dut.guard_forward_private_offer[0] || dut.forward_retirement_valid ||
+             dut.joiner.kernel_rom.private_ordinal_accept || dut.joiner.kernel_rom.expected_bin_index!==511)
+            $fatal(1,"private ordinal skipped final status qualification");
+        end
+        ordinal_late_status={3'b0,fe[0]};force dut.core_status_data=ordinal_late_status;
+        force dut.core_status_valid=1'b1;
+        @(posedge fft_clk);#0.001;
+        @(negedge fft_clk);release dut.core_status_valid;release dut.core_status_data;
+      end else if(boundary==4) begin
+        while(!dut.forward_retirement_valid || dut.return_position!=511) @(negedge fft_clk);
+        force dut.joiner.kernel_rom.input_ready=1'b0;
+        repeat(16) begin
+          @(posedge fft_clk);#0.001;
+          if(dut.kernel_ready || dut.joiner.input_accept || dut.joiner.kernel_rom.private_ordinal_accept ||
+             dut.joiner.kernel_rom.expected_bin_index!==511 || dut.forward_committed)
+            $fatal(1,"private ordinal failed held-final backpressure freeze");
+          @(negedge fft_clk);
+        end
+        release dut.joiner.kernel_rom.input_ready;
+      end else begin
+        while(!dut.joiner.input_accept || dut.return_position!=64) @(negedge fft_clk);
+      end
+      request_before=dut.output_request;index_before=dut.joiner.kernel_rom.expected_bin_index;
+      if(boundary<3) begin
+        stress_fault_expected=1;
+        if(boundary==0) force dut.event_last_missing=1'b1;
+        else if(boundary==1) force dut.product_bank_framing_fault_now=1'b1;
+        else force dut.core_status_valid=1'b1;
+        #0.001;
+        if(!dut.joiner.kernel_rom.private_ordinal_accept || dut.joiner.input_accept)
+          $fatal(1,"fault did not separate private ordinal from public acceptance");
+        @(posedge fft_clk);#0.001;
+        if(dut.joiner.kernel_rom.expected_bin_index!==9'(index_before+1) || dut.joined_valid ||
+           dut.joiner.kernel_rom.accepted_pulse || dut.joiner.kernel_rom.input_block_complete_pulse)
+          $fatal(1,"faulted private ordinal gained public authority");
+        @(negedge fft_clk);release dut.event_last_missing;release dut.product_bank_framing_fault_now;release dut.core_status_valid;
+        repeat(100) begin
+          @(negedge fft_clk);
+          if(dut.output_request!==request_before || dut.output_published_valid || dut.output_released_valid ||
+             dut.joiner.input_accept || dut.joiner.kernel_rom.private_ordinal_accept || dut.job_accept ||
+             dut.config_valid || dut.core_input_valid)
+            $fatal(1,"faulted private ordinal escaped epoch quarantine");
+        end
+        if(!fault || stress_reads!=0 || stress_releases!=0) $fatal(1,"missing private ordinal veto evidence");
+      end else begin
+        n=0;@(posedge fft_clk);
+        while(!dut.joiner.input_accept && n<32) begin n=n+1;@(posedge fft_clk);end
+        if(!dut.joiner.input_accept || !dut.joiner.kernel_rom.private_ordinal_accept ||
+           dut.joiner.kernel_rom.expected_bin_index!==511) $fatal(1,"final ordinal did not resume correctly");
+        #0.001;
+        if(dut.joiner.kernel_rom.expected_bin_index!==0 || !dut.joiner.kernel_rom.input_block_complete_pulse)
+          $fatal(1,"final ordinal wrap/completion mismatch");
+        stress_drain=1;
+        while(stress_reads!=512 || !dut.retained_reusable) @(negedge fft_clk);
+        repeat(10) @(negedge fft_clk);
+        if(fault || stress_releases!=1) $fatal(1,"held-final ordinal recovery failed real release");
+      end
+      $display("STAGED_ORDINAL_CASE_PASS boundary=%0d private_advance=1 reads=%0d releases=%0d",boundary,stress_reads,stress_releases);
+    end
+  endtask
   task automatic capture_boundary(input integer boundary);
     reg request_before;
     reg [177:0] held_descriptor;
@@ -563,6 +659,8 @@ module tb;
       if(mode>=4) $display("STAGED_TIMESTAMP_PASS mode=%0d base=%016h words=1536",mode,context_start_base);
     end
     $fclose(log_file);$display("STAGED_FFT_PASS contexts=6 no_continuous_or_physical_claim");
+    if(ordinal_advances!=9216 || ordinal_holds<1000) $fatal(1,"missing healthy ordinal coverage");
+    $display("STAGED_ORDINAL_CYCLES_PASS advances=%0d holds=%0d",ordinal_advances,ordinal_holds);
     if(capture_load_checks<1000 || capture_hold_checks<1000 || capture_accept_checks!=18)
       $fatal(1,"missing private descriptor cycle coverage");
     $display("STAGED_CAPTURE_CYCLES_PASS loads=%0d holds=%0d accepts=%0d",capture_load_checks,capture_hold_checks,capture_accept_checks);
@@ -578,6 +676,8 @@ module tb;
     $display("STAGED_WRITER_PASS cases=4 pending_fenced=1");
     for(mode=0;mode<3;mode=mode+1) capture_boundary(mode);
     $display("STAGED_CAPTURE_PASS cases=3 private_load_checked=1 held_until_release=1");
+    for(mode=0;mode<5;mode=mode+1) ordinal_boundary(mode);
+    $display("STAGED_ORDINAL_PASS cases=5 public_acceptance_preserved=1 quarantine_checked=1");
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     $finish;

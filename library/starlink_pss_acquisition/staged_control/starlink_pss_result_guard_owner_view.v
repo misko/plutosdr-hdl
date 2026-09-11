@@ -89,6 +89,7 @@ module starlink_pss_result_guard_owner_view #(
   input wire inverse_phase,
   input wire forward_mailbox_fault,
   output wire forward_retirement_valid,
+  output wire forward_private_offer,
   output wire [35:0] mailbox_input_data,
   output wire [8:0] mailbox_input_position,
   output wire mailbox_input_last,
@@ -311,6 +312,14 @@ module starlink_pss_result_guard_owner_view #(
     resetn && active && !protocol_fault && return_valid && return_phase_allowed &&
     ((!return_last && !forward_nonfinal_fault) ||
      (return_last && final_qualified && !forward_final_fault));
+  // A held prior checked return may advance private downstream bookkeeping on
+  // a current fault. Public retirement above remains unchanged. The caller
+  // must quarantine any such divergence before reuse/publication, and must
+  // apply the same actual capacity to both handshakes. A held final word does
+  // not offer early while legal status/final certification is still pending.
+  assign forward_private_offer = USE_FORWARD_RETIREMENT && !inverse_phase &&
+    resetn && active && !protocol_fault && return_valid && return_phase_allowed &&
+    (!return_last || final_qualified);
   // END FORWARD_RETIREMENT
 
   always @(posedge clk or negedge resetn) begin
