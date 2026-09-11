@@ -153,6 +153,12 @@ module tb;
   always @(posedge fft_clk) begin
     if(!dut.fast_running) begin previous_admission=0;previous_completion=0;end
     else begin
+      if ((|dut.admission_reject)!==dut.common_current_fault)
+        $fatal(1,"partitioned admission facts differ from full current predicate");
+      if(dut.output_complete_accept && dut.inverse_descriptor_live!==1'b1)
+        $fatal(1,"completion sampled private lookup without held ownership");
+      if(dut.job_accept && (!dut.admission_gate.snapshot_valid || !dut.admission_permit))
+        $fatal(1,"private admission bypassed clocked certificate");
       if(dut.admission_receipt!==previous_admission || dut.completion_receipt!==previous_completion)
         $fatal(1,"handover receipt is not previous-edge validation");
       if(dut.cutover.job_accept!==(dut.admission_receipt && !dut.registered_quarantine) ||
@@ -183,6 +189,37 @@ module tb;
       stress_reads=0;stress_prefix=0;stress_releases=0;stress_fault_expected=0;
       resetn=1;fft_resetn=1;
       while(!dut.fast_running) @(negedge fft_clk);
+    end
+  endtask
+  task automatic admission_boundary(input integer boundary);
+    reg request_before;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      if(boundary==0) while(!dut.job_valid || dut.admission_gate.snapshot_valid) @(negedge fft_clk);
+      else if(boundary==2) while(!dut.admission_receipt) @(negedge fft_clk);
+      else while(!dut.admission_permit) @(negedge fft_clk);
+      request_before=dut.output_request;stress_fault_expected=1;
+      if(boundary==3) force dut.preflight_lease=1'b1;
+      else if(boundary==4) resetn=0;
+      else if(boundary==5) fft_resetn=0;
+      else force dut.core_output_valid=1'b1;
+      @(posedge fft_clk);#0.001;
+      if(boundary<4 && (dut.input_job_start || dut.config_valid || dut.core_input_valid))
+        $fatal(1,"admission fault escaped into FFT start/config/input");
+      @(negedge fft_clk);release dut.core_output_valid;release dut.preflight_lease;
+      if(boundary>=4) begin
+        repeat(10) @(negedge fft_clk);
+        resetn=1;fft_resetn=1;
+      end
+      repeat(100) begin
+        @(negedge fft_clk);
+        if(dut.input_job_start || dut.config_valid || dut.core_input_valid || dut.admission_permit ||
+           dut.admission_receipt || dut.output_request!==request_before || dut.output_released_valid)
+          $fatal(1,"stale admission certificate escaped cancellation boundary=%0d",boundary);
+      end
+      if(stress_reads!=0 || stress_releases!=0 || (boundary<4 && !fault))
+        $fatal(1,"admission cancellation evidence missing");
+      $display("STAGED_ADMISSION_CASE_PASS boundary=%0d starts_after_cancel=0 publications=0 releases=0",boundary);
     end
   endtask
   task automatic send_block(input integer number);
@@ -311,6 +348,8 @@ module tb;
     $fclose(log_file);$display("STAGED_FFT_PASS contexts=6 no_continuous_or_physical_claim");
     stress=1;reset_stopped_reader(1);reset_stopped_reader(2);
     for(mode=0;mode<7;mode=mode+1) fault_boundary(mode);
+    for(mode=0;mode<6;mode=mode+1) admission_boundary(mode);
+    $display("STAGED_ADMISSION_PASS cases=6 partition_checked=1");
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     $finish;

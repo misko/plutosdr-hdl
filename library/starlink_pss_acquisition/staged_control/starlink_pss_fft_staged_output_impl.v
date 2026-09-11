@@ -114,6 +114,8 @@ module starlink_pss_fft_staged_output_impl #(
     CONFIGURE=4, ENABLE_INPUT=5, RUN_JOB=6, ACK_DRAIN=7, QUARANTINE=8,
     VERIFY_LEASE=9, ARM_JOB=10;
   reg [3:0] state;
+  localparam integer CERTIFIED_ADMISSION = REGISTERED_SCHEDULING &&
+    INPUT_OFFER_FAULT_SUMMARY && CONTEXTUAL_DESTINATION_SUMMARY;
   reg core_release, input_job_start_private, next_inverse;
   wire registered_quarantine, destination_reserved, inverse_guard_ready, slow_output_valid;
   reg inverse_descriptor_live, inverse_allocation_pending;
@@ -132,7 +134,7 @@ module starlink_pss_fft_staged_output_impl #(
   (* keep = "true" *) reg [2:0] epoch_input_reasons;
   (* keep = "true" *) reg [5:0] epoch_preflight_reasons;
   wire core_aresetn = fast_running && core_release;
-  wire cutover_admission_allowed, cutover_configuration_allowed, cutover_fault_now, routed_inverse;
+  wire cutover_admission_allowed, cutover_admission_capacity, cutover_configuration_allowed, cutover_fault_now, routed_inverse;
   wire [7:0] cutover_reasons, retained_reasons;
   wire cutover_closed_input_fault_now;
   wire retained_reusable, retained_reserved, retained_fault_now;
@@ -141,6 +143,7 @@ module starlink_pss_fft_staged_output_impl #(
   reg producer_transfer_receipt;
   wire reader_release;
   wire completion_accept;
+  wire admission_permit;
   wire forward_fault_now, inverse_fault_now, common_current_fault;
   wire config_valid = state == CONFIGURE && core_aresetn && !fast_fault && cutover_configuration_allowed;
   wire config_ready;
@@ -303,12 +306,13 @@ module starlink_pss_fft_staged_output_impl #(
     product_overflow || product_bank_fault || product_bank_framing_fault_now ||
     (CLOSED_INPUT_CUTOVER ? cutover_closed_input_fault_now : cutover_fault_now) ||
     (|cutover_reasons) || retained_fault_now || (|retained_reasons);
-  wire [1:0] guard_ready, guard_busy, guard_commit, guard_fault, guard_ack, guard_current_fault, guard_forward_retire;
+  wire [1:0] guard_ready, guard_capacity, guard_busy, guard_commit, guard_fault, guard_ack, guard_current_fault, guard_forward_retire;
   wire [1:0] guard_valid_out, guard_private_out, guard_commit_out, guard_last_out;
   wire [35:0] guard_return_data [0:1];
   wire [8:0] guard_return_position [0:1];
   wire [74:0] guard_return_metadata [0:1];
-  assign job_ready = guard_ready[next_inverse] && cutover_admission_allowed &&
+  assign job_ready = CERTIFIED_ADMISSION ? admission_permit && guard_ready[next_inverse] :
+    guard_ready[next_inverse] && cutover_admission_allowed &&
     (!next_inverse || inverse_descriptor_live) && !common_current_fault;
   assign result_busy = guard_busy[next_inverse];
   assign result_commit = guard_commit[next_inverse];
@@ -348,10 +352,44 @@ module starlink_pss_fft_staged_output_impl #(
   end else begin : contextual_destination_summary
     assign common_current_fault = contextual_destination_common;
   end endgenerate
+  // Partition the SAME offered/contextual fault predicate into independently
+  // clocked facts. No global OR or current input identity cone feeds admission.
+  // The bank is held throughout ARM_JOB; faults still latch into quarantine on
+  // the current edge and fence public writes independently of this certificate.
+  wire [18:0] admission_reject;
+  assign admission_reject[0] = input_fault_now !== 1'b0;
+  assign admission_reject[1] = input_guard_fault || slow_faults_fast;
+  assign admission_reject[2] = vendor_fault_now || fast_fault;
+  assign admission_reject[3] = kernel_fault || product_overflow || product_bank_fault;
+  assign admission_reject[4] = product_bank_framing_fault_now;
+  assign admission_reject[5] = handoff_fault_now;
+  assign admission_reject[6] = cutover_offered_fault_now || (|cutover_reasons);
+  assign admission_reject[7] = retained_fault_now || (|retained_reasons);
+  assign admission_reject[8] = guard_offered_local_fault[0];
+  assign admission_reject[9] = guard_offered_local_fault[1];
+  assign admission_reject[10] = output_bank_fault;
+  assign admission_reject[11] = output_bank_framing_fault_now;
+  assign admission_reject[17:12] = summary_preflight_events;
+  assign admission_reject[18] = result_fault;
+  // Availability may legitimately rise while inverse allocation is pending.
+  // Do not freeze a rejected capacity snapshot; begin validation only after
+  // these small private-capacity predicates are ready. No fault tree here.
+  wire admission_request = CERTIFIED_ADMISSION && job_valid &&
+    guard_capacity[next_inverse] && cutover_admission_capacity &&
+    (!next_inverse || inverse_descriptor_live);
+  starlink_pss_admission_certificate #(.CHECKS(22)) admission_gate (
+    .clk(fft_clk), .resetn(fast_running),
+    .request(admission_request), .quarantine(registered_quarantine),
+    .consume(job_accept),
+    .checks_good({!next_inverse || inverse_descriptor_live,
+      cutover_admission_capacity,guard_capacity[next_inverse],~admission_reject}),
+    .permit(admission_permit), .snapshot_valid(), .snapshot_good()
+  );
   generate for (genvar owner_index = 0; owner_index < 2; owner_index = owner_index + 1) begin : owners
   localparam integer OWNER = owner_index;
   wire this_raw_owner = routed_inverse == OWNER;
   starlink_pss_result_guard_owner_view #(.USE_COMPLETED_INPUT_FAULT(1),
+    .CERTIFIED_PRIVATE_ADMISSION(CERTIFIED_ADMISSION),
     .USE_PRIVATE_DESCRIPTOR_OFFER(PRIVATE_DESCRIPTOR_OFFER),
     .ENABLE_OFFERED_FAULT_SUMMARY(INPUT_OFFER_FAULT_SUMMARY),
     .REQUIRE_KNOWN_COMPLETED_INPUT(CLOSED_INPUT_CUTOVER),
@@ -359,6 +397,7 @@ module starlink_pss_fft_staged_output_impl #(
     .USE_FORWARD_RETIREMENT(REGISTERED_SCHEDULING)) result_guard (
     .clk(fft_clk), .resetn(fast_running),
     .job_valid(job_valid && job_ready && next_inverse == OWNER), .job_ready(guard_ready[OWNER]),
+    .admission_capacity(guard_capacity[OWNER]),
     .private_descriptor_offer(job_valid && next_inverse == OWNER),
     .job_descriptor(REGISTERED_SCHEDULING ? engine_metadata : selected_metadata),
     .input_bank_reserved(!REGISTERED_SCHEDULING && state == WAIT_BANK ? selected_valid : engine_input_reserved),
@@ -428,7 +467,9 @@ module starlink_pss_fft_staged_output_impl #(
     .bank_request(output_request), .bank_ack_sync(output_ack_sync), .bank_fault(output_bank_fault),
     .publication_busy(output_publication_busy), .published_valid(output_published_valid),
     .released_valid(output_released_valid), .released_tag(),
-    .lookup_valid(output_complete_valid), .lookup_tag(inverse_tag),
+    // Private lookup follows held descriptor ownership, not the fault-gated
+    // completion event. Its result grants nothing until completion validation.
+    .lookup_valid(inverse_descriptor_live), .lookup_tag(inverse_tag),
     .lookup_found(output_lookup_found), .lookup_committed(output_lookup_committed),
     .lookup_descriptor(output_lookup_descriptor),
     .occupied(), .committed(), .tags_exhausted(), .fault(output_control_fault)
@@ -506,7 +547,8 @@ module starlink_pss_fft_staged_output_impl #(
     .offered_fault_now(cutover_offered_fault_now),
     .raw_output(core_output_valid), .raw_status(core_status_valid),
     .raw_vendor_faults({event_last_unexpected, event_last_missing, event_input_halt}),
-    .admission_allowed(cutover_admission_allowed), .configuration_allowed(cutover_configuration_allowed),
+    .admission_allowed(cutover_admission_allowed), .admission_capacity(cutover_admission_capacity),
+    .configuration_allowed(cutover_configuration_allowed),
     .fault_now(cutover_fault_now), .routed_inverse(routed_inverse), .fault_reasons(cutover_reasons),
     .closed_input_fault_now(cutover_closed_input_fault_now)
   );
