@@ -283,6 +283,13 @@ module starlink_pss_fft_staged_output_impl #(
     vendor_fault_now || fast_fault || kernel_fault || product_overflow || product_bank_fault ||
     product_bank_framing_fault_now || handoff_fault_now || cutover_offered_fault_now ||
     (|cutover_reasons) || retained_fault_now || (|retained_reasons);
+  // Exact guard-facing alias, not a delayed or weaker fault. With input fault
+  // zero, raw transport offers case-equal delivered certificates; with one,
+  // that bit absorbs any cutover-summary difference. Unknown input faults
+  // retain the unrestricted original expression and its four-state diagnostics.
+  wire guard_external_fault_now = INPUT_OFFER_FAULT_SUMMARY &&
+    (input_fault_now === 1'b0 || input_fault_now === 1'b1) ?
+    offered_external_fault_now : external_fault_now;
   wire forward_handoff_ack = forward_committed && product_bank_valid &&
     forward_handoff_identity && product_bank_position == 0 && !product_bank_last &&
     !external_fault_now && !result_fault;
@@ -407,7 +414,7 @@ module starlink_pss_fft_staged_output_impl #(
     .offered_input_beat(summary_offer_beat && this_raw_owner),
     .offered_input_complete(summary_offer_complete && this_raw_owner),
     .offered_local_fault_now(guard_offered_local_fault[OWNER]),
-    .final_fence_certified(final_fence), .external_fault_now(external_fault_now),
+    .final_fence_certified(final_fence), .external_fault_now(guard_external_fault_now),
     .phase_input_fault_now(1'b0), .core_event_frame_started(event_frame && this_raw_owner),
     .preflight_fault_evidence_now(preparation_fault_now),
     .completed_input_certified(checked_input_complete),

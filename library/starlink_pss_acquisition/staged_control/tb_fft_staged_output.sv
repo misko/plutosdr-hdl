@@ -37,6 +37,31 @@ module tb;
   integer capture_load_checks=0,capture_hold_checks=0,capture_accept_checks=0;
   reg [177:0] capture_before,capture_inputs;
   reg capture_was_open,capture_was_accept,capture_was_release;
+  // Independently reconstruct the original eight-bit accumulator with the
+  // original external fault, not the candidate guard-facing alias.
+  generate for(genvar owner=0;owner<2;owner=owner+1) begin: exact_guard_fault
+    reg [7:0] expected_reasons;
+    integer checks=0;
+    always @(posedge fft_clk) begin
+      if(dut.fast_running) begin
+        if(dut.guard_external_fault_now!==dut.external_fault_now)
+          $fatal(1,"guard-facing external fault differs from original");
+        if(dut.input_fault_now===1'b0 &&
+           {dut.summary_offer_beat,dut.summary_offer_complete}!=={dut.certified_input_beat,dut.certified_input_complete})
+          $fatal(1,"fault-free real transport offers differ from certificates");
+        expected_reasons=dut.owners[owner].result_guard.fault_reasons |
+          {dut.owners[owner].result_guard.faults_now[7:1],
+           (dut.external_fault_now || dut.owners[owner].result_guard.mailbox_input_fault)} |
+          {7'b0,dut.preparation_fault_now};
+        #0.001;
+        if(dut.fast_running) begin
+          if(dut.owners[owner].result_guard.fault_reasons!==expected_reasons)
+            $fatal(1,"guard fault accumulation differs from original owner=%0d",owner);
+          checks=checks+1;
+        end
+      end
+    end
+  end endgenerate
   // Clock-by-clock payload contract in every healthy numerical context. Fault
   // injection below deliberately corrupts held registers, so has its own checks.
   always @(posedge fft_clk) begin
@@ -359,6 +384,46 @@ module tb;
     end
   endtask
   integer block_index,word_index;
+  task automatic guardfault_boundary(input integer boundary);
+    reg request_before;
+    begin
+      stress_reset;stress_fixture=0;
+      if(boundary<2) begin
+        send_block(0);
+        while(!dut.core_input_valid || !dut.core_input_ready || dut.routed_inverse ||
+              dut.guard_position!=(boundary==0 ? 64 : 511)) @(negedge fft_clk);
+      end else while(dut.external_fault_now!==1'b0) @(negedge fft_clk);
+      request_before=dut.output_request;stress_fault_expected=1;
+      if(boundary<2) begin
+        force dut.guard_metadata=70'b0;
+        if(boundary==1) force dut.core_status_valid=1'b1;
+      end else if(boundary==2) force dut.input_fault_now=1'bx;
+      else if(boundary==3) force dut.input_fault_now=1'bz;
+      else force dut.core_output_valid=1'b1;
+      #0.001;
+      if(boundary<2 && (dut.input_fault_now!==1'b1 || dut.guard_external_fault_now!==1'b1))
+        $fatal(1,"known input fault was not absorbed exactly");
+      if(boundary==1 && (dut.cutover_fault_now!==1'b1 || dut.cutover_offered_fault_now!==1'b0))
+        $fatal(1,"missing actual certified/offered cutover difference");
+      if((boundary==2 || boundary==3) && (dut.external_fault_now!==1'bx ||
+         dut.guard_external_fault_now!==1'bx || dut.offered_external_fault_now!==1'b1))
+        $fatal(1,"unknown input fault lost original diagnostic fallback");
+      if(boundary==4 && (dut.input_fault_now!==1'b0 || dut.cutover_fault_now!==1'b1 || dut.guard_external_fault_now!==1'b1))
+        $fatal(1,"independent cutover fault was dropped");
+      @(posedge fft_clk);#0.001;
+      @(negedge fft_clk);release dut.guard_metadata;release dut.core_status_valid;
+      release dut.input_fault_now;release dut.core_output_valid;
+      repeat(100) begin
+        @(negedge fft_clk);
+        if(dut.output_request!==request_before || dut.output_published_valid || dut.output_released_valid ||
+           dut.job_accept || dut.config_valid || dut.core_input_valid)
+          $fatal(1,"guard fault equivalence case escaped epoch quarantine");
+      end
+      if(!fault || stress_reads!=0 || stress_releases!=0) $fatal(1,"missing guard fault quarantine evidence");
+      $display("STAGED_GUARDFAULT_CASE_PASS boundary=%0d input_fault_unknown=%0d cutover_difference=%0d reads=0 releases=0",
+        boundary,boundary==2 || boundary==3,boundary==1);
+    end
+  endtask
   task automatic capture_boundary(input integer boundary);
     reg request_before;
     reg [177:0] held_descriptor;
@@ -578,6 +643,11 @@ module tb;
     $display("STAGED_WRITER_PASS cases=4 pending_fenced=1");
     for(mode=0;mode<3;mode=mode+1) capture_boundary(mode);
     $display("STAGED_CAPTURE_PASS cases=3 private_load_checked=1 held_until_release=1");
+    for(mode=0;mode<5;mode=mode+1) guardfault_boundary(mode);
+    if(exact_guard_fault[0].checks<1000 || exact_guard_fault[1].checks<1000)
+      $fatal(1,"missing exact fault accumulator cycle coverage");
+    $display("STAGED_GUARDFAULT_CYCLES_PASS owner0=%0d owner1=%0d",exact_guard_fault[0].checks,exact_guard_fault[1].checks);
+    $display("STAGED_GUARDFAULT_PASS cases=5 exact_accumulation=1 alias_checked=1");
     if(handover_admissions<36 || handover_completions<36) $fatal(1,"missing registered handover coverage");
     $display("STAGED_HANDOVER_PASS admissions=%0d completions=%0d reset_cases=2 fault_cases=7",handover_admissions,handover_completions);
     $finish;
