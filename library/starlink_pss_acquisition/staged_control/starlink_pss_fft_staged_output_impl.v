@@ -286,6 +286,17 @@ module starlink_pss_fft_staged_output_impl #(
   wire [4:0] product_exponent;
   wire [63:0] product_start;
   wire product_bank_ready, product_bank_fault, product_bank_framing_fault_now;
+  // BEGIN PRODUCT IDENTITY WIRES
+  wire product_ram_fault, product_stage_fault, product_stage_ready;
+  wire staged_product_valid, staged_product_ready, staged_product_last, staged_product_identity_good;
+  wire [35:0] staged_product_data;
+  wire [8:0] staged_product_position;
+  wire [69:0] staged_product_metadata, product_writer_metadata;
+  wire product_writer_metadata_load;
+  // Keep every existing current/sticky admission and guard summary connected
+  // to the complete product path, including the new private-stage quarantine.
+  assign product_bank_fault = product_ram_fault || product_stage_fault;
+  // END PRODUCT IDENTITY WIRES
   wire output_bank_ready, output_bank_fault, output_bank_framing_fault_now;
   // Offered events are summary-only. They NEVER drive delivery or counters.
   // Caller premise: input_fault_now===0 implies offers case-equal certificates.
@@ -654,19 +665,40 @@ module starlink_pss_fft_staged_output_impl #(
     .input_i(joined_i), .input_q(joined_q), .kernel_i(kernel_i), .kernel_q(kernel_q),
     .input_bin_index(joined_position), .input_block_exponent(joined_exponent),
     .input_last(joined_last), .input_block_start_index(joined_start),
-    .output_valid(product_valid), .output_ready(product_bank_ready && !fast_fault),
+    .output_valid(product_valid), .output_ready(product_stage_ready && !fast_fault),
     .output_i(product_i), .output_q(product_q), .output_bin_index(product_position),
     .output_block_exponent(product_exponent), .output_last(product_last),
     .output_block_start_index(product_start), .output_overflow(product_overflow), .overflow_pulse()
   );
   wire product_commit_authorized = forward_committed && !external_fault_now && !result_fault;
-  starlink_pss_mailbox_owner_view #(.RESET_RELEASE_EXTERNAL(1), .EXPLICIT_COMMIT(1)) product_bank (
+  // BEGIN PRODUCT IDENTITY STAGE
+  // RAM may rewrite an unpublished LAST, but the private slot retires only
+  // on actual qualified publication. Known-only readiness avoids a control-X
+  // feedback loop through the stage's immediate control-fault detection.
+  assign staged_product_ready = (product_bank_ready === 1'b1) && (fast_fault === 1'b0) &&
+    ((staged_product_last === 1'b0) || (product_commit_authorized === 1'b1));
+  starlink_pss_product_identity_stage product_identity_stage (
+    .clk(fft_clk), .resetn(fast_running),
+    .abort_epoch(fast_fault || product_ram_fault ||
+      (product_bank_ready !== 1'b0 && product_bank_ready !== 1'b1)),
+    .input_valid(product_valid && !fast_fault), .input_ready(product_stage_ready),
+    .input_data({product_q,product_i}), .input_position(product_position), .input_last(product_last),
+    .input_metadata({1'b1,product_start,product_exponent}),
+    .reference_metadata(product_writer_metadata_load ? staged_product_metadata : product_writer_metadata),
+    .output_valid(staged_product_valid), .output_ready(staged_product_ready),
+    .output_data(staged_product_data), .output_position(staged_product_position),
+    .output_last(staged_product_last), .output_identity_good(staged_product_identity_good),
+    .output_metadata(staged_product_metadata), .idle(), .fault(product_stage_fault)
+  );
+  // END PRODUCT IDENTITY STAGE
+  starlink_pss_product_mailbox_staged_identity #(.RESET_RELEASE_EXTERNAL(1), .EXPLICIT_COMMIT(1)) product_bank (
     .input_clk(fft_clk), .input_resetn(fast_running),
-    .input_valid(product_valid && !fast_fault), .input_ready(product_bank_ready),
+    .input_valid(staged_product_valid && !fast_fault), .input_ready(product_bank_ready),
     .input_commit_authorized(product_commit_authorized),
-    .input_data({product_q, product_i}), .input_position(product_position), .input_last(product_last),
-    .input_metadata({1'b1, product_start, product_exponent}),
-    .input_fault(product_bank_fault), .input_framing_fault_now(product_bank_framing_fault_now),
+    .input_data(staged_product_data), .input_position(staged_product_position), .input_last(staged_product_last),
+    .input_metadata(staged_product_metadata), .input_metadata_certified(staged_product_identity_good),
+    .writer_identity_metadata(product_writer_metadata), .writer_identity_load(product_writer_metadata_load),
+    .input_fault(product_ram_fault), .input_framing_fault_now(product_bank_framing_fault_now),
     .output_clk(fft_clk), .output_resetn(fast_running),
     .output_valid(product_bank_valid), .output_ready(product_bank_read_ready),
     .output_data(product_bank_data), .output_position(product_bank_position),

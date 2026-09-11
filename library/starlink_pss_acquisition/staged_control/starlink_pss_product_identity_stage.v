@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0
 // One PRIVATE word and identity certificate, not publication authority.
-// reference_metadata is the consumer's held first-word metadata. When the
-// consumer loads that reference, inhibit same-edge refill for ONE clock so
-// the next comparison uses the registered reference, not a wide bypass mux.
+// reference_metadata must be the consumer's held first-word metadata, with
+// write-through from the old slot when that first word retires on this edge.
+// Do not pause refill here: the actual FFT return path cannot absorb that gap.
 // The consumer still checks ordinal/LAST and owns final commit/reset/ACK.
 // Hold a final slot until actual publication or quarantine; do not drop it
 // merely because an unpublished RAM rewrite was accepted by the consumer.
@@ -16,7 +16,6 @@ module starlink_pss_product_identity_stage (
   input wire [8:0] input_position,
   input wire input_last,
   input wire [69:0] input_metadata, reference_metadata,
-  input wire reference_update,
   output wire output_valid,
   input wire output_ready,
   output reg [35:0] output_data,
@@ -32,7 +31,7 @@ module starlink_pss_product_identity_stage (
   assign fault = resetn && (fault_q || control_fault);
   wire live = resetn && !fault;
   assign output_valid = live && full;
-  assign input_ready = live && (!full || (output_ready && (reference_update === 1'b0)));
+  assign input_ready = live && (!full || output_ready);
   assign idle = !full;
   wire take_input = input_valid && input_ready;
   wire take_output = output_valid && output_ready;

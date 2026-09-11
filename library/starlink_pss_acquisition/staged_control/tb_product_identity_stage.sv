@@ -16,7 +16,7 @@ module tb;
   wire [35:0] read_data;
   wire [8:0] read_position;
   wire [69:0] read_metadata;
-  wire [69:0] reference_metadata=held_metadata;
+  wire [69:0] reference_metadata=metadata_load ? staged_metadata : held_metadata;
   wire bank_commit=publish_enable && !stage_fault && !bank_fault && (framing_fault===1'b0);
   wire bank_valid=staged_valid && allow_write;
   // Rewriting private LAST is not consuming the slot. Retire it only when
@@ -26,7 +26,7 @@ module tb;
     .clk(clk),.resetn(resetn),.abort_epoch(abort_epoch || bank_fault),
     .input_valid(input_valid),.input_ready(input_ready),.input_data(input_data),
     .input_position(input_position),.input_last(input_last),.input_metadata(input_metadata),
-    .reference_metadata(reference_metadata),.reference_update(metadata_load),
+    .reference_metadata(reference_metadata),
     .output_valid(staged_valid),.output_ready(staged_ready),
     .output_data(staged_data),.output_position(staged_position),.output_last(staged_last),
     .output_identity_good(identity_good),.output_metadata(staged_metadata),.idle(stage_idle),.fault(stage_fault));
@@ -52,7 +52,7 @@ module tb;
     .output_position(original_position),.output_last(original_last),.output_metadata(original_metadata),
     .owner_request(original_request),.owner_ack_sync(original_ack),.writer_reset_idle(),.reader_reset_idle());
   reg compare_original=1;
-  integer pushes=0,pops=0,reads=0,refills=0,hold_checks=0,oracle_checks=0,total_reads=0,reference_pauses=0;
+  integer pushes=0,pops=0,reads=0,refills=0,hold_checks=0,oracle_checks=0,total_reads=0,reference_updates=0;
   integer good_blocks=0,bad_metadata=0,bad_framing=0,reset_cases=0;
   reg [69:0] block_metadata;
   reg held=0;
@@ -70,8 +70,8 @@ module tb;
       if(input_valid && input_ready)pushes=pushes+1;
       if(staged_valid && staged_ready)pops=pops+1;
       if(metadata_load)begin
-        if(input_ready)$fatal(1,"first-word reference captured with stale same-edge refill");
-        reference_pauses=reference_pauses+1;
+        if(!input_ready)$fatal(1,"first-word reference update inserted a refill pause");
+        reference_updates=reference_updates+1;
       end
       if(input_valid && input_ready && staged_valid && staged_ready)refills=refills+1;
       if(read_valid && reader_ready)begin
@@ -212,7 +212,7 @@ module tb;
     end
     good_block(0);
     if(refills<511 || hold_checks<200 || oracle_checks<1000)$fatal(1,"component coverage missing");
-    $display("PRODUCT_IDENTITY_COMPONENT_PASS good_blocks=%0d bad_metadata=%0d bad_framing=%0d resets=%0d reads=%0d refills=%0d holds=%0d oracle=%0d pauses=%0d",good_blocks,bad_metadata,bad_framing,reset_cases,total_reads,refills,hold_checks,oracle_checks,reference_pauses);
+    $display("PRODUCT_IDENTITY_COMPONENT_PASS good_blocks=%0d bad_metadata=%0d bad_framing=%0d resets=%0d reads=%0d refills=%0d holds=%0d oracle=%0d updates=%0d",good_blocks,bad_metadata,bad_framing,reset_cases,total_reads,refills,hold_checks,oracle_checks,reference_updates);
     $finish;
   end
   initial begin #10000000;$fatal(1,"product identity component deadline");end

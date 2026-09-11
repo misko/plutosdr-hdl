@@ -20,6 +20,54 @@ module tb #(parameter integer ACK_ONLY=0);
     .PRIVATE_DESCRIPTOR_OFFER(1),.CLOSED_INPUT_CUTOVER(1),
     .INPUT_OFFER_FAULT_SUMMARY(1),.CONTEXTUAL_DESTINATION_SUMMARY(1)) dut(.*);
   reg [31:0] samples[0:1405];
+  // BEGIN ACTUAL PRODUCT STAGE WITNESS
+  reg product_slot_owned=0;
+  reg [116:0] product_slot_word;
+  integer product_slot_pushes=0,product_slot_pops=0,product_slot_checks=0;
+  integer product_reference_updates=0,product_slot_holds=0;
+  always @(posedge fft_clk) begin
+    if(!dut.fast_running || dut.product_stage_fault)product_slot_owned=0;
+    else begin
+      if(dut.staged_product_valid!==product_slot_owned)
+        $fatal(1,"actual product private slot occupancy mismatch");
+      if(dut.staged_product_valid)begin
+        product_slot_checks=product_slot_checks+1;
+        if({dut.staged_product_data,dut.staged_product_position,dut.staged_product_last,
+            dut.staged_product_metadata,dut.staged_product_identity_good} !== product_slot_word)
+          $fatal(1,"actual product retained word/certificate changed");
+        if(!dut.staged_product_ready)product_slot_holds=product_slot_holds+1;
+        if(dut.product_bank_ready && dut.product_bank.write_position!=0 &&
+           dut.staged_product_identity_good !==
+             ((dut.staged_product_metadata==dut.product_bank.metadata_in_hold)===1'b1))
+          $fatal(1,"registered product identity differs from original wide comparison");
+      end
+      if(dut.product_writer_metadata_load)begin
+        if(!dut.product_stage_ready)$fatal(1,"actual product reference update paused continuous refill");
+        product_reference_updates=product_reference_updates+1;
+      end
+      if(dut.staged_product_valid && dut.staged_product_ready)begin
+        product_slot_owned=0;product_slot_pops=product_slot_pops+1;
+        if(dut.staged_product_last && (dut.product_commit_authorized!==1 || dut.product_bank_ready!==1))
+          $fatal(1,"private final product retired without actual commit");
+      end
+      if(dut.product_valid && dut.product_stage_ready && !dut.fast_fault)begin
+        if(product_slot_owned)$fatal(1,"actual product private slot overwritten");
+        product_slot_owned=1;product_slot_pushes=product_slot_pushes+1;
+        product_slot_word={{dut.product_q,dut.product_i},dut.product_position,dut.product_last,
+          {1'b1,dut.product_start,dut.product_exponent},
+          (({1'b1,dut.product_start,dut.product_exponent}==
+            (dut.product_writer_metadata_load ? dut.staged_product_metadata : dut.product_writer_metadata))===1'b1)};
+      end
+    end
+  end
+  task automatic report_product_stage;
+    begin
+      if(product_slot_checks<1000 || product_slot_pushes<6144 || product_reference_updates<12)
+        $fatal(1,"actual product stage coverage missing");
+      $display("STAGED_PRODUCT_STAGE_PASS pushes=%0d pops=%0d checks=%0d updates=%0d holds=%0d original_identity=1 private_conservation=1",product_slot_pushes,product_slot_pops,product_slot_checks,product_reference_updates,product_slot_holds);
+    end
+  endtask
+  // END ACTUAL PRODUCT STAGE WITNESS
   // BEGIN FORWARD RECEIPT WITNESS
   // Original immediate token, driven by actual qualified guard handshakes.
   reg original_forward_committed=0;
@@ -448,12 +496,12 @@ module tb #(parameter integer ACK_ONLY=0);
         else log_word("rawF",fixture,raw_position,dut.core_output_data,{5'b0,fe[fixture]});
         raw_position=raw_position+1;raws=raws+1;
       end
-      if(dut.forward_retirement_valid && dut.product_bank_ready) begin
+      if(dut.forward_retirement_valid && dut.product_bank_ready && dut.kernel_ready) begin
         if(dut.return_data!==forwards[forward_words] || dut.return_position!==9'(forward_words%512))
           $fatal(1,"forward retirement mismatch");
         forward_words=forward_words+1;
       end
-      if(dut.product_valid && dut.product_bank_ready) begin
+      if(dut.product_valid && dut.product_stage_ready) begin
         if({dut.product_q,dut.product_i}!==products[product_words] || dut.product_position!==9'(product_words%512))
           $fatal(1,"product mismatch");
         log_word("product",product_words/512,product_words%512,{12'b0,dut.product_q,dut.product_i},{5'b0,dut.product_exponent});
@@ -628,6 +676,61 @@ module tb #(parameter integer ACK_ONLY=0);
     end
   endtask
   // END FORWARD RECEIPT BOUNDARIES
+  // BEGIN ACTUAL PRODUCT STAGE BOUNDARIES
+  task automatic product_stage_boundary(input integer boundary);
+    reg request_before;
+    begin
+      stress_reset;stress_fixture=0;send_block(0);
+      if(boundary<4 || boundary==11)begin
+        while(!(dut.product_valid && dut.product_stage_ready &&
+                dut.product_position==(boundary<2 || boundary==11 ? 1 : 511)))@(negedge fft_clk);
+      end else if(boundary==4 || boundary==5 || boundary==8)begin
+        while(!dut.product_writer_metadata_load)@(negedge fft_clk);
+        if(!dut.product_stage_ready)$fatal(1,"first-reference continuous refill missing");
+      end else begin
+        while(!dut.staged_product_valid || !dut.staged_product_last)@(negedge fft_clk);
+        force dut.product_bank_ready=1'b0;
+        repeat(32)begin
+          @(negedge fft_clk);
+          if(!dut.staged_product_valid || !dut.staged_product_last || dut.staged_product_ready ||
+             dut.product_bank_valid || dut.guard_ack[0])$fatal(1,"held product LAST published or dropped");
+        end
+      end
+      request_before=dut.output_request;
+      if(boundary!=8 && boundary!=9)begin
+        stress_fault_expected=1;
+        if(boundary<4)begin
+          if(boundary%2==0)force dut.product_start=64'h20000000000003e8;
+          else force dut.product_start=64'bx;
+        end else if(boundary==4 || boundary==6)fft_resetn=0;
+        else if(boundary==5 || boundary==7)resetn=0;
+        else if(boundary==10)force dut.event_last_missing=1'b1;
+        else force dut.product_valid=1'bx;
+        @(posedge fft_clk);#0.001;@(negedge fft_clk);
+        release dut.product_start;release dut.product_valid;release dut.event_last_missing;
+        release dut.product_bank_ready;
+        if(boundary>=4 && boundary<=7)begin
+          repeat(10)@(negedge fft_clk);resetn=1;fft_resetn=1;request_before=dut.output_request;
+        end
+        repeat(100)begin
+          @(negedge fft_clk);
+          if(dut.output_request!==request_before || dut.output_released_valid || dut.guard_ack[0] ||
+             dut.product_commit_authorized || output_valid)
+            $fatal(1,"bad product stage word escaped cancellation");
+        end
+        if(stress_reads!=0 || stress_releases!=0 || ((boundary<4 || boundary>=10) && !fault))
+          $fatal(1,"actual product stage cancellation evidence missing");
+        stress_reset;stress_fixture=0;send_block(0);
+      end
+      release dut.product_bank_ready;
+      stress_drain=1;
+      while(stress_reads!=512 || !dut.retained_reusable)@(negedge fft_clk);
+      repeat(10)@(negedge fft_clk);
+      if(fault || stress_releases!=1)$fatal(1,"actual product stage fresh recovery failed");
+      $display("STAGED_PRODUCT_STAGE_CASE_PASS boundary=%0d fresh_reads=512 fresh_releases=1",boundary);
+    end
+  endtask
+  // END ACTUAL PRODUCT STAGE BOUNDARIES
   task automatic private_ack_boundary(input integer boundary);
     reg request_before;
     begin
@@ -1242,6 +1345,10 @@ module tb #(parameter integer ACK_ONLY=0);
       for(mode=0;mode<12;mode=mode+1)forward_receipt_boundary(mode);
       report_forward_receipt;
       // END FORWARD RECEIPT AUXILIARY
+      // BEGIN ACTUAL PRODUCT STAGE AUXILIARY
+      for(mode=0;mode<12;mode=mode+1)product_stage_boundary(mode);
+      report_product_stage;
+      // END ACTUAL PRODUCT STAGE AUXILIARY
       $fclose(log_file);$finish;
     end
     for(mode=0;mode<6;mode=mode+1) begin
@@ -1327,6 +1434,7 @@ module tb #(parameter integer ACK_ONLY=0);
     if(private_ack_checks<1000)$fatal(1,"combined ACK main witness coverage missing");
     $display("STAGED_ACKCOMBINED_MAIN_PASS checks=%0d public_exact=1",private_ack_checks);
     report_forward_receipt; // FORWARD RECEIPT MAIN
+    report_product_stage; // ACTUAL PRODUCT STAGE MAIN
     $finish;
   end
   initial begin #3000000;$fatal(1,"staged FFT absolute deadline");end
