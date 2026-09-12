@@ -62,6 +62,9 @@ module starlink_coarse25_fold #(
   wire [13:0] read_bin = read_position == 0 ? 14'd9999 :
                               read_position == 10001 ? 14'd0 : read_position-1'b1;
   wire [14:0] scan_address = (scan_bank ? 15'd10000 : 15'd0) + read_bin;
+  wire port_b_write = state == INIT || state == CLEAR;
+  wire [14:0] port_b_address = state == INIT ? clear_address :
+    state == CLEAR ? (scan_bank ? 15'd10000 : 15'd0)+clear_address : scan_address;
   assign initializing = state == INIT;
   assign candidate_valid = result_pulse && !reset && !flush && !fault;
 
@@ -75,10 +78,9 @@ module starlink_coarse25_fold #(
   end
   always @(posedge clk) begin
     if (!reset && !flush && !fault) begin
-      if (state == INIT) memory[clear_address] <= 0;
-      else if (state == CLEAR) memory[(scan_bank ? 15'd10000 : 15'd0)+clear_address] <= 0;
+      if (port_b_write) memory[port_b_address] <= 0;
       else if ((state == PEAK || state == BACKGROUND) && read_position <= 10001)
-        ram_q <= memory[scan_address];
+        ram_q <= memory[port_b_address];
     end
   end
 
