@@ -65,6 +65,23 @@ module starlink_coarse25_fold #(
   assign initializing = state == INIT;
   assign candidate_valid = result_pulse && !reset && !flush && !fault;
 
+  // True dual-port inference: each RAM port has its own clocked process.
+  // The controller guarantees fill and scan/clear banks are disjoint.
+  always @(posedge clk) begin
+    if (!reset && !flush && !fault && state != INIT) begin
+      if (acc_state == 1) acc_old <= memory[acc_address];
+      if (acc_state == 2) memory[acc_address] <= acc_old + acc_score;
+    end
+  end
+  always @(posedge clk) begin
+    if (!reset && !flush && !fault) begin
+      if (state == INIT) memory[clear_address] <= 0;
+      else if (state == CLEAR) memory[(scan_bank ? 15'd10000 : 15'd0)+clear_address] <= 0;
+      else if ((state == PEAK || state == BACKGROUND) && read_position <= 10001)
+        ram_q <= memory[scan_address];
+    end
+  end
+
   always @(posedge clk) begin
     result_pulse <= 0;
     bg_valid1 <= 0;
@@ -96,7 +113,6 @@ module starlink_coarse25_fold #(
       candidate_background_count <= 0;
     end else if (state == INIT) begin
       // A real sequential RAM clear, never a giant reset fanout into RAM bits.
-      memory[clear_address] <= 0;
       if (clear_address == 19999) begin
         state <= IDLE;
         clear_address <= 0;
@@ -118,10 +134,8 @@ module starlink_coarse25_fold #(
         end
       end
       if (acc_state == 1) begin
-        acc_old <= memory[acc_address];
         acc_state <= 2;
       end else if (acc_state == 2) begin
-        memory[acc_address] <= acc_old + acc_score;
         acc_state <= 0;
         if (acc_last) begin
           if (state != IDLE) fault <= 1;
@@ -142,7 +156,6 @@ module starlink_coarse25_fold #(
       if (state == PEAK || state == BACKGROUND) begin
         read_valid <= read_position <= 10001;
         if (read_position <= 10001) begin
-          ram_q <= memory[scan_address];
           read_tag <= read_position;
           read_position <= read_position + 1'b1;
         end
@@ -186,7 +199,6 @@ module starlink_coarse25_fold #(
         else drain_count <= drain_count - 1'b1;
       end
       if (state == CLEAR) begin
-        memory[(scan_bank ? 15'd10000 : 15'd0)+clear_address] <= 0;
         if (clear_address == 9999) state <= IDLE;
         else clear_address <= clear_address + 1'b1;
       end
