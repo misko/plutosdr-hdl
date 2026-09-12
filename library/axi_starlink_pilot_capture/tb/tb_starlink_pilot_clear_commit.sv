@@ -40,17 +40,17 @@ module tb_starlink_pilot_clear_commit;
       expected_clear <= dut.clear_admit;
       if (dut.clear_admit) begin
         admits = admits + 1;
-        if (dut.bad_write || dut.wack || !dut.ddc.resetn)
+        if (dut.bad_write || dut.wack || !dut.g_pilot_ddc.ddc.resetn)
           $fatal(1, "accepted CLEAR rejected, acknowledged or reset before commit");
       end
       if (dut.clear_ok) begin
         commits = commits + 1;
-        if (dut.active || !dut.empty || dut.write_pending || dut.ddc.resetn || bvalid)
+        if (dut.active || !dut.empty || dut.write_pending || dut.g_pilot_ddc.ddc.resetn || bvalid)
           $fatal(1, "CLEAR commit not isolated quiescent execution");
       end
       if (dut.clear_request && !dut.clear_admit) begin
         rejected = rejected + 1;
-        if (!dut.bad_write || !dut.ddc.resetn) $fatal(1, "invalid CLEAR did not reject immediately");
+        if (!dut.bad_write || !dut.g_pilot_ddc.ddc.resetn) $fatal(1, "invalid CLEAR did not reject immediately");
       end
       if (valid && ready) begin
         pops = pops + 1;
@@ -96,9 +96,9 @@ module tb_starlink_pilot_clear_commit;
       dut.last_index = 64'h8000000000000228; dut.lost_index = 9000;
       dut.fifo_high_water = 3; dut.snapshot_generation = 19;
       for (n = 0; n < 26; n = n + 1) dut.snapshot[n] = 32'h80000000 + n;
-      dut.ddc.accepted_sample_count = 560; dut.ddc.emitted_sample_count = 94;
-      dut.ddc.saturation_event_count = 7; dut.ddc.fifo_high_water = 5;
-      dut.ddc.sticky_fault = 8'h81;
+      dut.g_pilot_ddc.ddc.accepted_sample_count = 560; dut.g_pilot_ddc.ddc.emitted_sample_count = 94;
+      dut.g_pilot_ddc.ddc.saturation_event_count = 7; dut.g_pilot_ddc.ddc.fifo_high_water = 5;
+      dut.g_pilot_ddc.ddc.sticky_fault = 8'h81;
     end
   endtask
   task automatic assert_cleared;
@@ -126,7 +126,7 @@ module tb_starlink_pilot_clear_commit;
         // manufacture activity or prevent an otherwise legal recovery CLEAR.
         if (SCENARIO == 1) begin source_valid = 1; gap = 1; flush = 1; end
         launch_write(8, 4); wait_request();
-        if (SCENARIO == 2) begin dut.ddc.halted = 1; dut.capture_valid = 1; end
+        if (SCENARIO == 2) begin dut.g_pilot_ddc.ddc.halted = 1; dut.capture_valid = 1; end
         if (!dut.clear_admit || dut.clear_ok) $fatal(1, "wrong CLEAR eligibility");
         @(posedge clk); #1;
         if (!dut.clear_ok || dut.wack || dut.snapshot_generation != 19 ||

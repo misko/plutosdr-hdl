@@ -40,10 +40,14 @@ M_DEPS += starlink_pss_build_options.tcl
 
 LIB_DEPS += axi_ad9361
 LIB_DEPS += axi_dmac
-LIB_DEPS += axi_starlink_pss_acquisition
 LIB_DEPS += axi_starlink_pilot_capture
+ifeq ($(STARLINK_PSS_PROFILE),coarse25)
+LIB_DEPS += starlink_coarse25_ingress
+else
+LIB_DEPS += axi_starlink_pss_acquisition
 LIB_DEPS += axi_starlink_pss_periodic_injector
 LIB_DEPS += axi_starlink_pss_tracker
 LIB_DEPS += util_pack/util_cpack2
+endif
 
 include ../scripts/project-xilinx.mk

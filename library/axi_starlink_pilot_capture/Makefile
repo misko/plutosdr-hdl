@@ -9,5 +9,13 @@ GENERIC_DEPS += $(PILOT_DIR)/starlink_pilot_fir3.v
 GENERIC_DEPS += $(PILOT_DIR)/pilot_mixer_q16.mem
 GENERIC_DEPS += $(PILOT_DIR)/pilot_halfband2_q17.mem
 GENERIC_DEPS += $(PILOT_DIR)/pilot_fir3_q17.mem
+GENERIC_DEPS += $(PILOT_DIR)/starlink_pss_score_divider.v
+GENERIC_DEPS += ../starlink_coarse25/starlink_coarse25_mac.v
+GENERIC_DEPS += ../starlink_coarse25/starlink_coarse25_score.v
+GENERIC_DEPS += ../starlink_coarse25/starlink_coarse25_datapath.v
+GENERIC_DEPS += ../starlink_coarse25/starlink_coarse25_fold.v
+GENERIC_DEPS += ../starlink_coarse25/starlink_coarse25_detector.v
+GENERIC_DEPS += ../starlink_coarse25/starlink_coarse25_registers.v
+GENERIC_DEPS += ../starlink_coarse25/coarse25_q15.mem
 XILINX_DEPS += axi_starlink_pilot_capture_ip.tcl
 include ../scripts/library.mk

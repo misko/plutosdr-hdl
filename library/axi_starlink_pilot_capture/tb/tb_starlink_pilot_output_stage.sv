@@ -128,7 +128,7 @@ module tb_starlink_pilot_output_stage;
     beat_index = 546; beat_data = 32'hfedc5678; tick();
     beat_valid = 0; source_valid = 1; source_index = 64'hffffffffffffffff;
     #1;
-    if (dut.ddc.run || !dut.push) $fatal(1, "internal fault/final-prefix fixture missed edge");
+    if (dut.g_pilot_ddc.ddc.run || !dut.push) $fatal(1, "internal fault/final-prefix fixture missed edge");
     tick(); source_valid = 0;
     if (dut.active || dut.admitted != 2 || dut.faults != 0 || dut.ddc_fault != 1)
       $fatal(1, "final admission hid real DDC input-index fault");

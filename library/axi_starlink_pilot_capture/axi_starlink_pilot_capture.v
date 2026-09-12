@@ -3,7 +3,10 @@
 `timescale 1ns/1ps
 module axi_starlink_pilot_capture #(
   parameter integer INPUT_RATE_MSPS = 15,
-  parameter integer OUTPUT_FIFO_BITS = 5
+  parameter integer OUTPUT_FIFO_BITS = 5,
+  // Distinct C251 ABI: already centered 2.5 MS/s, no hidden DDC/filter.
+  // Wider source profiles must not use this bypass without a qualified filter.
+  parameter integer COARSE25_BYPASS = 0
 ) (
   input wire s_axi_aclk,
   input wire s_axi_aresetn,
@@ -39,7 +42,12 @@ module axi_starlink_pilot_capture #(
   output wire irq
 );
   localparam integer FIFO_DEPTH = 1 << OUTPUT_FIFO_BITS;
+  localparam integer INDEX_STEP = COARSE25_BYPASS ? 1 : 6;
+  localparam integer SOURCE_RATE_HZ = COARSE25_BYPASS ? 2500000 : INPUT_RATE_MSPS * 1000000;
   generate
+    if (COARSE25_BYPASS != 0 && COARSE25_BYPASS != 1) begin : g_bad_mode
+      initial $fatal(1, "COARSE25_BYPASS must be 0 or 1");
+    end
     if (INPUT_RATE_MSPS != 15 && INPUT_RATE_MSPS != 30 && INPUT_RATE_MSPS != 60) begin : g_bad_rate
       initial $fatal(1, "pilot source rate must be 15/30/60");
     end
@@ -160,7 +168,8 @@ module axi_starlink_pilot_capture #(
   wire eligible = observation_run && capture_valid && capture_support;
   wire overflow = eligible && fifo_count == FIFO_DEPTH && !pop;
   wire bad_index = eligible && ((admitted != 0 &&
-      (last_index > 64'hfffffffffffffff9 || capture_index != last_index + 64'd6)) ||
+      (last_index > 64'hffffffffffffffff - INDEX_STEP ||
+       capture_index != last_index + INDEX_STEP)) ||
       capture_visit != visit_id);
   wire exhausted = (eligible && (&admitted)) || (pop && (&delivered)) ||
       (observation_run && capture_valid && !capture_support && (&unsupported));
@@ -177,6 +186,7 @@ module axi_starlink_pilot_capture #(
   assign pilot_enable = active;
   assign irq = faults != 0;
 
+  generate if (!COARSE25_BYPASS) begin : g_pilot_ddc
   starlink_pilot_ddc ddc (
     .clk(s_axi_aclk), .resetn(s_axi_aresetn && !clear_ok), .flush(!source_run),
     .edge_upper(1'b1), .visit_id(visit_id), .input_valid(canonical_valid && source_run),
@@ -188,6 +198,50 @@ module axi_starlink_pilot_capture #(
     .saturation_event_count(ddc_clips), .fifo_high_water(ddc_high_water),
     .sticky_fault(ddc_fault), .halted(ddc_halted)
   );
+  end else begin : g_coarse_bypass
+    reg [63:0] accepted;
+    always @(posedge s_axi_aclk) begin
+      if (!s_axi_aresetn || clear_ok) accepted <= 0;
+      else if (ddc_valid && !(&accepted)) accepted <= accepted + 1'b1;
+    end
+    assign ddc_valid = canonical_valid && source_run;
+    assign ddc_i = canonical_i;
+    assign ddc_q = canonical_q;
+    assign ddc_index = canonical_index;
+    assign ddc_visit = visit_id;
+    assign ddc_support = 1'b1;
+    assign ddc_accepted = accepted;
+    assign ddc_emitted = accepted;
+    assign ddc_clips = 0;
+    assign ddc_high_water = 0;
+    assign ddc_fault = 0;
+    assign ddc_halted = 0;
+  end endgenerate
+
+  // The detector consumes the identical FIFO-admitted prefix, never AXIS
+  // delivery cadence. Its calculation cannot backpressure or gate IQ capture.
+  // Register the fanout to avoid extending FIFO admission through the detector.
+  wire [31:0] coarse_rdata;
+  generate if (COARSE25_BYPASS) begin : g_coarse
+    reg coarse_valid, coarse_reset;
+    reg [31:0] coarse_data;
+    reg [63:0] coarse_index;
+    always @(posedge s_axi_aclk) begin
+      coarse_valid <= s_axi_aresetn && push;
+      coarse_data <= capture_data;
+      coarse_index <= admitted;
+      coarse_reset <= !s_axi_aresetn || clear_ok || arm_ok || faults != 0;
+    end
+    starlink_coarse25_registers detector (
+      .clk(s_axi_aclk), .reset(!s_axi_aresetn || clear_ok),
+      .arithmetic_reset(coarse_reset), .sample_valid(coarse_valid),
+      .sample_i(coarse_data[15:0]), .sample_q(coarse_data[31:16]),
+      .sample_index(coarse_index), .snapshot_request(snapshot_request),
+      .read_address(raddr), .read_data(coarse_rdata)
+    );
+  end else begin : g_no_coarse
+    assign coarse_rdata = 0;
+  end endgenerate
 
   always @(posedge s_axi_aclk) begin
     if (push) fifo[wr_pointer] <= capture_data;
@@ -279,20 +333,23 @@ module axi_starlink_pilot_capture #(
     else if (rreq) begin
       rdata <= 0;
       case (raddr)
-        6'h00: rdata <= 32'h50494c31; // PIL1; never TAG2 / legacy dual RX ABI
+        6'h00: rdata <= COARSE25_BYPASS ? 32'h43323531 : 32'h50494c31; // C251 / PIL1
         6'h01: rdata <= 32'h00010000;
         6'h03: rdata <= status;
         6'h04: rdata <= faults;
-        6'h05: rdata <= INPUT_RATE_MSPS * 1000000;
+        6'h05: rdata <= SOURCE_RATE_HZ;
         6'h06: rdata <= 2500000;
-        6'h07: rdata <= INPUT_RATE_MSPS * 2 / 5;
+        6'h07: rdata <= SOURCE_RATE_HZ / 2500000;
         6'h08: rdata <= visit_id;
-        6'h09: rdata <= 1; // upper edge only in fixed-frequency ABI 1.0
-        6'h0a: rdata <= 269; // delay in canonical sample coordinates
-        6'h0b: rdata <= 538; // history span in canonical sample coordinates
+        6'h09: rdata <= COARSE25_BYPASS ? 0 : 1; // zero=centered, no internal NCO
+        6'h0a: rdata <= COARSE25_BYPASS ? 0 : 269;
+        6'h0b: rdata <= COARSE25_BYPASS ? 0 : 538;
         6'h26: rdata <= snapshot_generation;
         6'h27: rdata <= sample_limit;
-        default: if (raddr >= 6'h0c && raddr < 6'h26) rdata <= snapshot[raddr - 6'h0c];
+        default: begin
+          if (raddr >= 6'h0c && raddr < 6'h26) rdata <= snapshot[raddr - 6'h0c];
+          else if (raddr >= 6'h28) rdata <= coarse_rdata;
+        end
       endcase
     end
   end

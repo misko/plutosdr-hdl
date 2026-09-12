@@ -32,11 +32,14 @@ proc pss_resolve_build_options {environment} {
   set shared [dict get $options shared_xfft]
   set realtime [dict get $options realtime_xfft]
   set boundary [dict get $options boundary_stop]
-  if {$rate ni {15 30 60}} {
-    error "STARLINK_PSS_RATE_MSPS must be 15, 30, or 60"
+  if {$rate ni {2.5 15 30 60}} {
+    error "STARLINK_PSS_RATE_MSPS must be 2.5, 15, 30, or 60"
   }
-  if {$profile ni {full detector-only paired-pilot acquisition-only acquisition-injection}} {
+  if {$profile ni {full detector-only paired-pilot acquisition-only acquisition-injection coarse25}} {
     error "unsupported STARLINK_PSS_PROFILE"
+  }
+  if {($profile eq "coarse25") != ($rate eq "2.5")} {
+    error "coarse25 requires explicit STARLINK_PSS_RATE_MSPS=2.5; wider filters are not integrated"
   }
   foreach {name value} [list \
     STARLINK_PSS_SHARED_XFFT $shared \

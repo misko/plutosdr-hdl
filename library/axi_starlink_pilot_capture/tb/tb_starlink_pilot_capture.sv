@@ -2,6 +2,8 @@
 `timescale 1ns/1ps
 module tb_starlink_pilot_capture;
   parameter integer SOURCE_RATE_MSPS = 15;
+  parameter integer COARSE25_BYPASS = 0;
+  parameter integer COARSE_GROUPS = 29;
   parameter integer WATCHDOG_CYCLES = 3000000;
   reg clk = 0;
   always #5 clk = !clk;
@@ -19,7 +21,8 @@ module tb_starlink_pilot_capture;
   wire ready = ready_mode == 2 ? dut.capture_valid : ready_mode[0];
   wire valid, enabled, irq;
   wire [31:0] data;
-  axi_starlink_pilot_capture #(.INPUT_RATE_MSPS(SOURCE_RATE_MSPS)) dut (
+  axi_starlink_pilot_capture #(.INPUT_RATE_MSPS(SOURCE_RATE_MSPS),
+    .COARSE25_BYPASS(COARSE25_BYPASS)) dut (
     .s_axi_aclk(clk), .s_axi_aresetn(resetn), .s_axi_awvalid(awvalid), .s_axi_awaddr(awaddr),
     .s_axi_awready(awready), .s_axi_wdata(wdata), .s_axi_wstrb(wstrb), .s_axi_wvalid(wvalid),
     .s_axi_wready(wready), .s_axi_bvalid(bvalid), .s_axi_bresp(bresp), .s_axi_bready(1'b1),
@@ -30,6 +33,21 @@ module tb_starlink_pilot_capture;
     .canonical_i(input_data[15:0]), .canonical_q(input_data[31:16]), .canonical_index(input_index),
     .pilot_enable(enabled), .m_axis_tvalid(valid), .m_axis_tdata(data), .m_axis_tready(ready), .irq(irq)
   );
+  generate if (COARSE25_BYPASS) begin : g_check_coarse
+    defparam dut.g_coarse.detector.GROUPS = COARSE_GROUPS;
+    reg expected_valid = 0;
+    reg [95:0] expected;
+    always @(posedge clk) begin
+      if (resetn) begin
+        if (dut.g_coarse.coarse_valid !== expected_valid)
+          $fatal(1, "detector did not see identical admitted IQ tokens");
+        if (expected_valid && {dut.g_coarse.coarse_index, dut.g_coarse.coarse_data} !== expected)
+          $fatal(1, "detector IQ/index differed from admitted FIFO prefix");
+      end
+      expected_valid <= resetn && dut.push;
+      expected <= {dut.admitted, dut.capture_data};
+    end
+  end endgenerate
   reg stalled = 0;
   reg [31:0] held;
   integer write_requests = 0, write_executions = 0, write_responses = 0;
@@ -106,6 +124,8 @@ module tb_starlink_pilot_capture;
   endtask
   integer fd, rc, delay_cycles, op, arg, cw_n, cw_gap, cw_phase;
   reg signed [15:0] cw_i, cw_q;
+  reg [35:0] cw_mixer [0:63];
+  initial $readmemh("pilot_mixer_q16.mem", cw_mixer);
   reg [63:0] index;
   reg [31:0] value;
   task automatic drive_cw(input [63:0] first, input integer count);
@@ -117,8 +137,8 @@ module tb_starlink_pilot_capture;
         input_valid = 1;
         input_index = first + cw_n;
         cw_phase = (input_index[5:0] * 12) % 64;
-        cw_i = $signed(dut.ddc.mixer[cw_phase][17:0]) >>> 3;
-        cw_q = (-$signed(dut.ddc.mixer[cw_phase][35:18])) >>> 3;
+        cw_i = $signed(cw_mixer[cw_phase][17:0]) >>> 3;
+        cw_q = (-$signed(cw_mixer[cw_phase][35:18])) >>> 3;
         input_data = {cw_q, cw_i};
       end
       @(negedge clk); input_valid = 0;

@@ -48,7 +48,7 @@ if {$ADI_USE_OOC_SYNTHESIS == 1} {
   # Keep every instantiated experimental PSS block independently synthesized
   # with the same area-first policy used by its OOC gate. The complete route
   # remains the authority on whether the selected profile fits.
-  set pss_synth_runs [get_runs system_starlink_pss_acquisition_0_synth_1]
+  set pss_synth_runs [get_runs -quiet system_starlink_pss_acquisition_0_synth_1]
   set tracker_synth_run [get_runs -quiet system_starlink_pss_tracker_0_synth_1]
   if {[llength $tracker_synth_run] == 1} {
     lappend pss_synth_runs $tracker_synth_run
@@ -71,7 +71,7 @@ adi_project_files pluto [list \
   "$ad_hdl_dir/library/common/ad_iobuf.v"]
 
 if {[info exists ::env(STARLINK_PSS_PROFILE)] &&
-    $::env(STARLINK_PSS_PROFILE) in {detector-only paired-pilot}} {
+    $::env(STARLINK_PSS_PROFILE) in {detector-only paired-pilot coarse25}} {
   # Match the detector-only block design, whose expansion AXI SPI and IIC
   # interfaces are deliberately absent.  This define changes only the shell
   # connections to those optional header pins; PS7 SPI0 still controls AD9361.

@@ -3,7 +3,16 @@ source ../../scripts/adi_env.tcl
 source $ad_hdl_dir/library/scripts/adi_ip_xilinx.tcl
 adi_ip_create axi_starlink_pilot_capture
 set pilot_dir "$ad_hdl_dir/library/starlink_pss_acquisition"
+set coarse_dir "$ad_hdl_dir/library/starlink_coarse25"
 adi_ip_files axi_starlink_pilot_capture [list \
+  "$coarse_dir/starlink_coarse25_mac.v" \
+  "$coarse_dir/starlink_coarse25_score.v" \
+  "$coarse_dir/starlink_coarse25_datapath.v" \
+  "$coarse_dir/starlink_coarse25_fold.v" \
+  "$coarse_dir/starlink_coarse25_detector.v" \
+  "$coarse_dir/starlink_coarse25_registers.v" \
+  "$coarse_dir/coarse25_q15.mem" \
+  "$pilot_dir/starlink_pss_score_divider.v" \
   "$ad_hdl_dir/library/axi_starlink_pss_phase_map/starlink_pss_axi_lite.v" \
   "$pilot_dir/starlink_pilot_ddc.v" \
   "$pilot_dir/starlink_pilot_halfband2.v" \
@@ -25,6 +34,8 @@ set_property value "s_axi:m_axis" \
 ipx::infer_bus_interface irq xilinx.com:signal:interrupt_rtl:1.0 [ipx::current_core]
 set_property -dict [list value_validation_type list value_validation_list "15 30 60"] \
   [ipx::get_user_parameters INPUT_RATE_MSPS -of_objects [ipx::current_core]]
+set_property -dict [list value_validation_type list value_validation_list "0 1"] \
+  [ipx::get_user_parameters COARSE25_BYPASS -of_objects [ipx::current_core]]
 set_property -dict [list value_validation_type list value_validation_list "5"] \
   [ipx::get_user_parameters OUTPUT_FIFO_BITS -of_objects [ipx::current_core]]
 ipx::create_xgui_files [ipx::current_core]

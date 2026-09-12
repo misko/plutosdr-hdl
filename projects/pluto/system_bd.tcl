@@ -8,6 +8,7 @@ set starlink_pss_profile [dict get $starlink_pss_options profile]
 set starlink_pss_shared_xfft [dict get $starlink_pss_options shared_xfft]
 set starlink_pss_realtime_xfft [dict get $starlink_pss_options realtime_xfft]
 set starlink_pss_boundary_stop [dict get $starlink_pss_options boundary_stop]
+set starlink_coarse25 [expr {$starlink_pss_profile eq "coarse25"}]
 
 # Add custom repo
 set quantulum_ip_repo_path [file normalize [file join [file dirname [info script]] "../../../hdl-quantulum"]]
@@ -28,11 +29,11 @@ if {[lsearch $ip_repo_list $quantulum_ip_repo_path] == -1} {
 # and omit them only from this explicitly selected, non-mainline profile.
 set starlink_pss_detector_only [expr {
   [info exists ::env(STARLINK_PSS_PROFILE)] &&
-  $::env(STARLINK_PSS_PROFILE) in {detector-only paired-pilot}
+  $::env(STARLINK_PSS_PROFILE) in {detector-only paired-pilot coarse25}
 }]
 set starlink_pilot_enabled [expr {
   [info exists ::env(STARLINK_PSS_PROFILE)] &&
-  $::env(STARLINK_PSS_PROFILE) eq "paired-pilot"
+  $::env(STARLINK_PSS_PROFILE) in {paired-pilot coarse25}
 }]
 
 create_bd_intf_port -mode Master -vlnv xilinx.com:interface:ddrx_rtl:1.0 ddr
@@ -249,7 +250,7 @@ set starlink_pss_tracker_enabled [expr {
   $starlink_pss_profile in {full detector-only paired-pilot}
 }]
 set starlink_pss_rx_dma_enabled [expr {
-  $starlink_pss_profile ni {detector-only paired-pilot}
+  $starlink_pss_profile ni {detector-only paired-pilot coarse25}
 }]
 puts "STARLINK_PSS_BUILD_PROFILE rate_msps=$starlink_pss_rate_msps profile=$starlink_pss_profile shared_xfft=$starlink_pss_shared_xfft realtime_xfft=$starlink_pss_realtime_xfft boundary_stop=$starlink_pss_boundary_stop"
 set starlink_pss_minimum_lead_samples [expr {
@@ -275,7 +276,14 @@ if {$starlink_pss_rx_dma_enabled} {
 if {$starlink_pilot_enabled} {
   # CI16 AXIS only AFTER 15->2.5 MS/s pilot filtering. No raw RX DDR path.
   ad_ip_instance axi_starlink_pilot_capture starlink_pilot_capture
-  ad_ip_parameter starlink_pilot_capture CONFIG.INPUT_RATE_MSPS $starlink_pss_rate_msps
+  if {$starlink_coarse25} {
+    ad_ip_parameter starlink_pilot_capture CONFIG.COARSE25_BYPASS 1
+    if {[get_property CONFIG.COARSE25_BYPASS [get_bd_cells starlink_pilot_capture]] ne "1"} {
+      error "C251 capture IP parameter readback mismatch"
+    }
+  } else {
+    ad_ip_parameter starlink_pilot_capture CONFIG.INPUT_RATE_MSPS $starlink_pss_rate_msps
+  }
   ad_ip_instance axi_dmac starlink_pilot_dma
   ad_ip_parameter starlink_pilot_dma CONFIG.DMA_TYPE_SRC 1
   ad_ip_parameter starlink_pilot_dma CONFIG.DMA_TYPE_DEST 0
@@ -292,6 +300,7 @@ ad_ip_instance c_counter_binary counter_timestamp
 ad_ip_parameter counter_timestamp CONFIG.Output_Width 64
 ad_ip_parameter counter_timestamp CONFIG.CE true
 
+if {!$starlink_coarse25} {
 ad_ip_instance axi_starlink_pss_acquisition starlink_pss_acquisition
 ad_ip_parameter starlink_pss_acquisition CONFIG.SAMPLE_FIFO_ADDRESS_WIDTH 7
 ad_ip_parameter starlink_pss_acquisition CONFIG.INPUT_RATE_MSPS $starlink_pss_rate_msps
@@ -319,6 +328,16 @@ if {$starlink_pilot_enabled} {
   ad_connect sys_cpu_clk starlink_pilot_dma/s_axis_aclk
 } else {
   ad_connect GND starlink_pss_acquisition/pilot_enable
+}
+} else {
+  ad_ip_instance starlink_coarse25_ingress starlink_coarse25_ingress
+  ad_connect sys_cpu_clk starlink_coarse25_ingress/calc_clk
+  ad_connect sys_cpu_resetn starlink_coarse25_ingress/calc_resetn
+  foreach signal {valid gap flush i q index} {
+    ad_connect starlink_coarse25_ingress/canonical_$signal starlink_pilot_capture/canonical_$signal
+  }
+  ad_connect starlink_pilot_capture/m_axis starlink_pilot_dma/s_axis
+  ad_connect sys_cpu_clk starlink_pilot_dma/s_axis_aclk
 }
 if {$starlink_pss_tracker_enabled} {
   ad_ip_instance axi_starlink_pss_tracker starlink_pss_tracker
@@ -429,6 +448,7 @@ if {$starlink_pss_tracker_enabled} {
 # profiles or direct RX0 in acquisition-only. It has no ready or backpressure
 # output. The associated absolute index is transported with every accepted
 # CI16 beat through its loss-detecting FIFO into sys_cpu_clk.
+if {!$starlink_coarse25} {
 ad_connect axi_ad9361/l_clk starlink_pss_acquisition/sample_clk
 ad_connect axi_ad9361/rst starlink_pss_acquisition/sample_reset
 if {$starlink_pss_tracker_enabled} {
@@ -456,6 +476,14 @@ if {$starlink_pss_tracker_enabled} {
   ad_connect axi_ad9361/adc_data_i0 starlink_pss_acquisition/sample_i
   ad_connect axi_ad9361/adc_data_q0 starlink_pss_acquisition/sample_q
   ad_connect counter_timestamp/Q starlink_pss_acquisition/sample_index
+}
+} else {
+  ad_connect axi_ad9361/l_clk starlink_coarse25_ingress/sample_clk
+  ad_connect axi_ad9361/rst starlink_coarse25_ingress/sample_reset
+  ad_connect axi_ad9361/adc_valid_i0 starlink_coarse25_ingress/sample_strobe
+  ad_connect axi_ad9361/adc_data_i0 starlink_coarse25_ingress/sample_i
+  ad_connect axi_ad9361/adc_data_q0 starlink_coarse25_ingress/sample_q
+  ad_connect counter_timestamp/Q starlink_coarse25_ingress/sample_index
 }
 
 if {$starlink_pss_rx_dma_enabled} {
@@ -523,7 +551,9 @@ if {$starlink_pss_tracker_enabled} {
 } elseif {$starlink_pss_profile eq "acquisition-injection"} {
   ad_cpu_interconnect 0x79030000 starlink_pss_periodic_injector
 }
-ad_cpu_interconnect 0x79040000 starlink_pss_acquisition
+if {!$starlink_coarse25} {
+  ad_cpu_interconnect 0x79040000 starlink_pss_acquisition
+}
 if {$starlink_pss_rx_dma_enabled} {
   ad_cpu_interconnect 0x7C400000 axi_ad9361_adc_dma
 }
@@ -570,4 +600,6 @@ if {$starlink_pss_tracker_enabled} {
 if {!$starlink_pss_detector_only} {
   ad_cpu_interrupt ps-11 mb-11 axi_spi/ip2intc_irpt
 }
-ad_cpu_interrupt ps-10 mb-10 starlink_pss_acquisition/irq
+if {!$starlink_coarse25} {
+  ad_cpu_interrupt ps-10 mb-10 starlink_pss_acquisition/irq
+}
