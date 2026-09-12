@@ -9,6 +9,10 @@ set_param general.maxThreads 2
 read_verilog [file join $origin starlink_coarse25_mac.v]
 read_xdc [file join $origin mac_ooc.xdc]
 synth_design -top starlink_coarse25_mac -part xc7z010clg400-1 -mode out_of_context
+# OOC synthesis discards boundary I/O delays; reapply for implementation.
+read_xdc [file join $origin mac_ooc.xdc]
+# Explicit hypothetical clock origin for this module probe, not board evidence.
+set_property HD.CLK_SRC BUFGCTRL_X0Y0 [get_ports clk]
 write_checkpoint [file join $output synthesized.dcp]
 report_utilization -file [file join $output synthesized_utilization.rpt]
 opt_design
