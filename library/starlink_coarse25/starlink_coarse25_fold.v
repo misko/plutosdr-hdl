@@ -22,7 +22,7 @@ module starlink_coarse25_fold #(
   output reg [13:0] candidate_background_count
 );
   initial if (GROUPS < 1 || GROUPS > 32) $fatal(1,"GROUPS must be 1..32");
-  localparam INIT=0, IDLE=1, PEAK=2, BG_START=3, BACKGROUND=4, DRAIN=5, CLEAR=6;
+  localparam INIT=0, IDLE=1, PEAK=2, BG_START=3, BACKGROUND=4, DRAIN=5, CLEAR=6, PEAK_DRAIN=7;
   (* ram_style="block" *) reg [12:0] memory [0:19999];
   reg [2:0] state;
   reg [14:0] clear_address;
@@ -41,6 +41,9 @@ module starlink_coarse25_fold #(
   reg [12:0] ram_q, previous, current;
   reg [14:0] peak_value;
   reg [13:0] peak_bin;
+  reg peak_input_valid, peak_input_last;
+  reg [14:0] peak_input_value;
+  reg [13:0] peak_input_bin;
   reg bg_valid1, bg_valid2;
   reg [14:0] bg_value1, bg_value2;
   (* use_dsp="yes" *) reg [29:0] bg_square2;
@@ -86,6 +89,7 @@ module starlink_coarse25_fold #(
 
   always @(posedge clk) begin
     result_pulse <= 0;
+    peak_input_valid <= 0;
     bg_valid1 <= 0;
     bg_valid2 <= bg_valid1;
     if (reset || flush || fault) begin
@@ -168,8 +172,11 @@ module starlink_coarse25_fold #(
             previous <= current;
             current <= ram_q;
             if (state == PEAK) begin
-              if (folded > peak_value) begin peak_value <= folded; peak_bin <= scan_bin; end
-              if (read_tag == 10001) state <= BG_START;
+              peak_input_valid <= 1;
+              peak_input_last <= read_tag == 10001;
+              peak_input_value <= folded;
+              peak_input_bin <= scan_bin;
+              if (read_tag == 10001) state <= PEAK_DRAIN;
             end else begin
               bg_valid1 <= in_background;
               bg_value1 <= folded;
@@ -179,6 +186,14 @@ module starlink_coarse25_fold #(
         end
       end else read_valid <= 0;
 
+      // Do not put the BRAM mux, three-bin sum and winner comparator on one path.
+      if (peak_input_valid) begin
+        if (peak_input_value > peak_value) begin
+          peak_value <= peak_input_value;
+          peak_bin <= peak_input_bin;
+        end
+        if (peak_input_last) state <= BG_START;
+      end
       if (state == BG_START) begin
         read_position <= 0;
         read_valid <= 0;
